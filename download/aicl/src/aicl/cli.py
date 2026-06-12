@@ -2,14 +2,16 @@
 """
 AICL Command-Line Interface
 
-Provides a CLI for compiling AICL source files into executable code.
+Provides a CLI for compiling AICL source files into executable code,
+with full provenance tracking and audit capabilities.
 
 Usage:
     aicl compile <source.aicl> [--output-dir <dir>] [--target <language>]
     aicl parse <source.aicl>
     aicl tree <source.aicl>
     aicl check <source.aicl>
-    aicl explain <source.aicl> [--behavior <name>] [--provenance]
+    aicl explain <source.aicl> [--behavior <name>] [--coverage]
+    aicl audit <source.aicl> [--strict]
     aicl version
 """
 
@@ -38,6 +40,11 @@ def cmd_compile(args):
         print(f"  Architecture tree: {os.path.join(args.output_dir, 'architecture_tree.txt')}")
         print(f"  TODOs remaining: {result.todo_count}")
         print(f"  Fully compiled: {'Yes' if result.fully_compiled else 'No'}")
+
+        # Show audit coverage summary
+        if result.provenance:
+            audit = result.provenance.compute_audit_coverage()
+            print(f"  Audit coverage: {audit['audit_coverage']:.1%} ({audit['auditable_artifacts']}/{audit['total_artifacts']} artifacts)")
 
         if result.warnings:
             print(f"\n  Warnings ({len(result.warnings)}):")
@@ -140,7 +147,6 @@ def cmd_explain(args):
     Examples:
         aicl explain pong.aicl                          # Full compilation trace
         aicl explain pong.aicl --behavior MovePaddle    # Specific behavior trace
-        aicl explain pong.aicl --provenance             # Line-by-line provenance
         aicl explain pong.aicl --coverage               # Explicability coverage report
     """
     source = read_source(args.source)
@@ -175,15 +181,72 @@ def cmd_explain(args):
     print(f"Patterns used: {', '.join(stats.get('patterns_used', []))}")
     print(f"Provenance records: {stats.get('total', 0)}")
 
-    # Always show coverage ratio
+    # Always show audit coverage
+    audit = result.provenance.compute_audit_coverage()
+    print(f"Audit coverage: {audit['audit_coverage']:.1%} ({audit['auditable_artifacts']}/{audit['total_artifacts']} artifacts)")
+
+    # Show line-level coverage
     coverage = result.provenance.compute_explicability_coverage(result.source_code, result.test_code)
     print(f"Explicability coverage: {coverage['coverage_ratio']:.1%} ({coverage['accounted_lines']}/{coverage['total_lines']} lines)")
+
+
+def cmd_audit(args):
+    """
+    Audit the compilation of an AICL source file.
+
+    Verifies the Auditability property:
+        "A program is auditable if every generated artifact
+         can be traced to its originating specification
+         through a complete provenance chain."
+
+    The audit computes:
+        - Audit Coverage = Auditable Artifacts / Generated Artifacts
+        - Orphan Artifacts = Artifacts without provenance
+        - Audit Status = VERIFIED / PARTIAL / FAILED
+
+    Examples:
+        aicl audit pong.aicl               # Full audit report
+        aicl audit pong.aicl --strict       # Fail (exit 1) if coverage < 100%
+    """
+    source = read_source(args.source)
+    compiler = Compiler()
+    result = compiler.compile(source)
+
+    if not result.success:
+        print("Compilation failed — cannot audit")
+        for e in result.errors:
+            print(f"  Error: {e}")
+        sys.exit(1)
+
+    if not result.provenance:
+        print("No provenance data available.")
+        sys.exit(1)
+
+    # Generate and print the full audit report
+    report = result.provenance.audit(result.source_code, result.test_code)
+    print(report)
+
+    # Strict mode: fail if audit doesn't pass
+    if args.strict:
+        if not result.provenance.audit_passed(result.source_code, result.test_code):
+            print()
+            print("STRICT MODE: Audit did not pass.")
+            audit = result.provenance.compute_audit_coverage()
+            if audit['audit_coverage'] < 1.0:
+                print(f"  Audit coverage: {audit['audit_coverage']:.1%} (target: 100%)")
+                print(f"  Orphan artifacts: {len(audit['orphan_artifacts'])}")
+                for orphan in audit['orphan_artifacts']:
+                    print(f"    - [{orphan['type']}] {orphan['name']}")
+            sys.exit(1)
+        else:
+            print()
+            print("STRICT MODE: Audit PASSED. Coverage is 100%.")
 
 
 def cmd_version(args):
     """Display the AICL version."""
     print(f"AICL v{__version__}")
-    print("Architecture Compilation Language: Explicable Compilation")
+    print("Architecture Compilation Language: Auditable Compilation")
 
 
 def read_source(path: str) -> str:
@@ -230,10 +293,15 @@ def main():
     explain_parser.add_argument('source', help='AICL source file (.aicl)')
     explain_parser.add_argument('--behavior', '-b', default=None,
                                 help='Explain a specific behavior (e.g., MovePaddle)')
-    explain_parser.add_argument('--provenance', '-p', action='store_true',
-                                help='Show line-by-line provenance')
     explain_parser.add_argument('--coverage', '-c', action='store_true',
                                 help='Show explicability coverage report')
+
+    # audit command
+    audit_parser = subparsers.add_parser('audit',
+        help='Audit compilation — verify every artifact has provenance')
+    audit_parser.add_argument('source', help='AICL source file (.aicl)')
+    audit_parser.add_argument('--strict', '-s', action='store_true',
+                              help='Fail if audit coverage < 100% (exit code 1)')
 
     # version command
     version_parser = subparsers.add_parser('version', help='Display version')
@@ -250,6 +318,8 @@ def main():
         cmd_check(args)
     elif args.command == 'explain':
         cmd_explain(args)
+    elif args.command == 'audit':
+        cmd_audit(args)
     elif args.command == 'version':
         cmd_version(args)
     else:

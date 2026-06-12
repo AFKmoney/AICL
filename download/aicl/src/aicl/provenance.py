@@ -1,24 +1,36 @@
 """
-AICL Compilation Provenance Tracker
+AICL Compilation Provenance & Audit System
 
 Every line of generated code must have a traceable provenance chain:
     AICL Source → Parse → Pattern Match → Template → Generated Code
 
 This module records and reports WHY each line of code was generated,
-addressing the fundamental risk of compiler complexity hiding.
+and provides an audit system to verify that every generated artifact
+is traceable to its originating specification.
 
-Design Principle:
-    The compiler must always know exactly why it generated a line of code.
-    If it can't explain it, it shouldn't generate it.
+Core Concepts:
+    - Provenance Record: Explains why a specific piece of code was generated
+    - Generated Artifact: A named unit of generated code (class, method, function, test)
+    - Audit Coverage: Ratio of auditable artifacts to total generated artifacts
+    - Orphan Artifact: A generated artifact without provenance
+
+Formal Property (The Auditability Theorem):
+    A program is auditable if every generated artifact
+    can be traced to its originating specification
+    through a complete provenance chain.
+
+    Audit Coverage = Auditable Artifacts / Generated Artifacts
+    Target: Audit Coverage = 1.0
 
 Usage:
     aicl explain pong.aicl              # Full compilation trace
     aicl explain pong.aicl --behavior MovePaddle  # Specific behavior trace
-    aicl explain pong.aicl --provenance           # Show provenance for each line
+    aicl audit pong.aicl                # Audit report with coverage
+    aicl audit pong.aicl --strict       # Fail if coverage < 100%
 """
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Set
 from enum import Enum
 import re
 
@@ -37,6 +49,25 @@ class ProvenanceType(Enum):
     HELPER_METHOD = "helper_method"
     ENTITY_GENERATION = "entity_generation"
     LAYER_INITIALIZATION = "layer_initialization"
+    # v0.5: New provenance types for full coverage
+    SECURITY_METHOD = "security_method"
+    PARALLEL_EXECUTION = "parallel_execution"
+    RUN_METHOD = "run_method"
+    IMPORT_GENERATION = "import_generation"
+    ENTRY_POINT = "entry_point"
+    TEST_GENERATION = "test_generation"
+    CLASS_STRUCTURE = "class_structure"
+
+
+class ArtifactType(Enum):
+    """Type of generated artifact."""
+    CLASS = "class"
+    METHOD = "method"
+    FUNCTION = "function"
+    DATACLASS = "dataclass"
+    TEST_FUNCTION = "test_function"
+    IMPORT_BLOCK = "import_block"
+    MODULE = "module"
 
 
 @dataclass
@@ -56,11 +87,42 @@ class ProvenanceRecord:
     pattern_name: str = ""        # Pattern that matched (if applicable)
     template_name: str = ""       # Architecture template (if applicable)
     parameters: Dict[str, str] = field(default_factory=dict)  # Parameters used
+    artifact_names: List[str] = field(default_factory=list)    # Which artifacts this record covers
+
+
+@dataclass
+class GeneratedArtifact:
+    """
+    A named unit of generated code.
+
+    Every method, class, function, and dataclass produced by the compiler
+    is registered as an artifact. The audit system verifies that each
+    artifact has at least one provenance record explaining its existence.
+
+    An artifact without provenance is an "orphan" — it exists in the
+    generated code but the compiler cannot explain why.
+    """
+    name: str                           # Human-readable name (e.g., "_behavior_move_paddle")
+    artifact_type: ArtifactType         # Type of artifact
+    source: str                         # Which AICL section triggered generation
+    provenance_indices: List[int] = field(default_factory=list)  # Indices into records list
+    code_snippet: str = ""              # Brief snippet of the generated code (first line)
+
+    @property
+    def has_provenance(self) -> bool:
+        """Whether this artifact has at least one provenance record."""
+        return len(self.provenance_indices) > 0
+
+    @property
+    def is_orphan(self) -> bool:
+        """Whether this artifact is an orphan (no provenance)."""
+        return not self.has_provenance
 
 
 class CompilationProvenance:
     """
-    Tracks the complete provenance of a compilation.
+    Tracks the complete provenance of a compilation and provides
+    audit capabilities.
 
     Records every decision the compiler makes, creating an audit trail
     that can be queried to understand WHY any line of code exists.
@@ -68,10 +130,13 @@ class CompilationProvenance:
     This is the antidote to compiler complexity hiding. As AICL grows
     (30 patterns → 100 patterns → 500 patterns), the provenance tracker
     ensures every decision remains explainable.
+
+    v0.5: Added artifact tracking and audit coverage computation.
     """
 
     def __init__(self):
         self.records: List[ProvenanceRecord] = []
+        self.artifacts: List[GeneratedArtifact] = []
 
     def record(
         self,
@@ -84,6 +149,7 @@ class CompilationProvenance:
         pattern_name: str = "",
         template_name: str = "",
         parameters: Dict[str, str] = None,
+        artifact_names: List[str] = None,
     ) -> ProvenanceRecord:
         """Record a compilation decision."""
         rec = ProvenanceRecord(
@@ -96,9 +162,62 @@ class CompilationProvenance:
             pattern_name=pattern_name,
             template_name=template_name,
             parameters=parameters or {},
+            artifact_names=artifact_names or [],
         )
         self.records.append(rec)
+
+        # Link this provenance record to any matching artifacts
+        record_index = len(self.records) - 1
+        for artifact_name in (artifact_names or []):
+            for artifact in self.artifacts:
+                if artifact.name == artifact_name:
+                    artifact.provenance_indices.append(record_index)
+
         return rec
+
+    def register_artifact(
+        self,
+        name: str,
+        artifact_type: ArtifactType,
+        source: str,
+        code_snippet: str = "",
+    ) -> GeneratedArtifact:
+        """
+        Register a generated artifact.
+
+        Every method, class, function, and dataclass produced by the
+        compiler should be registered. The audit system will verify
+        that each artifact has at least one provenance record.
+        """
+        artifact = GeneratedArtifact(
+            name=name,
+            artifact_type=artifact_type,
+            source=source,
+            code_snippet=code_snippet,
+        )
+        self.artifacts.append(artifact)
+
+        # Check if any existing provenance records already cover this artifact
+        for i, rec in enumerate(self.records):
+            if name in rec.artifact_names:
+                artifact.provenance_indices.append(i)
+
+        return artifact
+
+    def link_provenance_to_artifact(self, record_index: int, artifact_name: str):
+        """Explicitly link a provenance record to an artifact."""
+        if record_index < len(self.records):
+            if artifact_name not in self.records[record_index].artifact_names:
+                self.records[record_index].artifact_names.append(artifact_name)
+
+        for artifact in self.artifacts:
+            if artifact.name == artifact_name:
+                if record_index not in artifact.provenance_indices:
+                    artifact.provenance_indices.append(record_index)
+
+    # =========================================================================
+    # Explain Commands
+    # =========================================================================
 
     def explain(self, target: str = None) -> str:
         """
@@ -244,6 +363,10 @@ class CompilationProvenance:
             "patterns_used": list(set(r.pattern_name for r in self.records if r.pattern_name)),
         }
 
+    # =========================================================================
+    # Coverage & Audit
+    # =========================================================================
+
     def compute_explicability_coverage(self, generated_source: str, generated_tests: str = "") -> Dict:
         """
         Compute the explicability coverage ratio.
@@ -347,6 +470,61 @@ class CompilationProvenance:
             "by_type_coverage": by_type_coverage,
         }
 
+    def compute_audit_coverage(self) -> Dict:
+        """
+        Compute the audit coverage of generated artifacts.
+
+        Audit Coverage = Auditable Artifacts / Generated Artifacts
+
+        An artifact is "auditable" if it has at least one provenance record.
+        An artifact without provenance is an "orphan".
+
+        This is the key metric for the Auditability property:
+            "A program is auditable if every generated artifact
+             can be traced to its originating specification
+             through a complete provenance chain."
+
+        Returns:
+            Dict with:
+                - total_artifacts: total number of generated artifacts
+                - auditable_artifacts: artifacts with at least one provenance record
+                - orphan_artifacts: list of artifacts without provenance
+                - audit_coverage: ratio of auditable to total (target: 1.0)
+                - by_type: breakdown by artifact type
+        """
+        total = len(self.artifacts)
+        if total == 0:
+            return {
+                "total_artifacts": 0,
+                "auditable_artifacts": 0,
+                "orphan_artifacts": [],
+                "audit_coverage": 1.0,
+                "by_type": {},
+            }
+
+        auditable = [a for a in self.artifacts if a.has_provenance]
+        orphans = [a for a in self.artifacts if a.is_orphan]
+
+        # Breakdown by type
+        by_type = {}
+        for atype in ArtifactType:
+            type_artifacts = [a for a in self.artifacts if a.artifact_type == atype]
+            type_auditable = [a for a in type_artifacts if a.has_provenance]
+            if type_artifacts:
+                by_type[atype.value] = {
+                    "total": len(type_artifacts),
+                    "auditable": len(type_auditable),
+                    "coverage": len(type_auditable) / len(type_artifacts),
+                }
+
+        return {
+            "total_artifacts": total,
+            "auditable_artifacts": len(auditable),
+            "orphan_artifacts": [{"name": a.name, "type": a.artifact_type.value, "source": a.source} for a in orphans],
+            "audit_coverage": len(auditable) / total,
+            "by_type": by_type,
+        }
+
     def explain_coverage(self, generated_source: str, generated_tests: str = "") -> str:
         """Generate a coverage report for the explicable compilation property."""
         coverage = self.compute_explicability_coverage(generated_source, generated_tests)
@@ -387,3 +565,155 @@ class CompilationProvenance:
         lines.append("")
         lines.append("=" * 70)
         return '\n'.join(lines)
+
+    def audit(self, generated_source: str = "", generated_tests: str = "") -> str:
+        """
+        Generate a complete audit report.
+
+        This is the primary output of the audit system. It verifies the
+        Auditability property:
+
+            "A program is auditable if every generated artifact
+             can be traced to its originating specification
+             through a complete provenance chain."
+
+        The audit report contains:
+            1. Artifact summary (total, auditable, orphans)
+            2. Audit coverage ratio (target: 1.0)
+            3. Orphan artifact list (artifacts without provenance)
+            4. Audit status (VERIFIED / PARTIAL / FAILED)
+            5. Explicability coverage (line-level)
+            6. Breakdown by artifact type
+
+        Returns:
+            Human-readable audit report.
+        """
+        lines = []
+        lines.append("=" * 70)
+        lines.append("AICL AUDIT REPORT")
+        lines.append("=" * 70)
+        lines.append("")
+
+        # Artifact audit
+        audit = self.compute_audit_coverage()
+
+        lines.append("ARTIFACT AUDIT")
+        lines.append("-" * 70)
+        lines.append(f"  Generated artifacts:     {audit['total_artifacts']}")
+        lines.append(f"  Artifacts with provenance: {audit['auditable_artifacts']}")
+        lines.append(f"  Orphan artifacts:        {len(audit['orphan_artifacts'])}")
+        lines.append("")
+
+        coverage_pct = audit['audit_coverage'] * 100
+        lines.append(f"  Audit Coverage:          {coverage_pct:.2f}%")
+        lines.append("")
+
+        # Audit status
+        if audit['audit_coverage'] >= 1.0:
+            lines.append("  Audit Status: VERIFIED")
+        elif audit['audit_coverage'] >= 0.90:
+            lines.append("  Audit Status: PARTIAL (investigation needed)")
+        else:
+            lines.append("  Audit Status: FAILED (significant provenance gaps)")
+        lines.append("")
+
+        # Orphan artifacts
+        if audit['orphan_artifacts']:
+            lines.append("ORPHAN ARTIFACTS (no provenance)")
+            lines.append("-" * 70)
+            for orphan in audit['orphan_artifacts']:
+                lines.append(f"  [{orphan['type']:15s}] {orphan['name']}")
+                lines.append(f"    Source: {orphan['source']}")
+            lines.append("")
+
+        # Breakdown by artifact type
+        if audit['by_type']:
+            lines.append("COVERAGE BY ARTIFACT TYPE")
+            lines.append("-" * 70)
+            for atype, info in sorted(audit['by_type'].items(), key=lambda x: -x[1]['total']):
+                cov_pct = info['coverage'] * 100
+                status = "VERIFIED" if info['coverage'] >= 1.0 else "PARTIAL" if info['coverage'] >= 0.9 else "FAILED"
+                lines.append(f"  {atype:15s}  {info['auditable']:3d}/{info['total']:3d}  {cov_pct:6.2f}%  [{status}]")
+            lines.append("")
+
+        # Line-level explicability coverage
+        if generated_source:
+            exp_coverage = self.compute_explicability_coverage(generated_source, generated_tests)
+            lines.append("LINE-LEVEL EXPLICABILITY")
+            lines.append("-" * 70)
+            lines.append(f"  Total meaningful lines:  {exp_coverage['total_lines']}")
+            lines.append(f"  Lines with provenance:   {exp_coverage['accounted_lines']}")
+            lines.append(f"  Explicability coverage:  {exp_coverage['coverage_ratio']:.2%}")
+
+            if exp_coverage['coverage_ratio'] >= 0.95:
+                lines.append("  Line status: PASS (>= 95%)")
+            elif exp_coverage['coverage_ratio'] >= 0.80:
+                lines.append("  Line status: PARTIAL (80-95%)")
+            else:
+                lines.append("  Line status: FAIL (< 80%)")
+
+            if exp_coverage['unaccounted_lines']:
+                lines.append(f"  Unaccounted lines: {len(exp_coverage['unaccounted_lines'])}")
+            lines.append("")
+
+        # Provenance summary
+        lines.append("PROVENANCE SUMMARY")
+        lines.append("-" * 70)
+        total_records = len(self.records)
+        lines.append(f"  Total provenance records: {total_records}")
+
+        if total_records > 0:
+            avg_conf = sum(r.confidence for r in self.records) / total_records
+            lines.append(f"  Average confidence:       {avg_conf:.2f}")
+            deterministic = sum(1 for r in self.records if r.confidence >= 0.9)
+            lines.append(f"  Deterministic decisions:  {deterministic}/{total_records} ({100*deterministic//total_records}%)")
+
+            # By type summary
+            by_type = {}
+            for rec in self.records:
+                label = rec.source_type.value.replace("_", " ").title()
+                by_type[label] = by_type.get(label, 0) + 1
+
+            lines.append("  Provenance by type:")
+            for label, count in sorted(by_type.items(), key=lambda x: -x[1]):
+                lines.append(f"    {label:30s} {count:4d}")
+        lines.append("")
+
+        # Final verdict
+        lines.append("=" * 70)
+        if audit['audit_coverage'] >= 1.0 and (not generated_source or exp_coverage['coverage_ratio'] >= 0.95):
+            lines.append("AUDIT RESULT: PASSED")
+            lines.append("  Every generated artifact has provenance.")
+            lines.append("  Compilation is fully auditable.")
+        elif audit['audit_coverage'] >= 0.90:
+            lines.append("AUDIT RESULT: PARTIAL")
+            lines.append("  Most artifacts have provenance.")
+            lines.append("  Some orphan artifacts need investigation.")
+        else:
+            lines.append("AUDIT RESULT: FAILED")
+            lines.append("  Significant provenance gaps detected.")
+            lines.append("  Compilation is not fully auditable.")
+        lines.append("=" * 70)
+
+        return '\n'.join(lines)
+
+    def audit_passed(self, generated_source: str = "", generated_tests: str = "") -> bool:
+        """
+        Check whether the audit passes.
+
+        Audit passes if:
+            1. Audit coverage = 1.0 (no orphan artifacts)
+            2. Explicability coverage >= 0.95 (line-level)
+
+        Used by `aicl audit --strict` to determine exit code.
+        """
+        audit = self.compute_audit_coverage()
+        if audit['audit_coverage'] < 1.0:
+            return False
+
+        if generated_source:
+            exp = self.compute_explicability_coverage(generated_source, generated_tests)
+            if exp['coverage_ratio'] < 0.95:
+                return False
+
+        return True

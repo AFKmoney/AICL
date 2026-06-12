@@ -998,6 +998,290 @@ class TestZeroTODOCompilation:
 
 
 # =============================================================================
+# Audit Coverage Tests
+# =============================================================================
+
+class TestAuditCoverage:
+    """Test the audit coverage system."""
+
+    def test_audit_coverage_is_100_for_simple_program(self):
+        """Test that a simple program has 100% audit coverage."""
+        from aicl.compiler import Compiler
+        source = """Goal:
+Build a game
+
+Risk:
+Server down
+
+Recovery:
+Reconnect
+
+Layer:
+Renderer
+
+Layer:
+Game Logic
+
+Validation:
+Game runs correctly
+"""
+        compiler = Compiler()
+        result = compiler.compile(source)
+        assert result.success
+
+        audit = result.provenance.compute_audit_coverage()
+        assert audit['audit_coverage'] == 1.0, f"Expected 100%, got {audit['audit_coverage']:.1%}"
+        assert audit['total_artifacts'] > 0
+        assert audit['auditable_artifacts'] == audit['total_artifacts']
+        assert len(audit['orphan_artifacts']) == 0
+
+    def test_audit_coverage_for_pong(self):
+        """Test that Pong has 100% audit coverage."""
+        from aicl.compiler import Compiler
+        with open(os.path.join(os.path.dirname(__file__), '..', 'examples', '02_pong.aicl')) as f:
+            source = f.read()
+        compiler = Compiler()
+        result = compiler.compile(source)
+        assert result.success
+
+        audit = result.provenance.compute_audit_coverage()
+        assert audit['audit_coverage'] == 1.0, f"Pong audit coverage: {audit['audit_coverage']:.1%}"
+        assert len(audit['orphan_artifacts']) == 0
+
+    def test_audit_coverage_for_chat(self):
+        """Test that Chat has 100% audit coverage."""
+        from aicl.compiler import Compiler
+        with open(os.path.join(os.path.dirname(__file__), '..', 'examples', '03_chat.aicl')) as f:
+            source = f.read()
+        compiler = Compiler()
+        result = compiler.compile(source)
+        assert result.success
+
+        audit = result.provenance.compute_audit_coverage()
+        assert audit['audit_coverage'] == 1.0, f"Chat audit coverage: {audit['audit_coverage']:.1%}"
+        assert len(audit['orphan_artifacts']) == 0
+
+    def test_audit_coverage_for_chess(self):
+        """Test that Chess has 100% audit coverage."""
+        from aicl.compiler import Compiler
+        with open(os.path.join(os.path.dirname(__file__), '..', 'examples', '04_chess.aicl')) as f:
+            source = f.read()
+        compiler = Compiler()
+        result = compiler.compile(source)
+        assert result.success
+
+        audit = result.provenance.compute_audit_coverage()
+        assert audit['audit_coverage'] == 1.0, f"Chess audit coverage: {audit['audit_coverage']:.1%}"
+        assert len(audit['orphan_artifacts']) == 0
+
+    def test_audit_passed_method(self):
+        """Test the audit_passed method."""
+        from aicl.compiler import Compiler
+        source = """Goal:
+Build a game
+
+Layer:
+Renderer
+
+Validation:
+Game runs correctly
+"""
+        compiler = Compiler()
+        result = compiler.compile(source)
+        assert result.success
+        assert result.provenance.audit_passed(result.source_code, result.test_code)
+
+    def test_audit_report_generates(self):
+        """Test that the audit report generates correctly."""
+        from aicl.compiler import Compiler
+        source = """Goal:
+Build a game
+
+Layer:
+Renderer
+
+Validation:
+Game runs correctly
+"""
+        compiler = Compiler()
+        result = compiler.compile(source)
+        assert result.success
+
+        report = result.provenance.audit(result.source_code, result.test_code)
+        assert "AICL AUDIT REPORT" in report
+        assert "VERIFIED" in report
+        assert "Audit Coverage" in report
+        assert "100.00%" in report
+
+    def test_explicability_coverage_for_compiled_program(self):
+        """Test that compiled programs have high explicability coverage."""
+        from aicl.compiler import Compiler
+        source = """Goal:
+Build a game
+
+Risk:
+Server down
+
+Recovery:
+Reconnect
+
+Layer:
+Renderer
+
+Layer:
+Game Logic
+
+Validation:
+Game runs correctly
+"""
+        compiler = Compiler()
+        result = compiler.compile(source)
+        assert result.success
+
+        coverage = result.provenance.compute_explicability_coverage(result.source_code, result.test_code)
+        assert coverage['coverage_ratio'] >= 0.90, f"Coverage too low: {coverage['coverage_ratio']:.1%}"
+
+    def test_artifact_tracking_by_type(self):
+        """Test that artifacts are tracked by type in the audit."""
+        from aicl.compiler import Compiler
+        source = """Goal:
+Build a Pong game
+
+Entity:
+Player
+    position: integer
+    score: integer
+
+Layer:
+Game Logic
+
+Behavior:
+Move Paddle
+    Input: player: Player, direction: string
+    Action: move player paddle
+
+Validation:
+Game runs at 60fps
+"""
+        compiler = Compiler()
+        result = compiler.compile(source)
+        assert result.success
+
+        audit = result.provenance.compute_audit_coverage()
+        by_type = audit['by_type']
+
+        # Should have at least methods, a class, imports, and tests
+        assert 'method' in by_type
+        assert 'class' in by_type
+        assert 'import_block' in by_type
+        assert 'test_function' in by_type
+        assert 'dataclass' in by_type
+
+        # All should be 100% covered
+        for atype, info in by_type.items():
+            assert info['coverage'] == 1.0, f"{atype} coverage: {info['coverage']:.1%}"
+
+    def test_all_provenance_types_covered(self):
+        """Test that the provenance system covers all new types."""
+        from aicl.provenance import ProvenanceType
+        expected_types = [
+            "pattern_match", "sub_language", "fallback", "architecture_template",
+            "direct_mapping", "recovery_synthesis", "validation_synthesis",
+            "condition_synthesis", "event_synthesis", "helper_method",
+            "entity_generation", "layer_initialization",
+            "security_method", "parallel_execution", "run_method",
+            "import_generation", "entry_point", "test_generation",
+            "class_structure",
+        ]
+        actual_types = [t.value for t in ProvenanceType]
+        for expected in expected_types:
+            assert expected in actual_types, f"Missing ProvenanceType: {expected}"
+
+
+class TestProvenanceArtifactSystem:
+    """Test the provenance artifact tracking system."""
+
+    def test_register_artifact(self):
+        """Test that artifacts can be registered."""
+        from aicl.provenance import CompilationProvenance, ArtifactType
+        prov = CompilationProvenance()
+        art = prov.register_artifact("test_method", ArtifactType.METHOD, "Test source")
+        assert art.name == "test_method"
+        assert art.artifact_type == ArtifactType.METHOD
+        assert not art.has_provenance
+        assert art.is_orphan
+
+    def test_link_provenance_to_artifact(self):
+        """Test that provenance records can be linked to artifacts."""
+        from aicl.provenance import CompilationProvenance, ProvenanceType, ArtifactType
+        prov = CompilationProvenance()
+
+        # Register artifact first
+        prov.register_artifact("test_method", ArtifactType.METHOD, "Test source")
+
+        # Record provenance that covers the artifact
+        prov.record(
+            source_type=ProvenanceType.PATTERN_MATCH,
+            source_location="Behavior Test",
+            source_text="move player",
+            resolution_path=["AICL Source", "Pattern Match", "Generated Code"],
+            generated_code="player.position += 1",
+            artifact_names=["test_method"],
+        )
+
+        # Verify artifact now has provenance
+        assert prov.artifacts[0].has_provenance
+        assert not prov.artifacts[0].is_orphan
+
+    def test_orphan_detection(self):
+        """Test that orphan artifacts are detected."""
+        from aicl.provenance import CompilationProvenance, ArtifactType
+        prov = CompilationProvenance()
+
+        # Register an artifact without provenance
+        prov.register_artifact("orphan_method", ArtifactType.METHOD, "Unknown")
+
+        audit = prov.compute_audit_coverage()
+        assert audit['audit_coverage'] == 0.0
+        assert len(audit['orphan_artifacts']) == 1
+        assert audit['orphan_artifacts'][0]['name'] == "orphan_method"
+
+    def test_audit_coverage_computation(self):
+        """Test audit coverage computation with mixed provenance."""
+        from aicl.provenance import CompilationProvenance, ProvenanceType, ArtifactType
+        prov = CompilationProvenance()
+
+        # Register 3 artifacts
+        prov.register_artifact("method_a", ArtifactType.METHOD, "Source A")
+        prov.register_artifact("method_b", ArtifactType.METHOD, "Source B")
+        prov.register_artifact("method_c", ArtifactType.FUNCTION, "Source C")
+
+        # Add provenance for 2 of them
+        prov.record(
+            source_type=ProvenanceType.DIRECT_MAPPING,
+            source_location="Test A",
+            source_text="test a",
+            resolution_path=["Source", "Generated"],
+            generated_code="pass",
+            artifact_names=["method_a"],
+        )
+        prov.record(
+            source_type=ProvenanceType.DIRECT_MAPPING,
+            source_location="Test B",
+            source_text="test b",
+            resolution_path=["Source", "Generated"],
+            generated_code="pass",
+            artifact_names=["method_b"],
+        )
+
+        audit = prov.compute_audit_coverage()
+        assert audit['total_artifacts'] == 3
+        assert audit['auditable_artifacts'] == 2
+        assert audit['audit_coverage'] == 2/3
+        assert len(audit['orphan_artifacts']) == 1
+
+
+# =============================================================================
 # Run Tests
 # =============================================================================
 

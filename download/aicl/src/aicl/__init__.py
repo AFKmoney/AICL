@@ -1,12 +1,12 @@
 """
 AICL - Architecture Compilation Language
-Explicable Compilation: if the compiler cannot explain why, it does not generate.
+Auditable Compilation: if the compiler cannot explain why, it does not generate.
 
-Version: 0.4.0
+Version: 0.5.0
 Author: Philippe-Antoine
 """
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 __author__ = "Philippe-Antoine"
 
 from .parser import Parser, ParseError
@@ -24,6 +24,10 @@ from .patterns import (
     BehaviorPatternLibrary, BehaviorCompiler,
     SubLanguageParser, ArchitectureTemplateMapper,
 )
+from .provenance import (
+    CompilationProvenance, ProvenanceType, ProvenanceRecord,
+    GeneratedArtifact, ArtifactType,
+)
 
 __all__ = [
     "Parser", "ParseError",
@@ -37,4 +41,6 @@ __all__ = [
     "Compiler", "CompilationResult",
     "BehaviorPatternLibrary", "BehaviorCompiler",
     "SubLanguageParser", "ArchitectureTemplateMapper",
+    "CompilationProvenance", "ProvenanceType", "ProvenanceRecord",
+    "GeneratedArtifact", "ArtifactType",
 ]
