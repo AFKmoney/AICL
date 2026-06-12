@@ -141,6 +141,7 @@ def cmd_explain(args):
         aicl explain pong.aicl                          # Full compilation trace
         aicl explain pong.aicl --behavior MovePaddle    # Specific behavior trace
         aicl explain pong.aicl --provenance             # Line-by-line provenance
+        aicl explain pong.aicl --coverage               # Explicability coverage report
     """
     source = read_source(args.source)
     compiler = Compiler()
@@ -156,7 +157,10 @@ def cmd_explain(args):
         print("No provenance records available. Compilation may have been cached.")
         return
 
-    if args.behavior:
+    if args.coverage:
+        # Show explicability coverage report
+        print(result.provenance.explain_coverage(result.source_code, result.test_code))
+    elif args.behavior:
         # Explain a specific behavior
         print(result.provenance.explain_behavior(args.behavior))
     else:
@@ -167,13 +171,19 @@ def cmd_explain(args):
     print()
     print(f"Compilation: {'SUCCESS' if result.fully_compiled else 'PARTIAL'}")
     print(f"TODOs remaining: {result.todo_count}")
-    print(f"Patterns used: {', '.join(result.provenance.get_statistics().get('patterns_used', []))}")
+    stats = result.provenance.get_statistics()
+    print(f"Patterns used: {', '.join(stats.get('patterns_used', []))}")
+    print(f"Provenance records: {stats.get('total', 0)}")
+
+    # Always show coverage ratio
+    coverage = result.provenance.compute_explicability_coverage(result.source_code, result.test_code)
+    print(f"Explicability coverage: {coverage['coverage_ratio']:.1%} ({coverage['accounted_lines']}/{coverage['total_lines']} lines)")
 
 
 def cmd_version(args):
     """Display the AICL version."""
     print(f"AICL v{__version__}")
-    print("AI-Centric Language: Specification-First Programming")
+    print("Architecture Compilation Language: Explicable Compilation")
 
 
 def read_source(path: str) -> str:
@@ -190,7 +200,7 @@ def main():
     """Main entry point for the AICL CLI."""
     parser = argparse.ArgumentParser(
         prog='aicl',
-        description='AICL - AI-Centric Language Compiler'
+        description='AICL - Architecture Compilation Language'
     )
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
@@ -222,6 +232,8 @@ def main():
                                 help='Explain a specific behavior (e.g., MovePaddle)')
     explain_parser.add_argument('--provenance', '-p', action='store_true',
                                 help='Show line-by-line provenance')
+    explain_parser.add_argument('--coverage', '-c', action='store_true',
+                                help='Show explicability coverage report')
 
     # version command
     version_parser = subparsers.add_parser('version', help='Display version')

@@ -20,6 +20,7 @@ Usage:
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple
 from enum import Enum
+import re
 
 
 class ProvenanceType(Enum):
@@ -242,3 +243,147 @@ class CompilationProvenance:
             "fully_deterministic": sum(1 for r in self.records if r.confidence >= 0.9),
             "patterns_used": list(set(r.pattern_name for r in self.records if r.pattern_name)),
         }
+
+    def compute_explicability_coverage(self, generated_source: str, generated_tests: str = "") -> Dict:
+        """
+        Compute the explicability coverage ratio.
+
+        The explicability coverage measures what fraction of generated code
+        lines are accounted for by provenance records. The target is 1.0
+        (every line has provenance). Any deviation is a gap to investigate.
+
+        Returns:
+            Dict with keys:
+                - total_lines: total non-blank, non-comment lines in generated code
+                - accounted_lines: lines that appear in at least one provenance record
+                - coverage_ratio: accounted_lines / total_lines (target: 1.0)
+                - unaccounted_lines: list of line numbers without provenance
+                - by_type_coverage: coverage broken down by provenance type
+        """
+        # Combine source and test code
+        all_code = generated_source
+        if generated_tests:
+            all_code += "\n" + generated_tests
+
+        # Count meaningful lines (non-blank, non-import, non-pure-comment)
+        code_lines = []
+        for i, line in enumerate(all_code.split('\n')):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            # Skip pure comment lines and import lines for coverage
+            if stripped.startswith('#') and not any(kw in stripped for kw in ['When:', 'On:', 'Risk:', 'Recovery:', 'Action:', 'Intent:']):
+                continue
+            if stripped.startswith(('import ', 'from ')):
+                continue
+            if stripped in ('"""', "'''", ''):
+                continue
+            code_lines.append((i + 1, stripped))
+
+        total_lines = len(code_lines)
+        if total_lines == 0:
+            return {
+                "total_lines": 0,
+                "accounted_lines": 0,
+                "coverage_ratio": 1.0,
+                "unaccounted_lines": [],
+                "by_type_coverage": {},
+            }
+
+        # Build set of code fragments from provenance records
+        accounted_fragments = set()
+        for rec in self.records:
+            for code_line in rec.generated_code.strip().split('\n'):
+                stripped = code_line.strip()
+                if stripped:
+                    # Normalize for matching (remove variable values that change)
+                    normalized = re.sub(r'[\'"].*?[\'\"]', "'...'", stripped)
+                    normalized = re.sub(r'\{[^}]*\}', '{...}', normalized)
+                    accounted_fragments.add(normalized)
+                    # Also add the original
+                    accounted_fragments.add(stripped)
+
+        # Check which lines are accounted for
+        accounted_lines = 0
+        unaccounted = []
+        for line_num, line_text in code_lines:
+            stripped = line_text.strip()
+            # Check if this line or a normalized version appears in provenance
+            found = False
+            if stripped in accounted_fragments:
+                found = True
+            else:
+                # Try normalizing the source line too
+                normalized = re.sub(r'[\'"].*?[\'\"]', "'...'", stripped)
+                normalized = re.sub(r'\{[^}]*\}', '{...}', normalized)
+                if normalized in accounted_fragments:
+                    found = True
+                else:
+                    # Check if any provenance fragment is a prefix of this line
+                    for frag in accounted_fragments:
+                        if frag and stripped.startswith(frag.split('=')[0].split('(')[0].strip()):
+                            found = True
+                            break
+
+            if found:
+                accounted_lines += 1
+            else:
+                # Only flag as unaccounted if it's a significant line
+                if not stripped.startswith(('#', '"""', "'''", 'pass', 'else:', 'try:', 'except', 'finally:')):
+                    unaccounted.append((line_num, stripped[:80]))
+
+        # Coverage by provenance type
+        by_type_coverage = {}
+        for ptype in ProvenanceType:
+            count = len([r for r in self.records if r.source_type == ptype])
+            if count > 0:
+                by_type_coverage[ptype.value] = count
+
+        return {
+            "total_lines": total_lines,
+            "accounted_lines": accounted_lines,
+            "coverage_ratio": accounted_lines / total_lines if total_lines > 0 else 1.0,
+            "unaccounted_lines": unaccounted,
+            "by_type_coverage": by_type_coverage,
+        }
+
+    def explain_coverage(self, generated_source: str, generated_tests: str = "") -> str:
+        """Generate a coverage report for the explicable compilation property."""
+        coverage = self.compute_explicability_coverage(generated_source, generated_tests)
+        lines = []
+        lines.append("=" * 70)
+        lines.append("EXPLICABILITY COVERAGE REPORT")
+        lines.append("=" * 70)
+        lines.append("")
+        lines.append(f"Total meaningful lines:   {coverage['total_lines']}")
+        lines.append(f"Lines with provenance:    {coverage['accounted_lines']}")
+        lines.append(f"Coverage ratio:           {coverage['coverage_ratio']:.3f}")
+        lines.append("")
+
+        if coverage['coverage_ratio'] >= 0.95:
+            lines.append("Status: PASS (coverage >= 95%)")
+        elif coverage['coverage_ratio'] >= 0.80:
+            lines.append("Status: PARTIAL (coverage 80-95%, investigation needed)")
+        else:
+            lines.append("Status: FAIL (coverage < 80%, provenance gaps detected)")
+
+        lines.append("")
+
+        if coverage['by_type_coverage']:
+            lines.append("Provenance by type:")
+            for ptype, count in sorted(coverage['by_type_coverage'].items(), key=lambda x: -x[1]):
+                lines.append(f"  {ptype:30s} {count:4d} records")
+            lines.append("")
+
+        if coverage['unaccounted_lines']:
+            lines.append(f"Unaccounted lines ({len(coverage['unaccounted_lines'])}):")
+            for line_num, text in coverage['unaccounted_lines'][:20]:
+                lines.append(f"  L{line_num:4d}: {text}")
+            if len(coverage['unaccounted_lines']) > 20:
+                lines.append(f"  ... and {len(coverage['unaccounted_lines']) - 20} more")
+        else:
+            lines.append("All lines have provenance coverage.")
+
+        lines.append("")
+        lines.append("=" * 70)
+        return '\n'.join(lines)
