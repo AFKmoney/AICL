@@ -401,12 +401,28 @@ class Parser:
     # =========================================================================
 
     def _parse_behavior(self, name: str, indent: int, program: AICLProgram) -> None:
-        """Parse a Behavior section."""
+        """Parse a Behavior section.
+
+        Behaviors can have their sub-sections (Input, Output, Action) either:
+        1. Indented inside the behavior block, OR
+        2. At the same indent level following the Behavior declaration
+
+        This method handles both formats.
+        """
         behavior = BehaviorSection(name=name)
 
-        # Read indented block
+        # Try reading indented block first
         block = self._read_indented_block(indent)
-        for kw, val, _ in block:
+
+        # If no indented block, read subsequent same-level keywords
+        # (Input, Output, Action at the same indent level as Behavior)
+        if not block:
+            block = self._read_behavior_flat_block(indent)
+
+        i = 0
+        while i < len(block):
+            kw, val, kw_indent = block[i]
+
             if kw == 'Input':
                 # Parse input parameters
                 if val:
@@ -417,6 +433,19 @@ class Parser:
                         ))
                     if len(parts) == 1:
                         behavior.inputs.append(BehaviorInput(name=parts[0], param_type='any'))
+                # Check if next line(s) are plain values (multi-line input)
+                while i + 1 < len(block) and block[i + 1][0] == '__value__':
+                    i += 1
+                    extra_val = block[i][1].strip()
+                    if extra_val:
+                        parts = extra_val.split()
+                        for j in range(0, len(parts) - 1, 2):
+                            behavior.inputs.append(BehaviorInput(
+                                name=parts[j], param_type=parts[j + 1] if j + 1 < len(parts) else 'any'
+                            ))
+                        if len(parts) == 1:
+                            behavior.inputs.append(BehaviorInput(name=parts[0], param_type='any'))
+
             elif kw == 'Output':
                 if val:
                     parts = val.strip().split()
@@ -424,10 +453,64 @@ class Parser:
                         behavior.output = BehaviorOutput(name=parts[0], output_type=parts[1])
                     elif len(parts) == 1:
                         behavior.output = BehaviorOutput(name=val, output_type=val)
+
             elif kw == 'Action':
-                behavior.action = val
+                if val:
+                    behavior.action = val
+                elif i + 1 < len(block) and block[i + 1][0] == '__value__':
+                    # Action value is on the next line
+                    i += 1
+                    behavior.action = block[i][1].strip()
+
+            i += 1
 
         program.behaviors.append(behavior)
+
+    def _read_behavior_flat_block(self, base_indent: int) -> List[Tuple[str, str, int]]:
+        """
+        Read Behavior sub-sections at the same indent level.
+
+        This handles the format where Input, Output, Action appear
+        at the same indent level as the Behavior keyword:
+            Behavior MovePaddle
+            Input: Player direction string
+            Action: Update paddle position
+        """
+        block = []
+        # Keywords that belong to a behavior block
+        BEHAVIOR_SUBKEYWORDS = {'Input', 'Output', 'Action'}
+
+        while self.pos < len(self.lines):
+            self._skip_blank_lines()
+            if self.pos >= len(self.lines):
+                break
+
+            line = self.lines[self.pos]
+            stripped = line.strip()
+
+            # Check if this line is a behavior sub-keyword
+            parsed = self._parse_keyword_line(line)
+            if parsed:
+                kw, val, indent = parsed
+                if kw in BEHAVIOR_SUBKEYWORDS:
+                    self.pos += 1
+                    # If no value on same line, read from next line
+                    if not val:
+                        val = self._read_value_line(indent)
+                    block.append((kw, val, indent))
+                    continue
+
+            # If it's a value line (indented), add it
+            line_indent = self._count_indent(line)
+            if line_indent > base_indent and stripped and not self._is_blank_or_comment(line):
+                self.pos += 1
+                block.append(('__value__', stripped, line_indent))
+                continue
+
+            # Any other keyword or unindented line ends the block
+            break
+
+        return block
 
     # =========================================================================
     # Level 4 - Conditions

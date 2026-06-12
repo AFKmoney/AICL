@@ -337,7 +337,7 @@ class BehaviorPatternLibrary:
             template=(
                 "result = {condition}\n"
                 "if not result:\n"
-                "    self._logger.warning(\"Validation failed: {error_msg}\")\n"
+                "    self._logger.warning('Validation failed: {error_msg}')\n"
                 "return result"
             ),
         )

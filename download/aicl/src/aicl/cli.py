@@ -9,6 +9,7 @@ Usage:
     aicl parse <source.aicl>
     aicl tree <source.aicl>
     aicl check <source.aicl>
+    aicl explain <source.aicl> [--behavior <name>] [--provenance]
     aicl version
 """
 
@@ -35,6 +36,8 @@ def cmd_compile(args):
         print(f"  Main file: {os.path.join(args.output_dir, 'main.py')}")
         print(f"  Test file: {os.path.join(args.output_dir, 'test_main.py')}")
         print(f"  Architecture tree: {os.path.join(args.output_dir, 'architecture_tree.txt')}")
+        print(f"  TODOs remaining: {result.todo_count}")
+        print(f"  Fully compiled: {'Yes' if result.fully_compiled else 'No'}")
 
         if result.warnings:
             print(f"\n  Warnings ({len(result.warnings)}):")
@@ -127,6 +130,46 @@ def cmd_check(args):
         print("No warnings")
 
 
+def cmd_explain(args):
+    """
+    Explain the compilation of an AICL source file.
+
+    Shows the provenance chain for every generated piece of code,
+    answering the question: "Why did the compiler generate this line?"
+
+    Examples:
+        aicl explain pong.aicl                          # Full compilation trace
+        aicl explain pong.aicl --behavior MovePaddle    # Specific behavior trace
+        aicl explain pong.aicl --provenance             # Line-by-line provenance
+    """
+    source = read_source(args.source)
+    compiler = Compiler()
+    result = compiler.compile(source)
+
+    if not result.success:
+        print("Compilation failed — cannot explain")
+        for e in result.errors:
+            print(f"  Error: {e}")
+        sys.exit(1)
+
+    if not result.provenance or not result.provenance.records:
+        print("No provenance records available. Compilation may have been cached.")
+        return
+
+    if args.behavior:
+        # Explain a specific behavior
+        print(result.provenance.explain_behavior(args.behavior))
+    else:
+        # Full explanation
+        print(result.provenance.explain())
+
+    # Show compilation summary
+    print()
+    print(f"Compilation: {'SUCCESS' if result.fully_compiled else 'PARTIAL'}")
+    print(f"TODOs remaining: {result.todo_count}")
+    print(f"Patterns used: {', '.join(result.provenance.get_statistics().get('patterns_used', []))}")
+
+
 def cmd_version(args):
     """Display the AICL version."""
     print(f"AICL v{__version__}")
@@ -171,6 +214,15 @@ def main():
     check_parser = subparsers.add_parser('check', help='Check for errors and warnings')
     check_parser.add_argument('source', help='AICL source file (.aicl)')
 
+    # explain command
+    explain_parser = subparsers.add_parser('explain',
+        help='Explain compilation provenance — why each line was generated')
+    explain_parser.add_argument('source', help='AICL source file (.aicl)')
+    explain_parser.add_argument('--behavior', '-b', default=None,
+                                help='Explain a specific behavior (e.g., MovePaddle)')
+    explain_parser.add_argument('--provenance', '-p', action='store_true',
+                                help='Show line-by-line provenance')
+
     # version command
     version_parser = subparsers.add_parser('version', help='Display version')
 
@@ -184,6 +236,8 @@ def main():
         cmd_tree(args)
     elif args.command == 'check':
         cmd_check(args)
+    elif args.command == 'explain':
+        cmd_explain(args)
     elif args.command == 'version':
         cmd_version(args)
     else:

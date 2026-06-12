@@ -29,7 +29,7 @@ Compilation Stages:
 import os
 import re
 import textwrap
-from typing import List, Dict, Optional, Tuple, Set
+from typing import List, Dict, Optional, Tuple, Set, Any
 from dataclasses import dataclass, field
 
 from .ast_nodes import (
@@ -44,6 +44,7 @@ from .parser import Parser, ParseError
 from .patterns import (
     BehaviorCompiler, ArchitectureTemplateMapper, PatternMatch,
 )
+from .provenance import CompilationProvenance, ProvenanceType
 
 
 @dataclass
@@ -58,6 +59,7 @@ class CompilationResult:
     stages_completed: List[str] = field(default_factory=list)
     fully_compiled: bool = True  # True = zero TODOs
     todo_count: int = 0
+    provenance: Any = None  # CompilationProvenance (avoid circular import)
 
 
 class CompilerError(Exception):
@@ -89,6 +91,7 @@ class Compiler:
         self._used_names: Set[str] = set()
         self._behavior_compiler = BehaviorCompiler()
         self._todo_count = 0
+        self._provenance = CompilationProvenance()
 
     def compile(self, source: str) -> CompilationResult:
         """Compile AICL source code into executable Python code."""
@@ -97,6 +100,7 @@ class Compiler:
         self.stages_completed = []
         self._used_names = set()
         self._todo_count = 0
+        self._provenance = CompilationProvenance()
 
         result = CompilationResult()
 
@@ -155,6 +159,7 @@ class Compiler:
         result.stages_completed = self.stages_completed
         result.todo_count = self._todo_count
         result.fully_compiled = self._todo_count == 0
+        result.provenance = self._provenance
 
         return result
 
@@ -738,11 +743,71 @@ class Compiler:
         if not fully_compiled:
             self._todo_count += 1
 
+        # Record provenance
+        self._record_behavior_provenance(behavior, action_code, fully_compiled, entity_context)
+
         # Indent the compiled code
         for code_line in action_code.split('\n'):
             lines.append(f'        {code_line}')
 
         return '\n'.join(lines)
+
+    def _record_behavior_provenance(
+        self, behavior: BehaviorSection, code: str, fully_compiled: bool, context: Dict
+    ):
+        """Record the provenance of a behavior compilation."""
+        action_text = behavior.action
+        match = self._behavior_compiler.pattern_library.match(action_text)
+
+        if match:
+            self._provenance.record(
+                source_type=ProvenanceType.PATTERN_MATCH,
+                source_location=f"Behavior {behavior.name}",
+                source_text=action_text,
+                resolution_path=[
+                    "AICL Source",
+                    f"Behavior {behavior.name}",
+                    f"Action: {action_text}",
+                    f"PATTERN_{match.pattern_name}",
+                    f"Template({match.category.value})",
+                    "Generated Code",
+                ],
+                generated_code=code,
+                confidence=match.confidence,
+                pattern_name=match.pattern_name,
+                parameters=match.parameters,
+            )
+        elif self._behavior_compiler.sub_lang_parser.is_sub_language(action_text):
+            self._provenance.record(
+                source_type=ProvenanceType.SUB_LANGUAGE,
+                source_location=f"Behavior {behavior.name}",
+                source_text=action_text,
+                resolution_path=[
+                    "AICL Source",
+                    f"Behavior {behavior.name}",
+                    f"Action: {action_text}",
+                    "Sub-Language Parser",
+                    "Generated Code",
+                ],
+                generated_code=code,
+                confidence=1.0,
+            )
+        else:
+            prov_type = ProvenanceType.DIRECT_MAPPING if fully_compiled else ProvenanceType.FALLBACK
+            self._provenance.record(
+                source_type=prov_type,
+                source_location=f"Behavior {behavior.name}",
+                source_text=action_text,
+                resolution_path=[
+                    "AICL Source",
+                    f"Behavior {behavior.name}",
+                    f"Action: {action_text}",
+                    "Structured Fallback" if not fully_compiled else "Direct Mapping",
+                    "Generated Code",
+                ],
+                generated_code=code,
+                confidence=0.5 if not fully_compiled else 0.8,
+            )
 
     def _generate_condition_handler(
         self, condition: ConditionSection, index: int, program: AICLProgram
@@ -981,7 +1046,7 @@ class Compiler:
         lines.append(f'            if result:')
         lines.append(f'                self._logger.info("Validation passed: {validation.description}")')
         lines.append(f'            else:')
-        lines.append(f'                self._logger.warning("Validation failed: {validation.description}")')
+        lines.append(f"                self._logger.warning('Validation failed: {validation.description}')")
         lines.append(f'            return result')
         lines.append(f'        except Exception as e:')
         lines.append(f'            self._logger.error(f"Validation error: {{e}}")')
