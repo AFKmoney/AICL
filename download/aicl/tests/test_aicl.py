@@ -661,13 +661,13 @@ class TestEndToEnd:
         """Load an example AICL file."""
         path = os.path.join(self.EXAMPLES_DIR, name)
         if not os.path.exists(path):
-            self.skipTest(f"Example file not found: {path}")
+            import pytest; pytest.skip(f"Example file not found: {path}")
         with open(path, 'r') as f:
             return f.read()
 
     def test_compile_blue_square(self):
         """Test compiling the Blue Square example."""
-        source = self._load_example('blue_square.aicl')
+        source = self._load_example('01_blue_square.aicl')
         compiler = Compiler()
         result = compiler.compile(source)
         assert result.success, f"Blue Square compilation failed: {result.errors}"
@@ -675,28 +675,28 @@ class TestEndToEnd:
 
     def test_compile_pong(self):
         """Test compiling the Pong example."""
-        source = self._load_example('pong.aicl')
+        source = self._load_example('02_pong.aicl')
         compiler = Compiler()
         result = compiler.compile(source)
         assert result.success, f"Pong compilation failed: {result.errors}"
 
     def test_compile_chat(self):
         """Test compiling the Chat example."""
-        source = self._load_example('chat.aicl')
+        source = self._load_example('03_chat.aicl')
         compiler = Compiler()
         result = compiler.compile(source)
         assert result.success, f"Chat compilation failed: {result.errors}"
 
     def test_compile_chess(self):
         """Test compiling the Chess example."""
-        source = self._load_example('chess.aicl')
+        source = self._load_example('04_chess.aicl')
         compiler = Compiler()
         result = compiler.compile(source)
         assert result.success, f"Chess compilation failed: {result.errors}"
 
     def test_pong_generated_code_is_valid_python(self):
         """Test that the Pong example generates valid Python."""
-        source = self._load_example('pong.aicl')
+        source = self._load_example('02_pong.aicl')
         compiler = Compiler()
         result = compiler.compile(source)
         assert result.success
@@ -709,7 +709,7 @@ class TestEndToEnd:
 
     def test_chat_generated_code_is_valid_python(self):
         """Test that the Chat example generates valid Python."""
-        source = self._load_example('chat.aicl')
+        source = self._load_example('03_chat.aicl')
         compiler = Compiler()
         result = compiler.compile(source)
         assert result.success
@@ -722,7 +722,7 @@ class TestEndToEnd:
 
     def test_chess_generated_code_is_valid_python(self):
         """Test that the Chess example generates valid Python."""
-        source = self._load_example('chess.aicl')
+        source = self._load_example('04_chess.aicl')
         compiler = Compiler()
         result = compiler.compile(source)
         assert result.success
@@ -735,7 +735,7 @@ class TestEndToEnd:
 
     def test_blue_square_generated_code_is_valid_python(self):
         """Test that the Blue Square example generates valid Python."""
-        source = self._load_example('blue_square.aicl')
+        source = self._load_example('01_blue_square.aicl')
         compiler = Compiler()
         result = compiler.compile(source)
         assert result.success
@@ -955,7 +955,7 @@ class TestZeroTODOCompilation:
     def test_pong_zero_todos(self):
         """Test that Pong compiles with zero TODOs."""
         from aicl.compiler import Compiler
-        with open(os.path.join(os.path.dirname(__file__), '..', 'examples', 'pong.aicl')) as f:
+        with open(os.path.join(os.path.dirname(__file__), '..', 'examples', '02_pong.aicl')) as f:
             source = f.read()
         compiler = Compiler()
         result = compiler.compile(source)
@@ -966,7 +966,7 @@ class TestZeroTODOCompilation:
     def test_chat_zero_todos(self):
         """Test that Chat compiles with zero TODOs."""
         from aicl.compiler import Compiler
-        with open(os.path.join(os.path.dirname(__file__), '..', 'examples', 'chat.aicl')) as f:
+        with open(os.path.join(os.path.dirname(__file__), '..', 'examples', '03_chat.aicl')) as f:
             source = f.read()
         compiler = Compiler()
         result = compiler.compile(source)
@@ -977,7 +977,7 @@ class TestZeroTODOCompilation:
     def test_chess_zero_todos(self):
         """Test that Chess compiles with zero TODOs."""
         from aicl.compiler import Compiler
-        with open(os.path.join(os.path.dirname(__file__), '..', 'examples', 'chess.aicl')) as f:
+        with open(os.path.join(os.path.dirname(__file__), '..', 'examples', '04_chess.aicl')) as f:
             source = f.read()
         compiler = Compiler()
         result = compiler.compile(source)
@@ -988,7 +988,7 @@ class TestZeroTODOCompilation:
     def test_blue_square_zero_todos(self):
         """Test that Blue Square compiles with zero TODOs."""
         from aicl.compiler import Compiler
-        with open(os.path.join(os.path.dirname(__file__), '..', 'examples', 'blue_square.aicl')) as f:
+        with open(os.path.join(os.path.dirname(__file__), '..', 'examples', '01_blue_square.aicl')) as f:
             source = f.read()
         compiler = Compiler()
         result = compiler.compile(source)

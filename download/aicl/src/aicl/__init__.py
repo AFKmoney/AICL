@@ -1,12 +1,12 @@
 """
 AICL - AI-Centric Language
-A specification-first programming language for AI-native software development.
+Architecture is the program. Risks are syntax. Validations compile.
 
-Version: 0.2.0
+Version: 0.3.0
 Author: Philippe-Antoine
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __author__ = "Philippe-Antoine"
 
 from .parser import Parser, ParseError
