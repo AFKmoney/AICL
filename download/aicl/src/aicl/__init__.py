@@ -2,11 +2,11 @@
 AICL - Architecture Compilation Language
 Auditable Compilation: if the compiler cannot explain why, it does not generate.
 
-Version: 0.5.0
+Version: 0.6.0
 Author: Philippe-Antoine
 """
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 __author__ = "Philippe-Antoine"
 
 from .parser import Parser, ParseError
@@ -26,7 +26,7 @@ from .patterns import (
 )
 from .provenance import (
     CompilationProvenance, ProvenanceType, ProvenanceRecord,
-    GeneratedArtifact, ArtifactType,
+    GeneratedArtifact, ArtifactType, ProofOfOrigin,
 )
 
 __all__ = [
@@ -42,5 +42,5 @@ __all__ = [
     "BehaviorPatternLibrary", "BehaviorCompiler",
     "SubLanguageParser", "ArchitectureTemplateMapper",
     "CompilationProvenance", "ProvenanceType", "ProvenanceRecord",
-    "GeneratedArtifact", "ArtifactType",
+    "GeneratedArtifact", "ArtifactType", "ProofOfOrigin",
 ]

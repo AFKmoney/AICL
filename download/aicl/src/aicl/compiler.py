@@ -1,20 +1,28 @@
 """
-AICL Compiler - Multi-Stage Compilation Pipeline v0.5
+AICL Compiler - Multi-Stage Compilation Pipeline v0.6
 
 Architecture Compilation with Auditable Provenance.
 
 Every generated line of code must have a traceable provenance chain.
 If the compiler cannot explain why it generated a line, it should not
 generate it. This principle is enforced through the provenance system
-which records every compilation decision, and the audit system which
-verifies that every generated artifact is traceable to its source.
+which records every compilation decision, the audit system which
+verifies that every generated artifact is traceable to its source,
+and the Proof of Origin which materializes this as a first-class artifact.
+
+v0.6 Changes:
+  - Proof of Origin: .aicl-proof file is a first-class compilation artifact
+  - Proof contains ALL information needed for explain() and audit()
+  - If .aicl-proof exists, compiler is not needed to reconstruct explanations
+  - Formal properties verified: No Orphan, Complete Coverage, Hash Binding
+  - SHA-256 hashes bind proof to generated code
+  - aicl proof command: inspect/verify a proof file
+  - aicl explain --proof and aicl audit --proof: read from proof file
 
 v0.5 Changes:
   - Audit system: aicl audit verifies every artifact has provenance
   - Artifact tracking: every class, method, function registered as artifact
   - Full provenance coverage: ALL code generation points record provenance
-  - New provenance types: SECURITY_METHOD, PARALLEL_EXECUTION, RUN_METHOD,
-    IMPORT_GENERATION, ENTRY_POINT, TEST_GENERATION, CLASS_STRUCTURE
   - Audit Coverage metric: Auditable Artifacts / Generated Artifacts (target: 1.0)
   - Orphan artifact detection: artifacts without provenance are flagged
   - aicl audit --strict: fails if coverage < 100%
@@ -65,6 +73,7 @@ class CompilationResult:
     fully_compiled: bool = True  # True = zero TODOs
     todo_count: int = 0
     provenance: Any = None  # CompilationProvenance (avoid circular import)
+    proof: Any = None  # ProofOfOrigin (first-class artifact)
 
 
 class CompilerError(Exception):
@@ -169,10 +178,31 @@ class Compiler:
         result.fully_compiled = self._todo_count == 0
         result.provenance = self._provenance
 
+        # Generate Proof of Origin — the central artifact
+        result.proof = self._provenance.to_proof(
+            source_text=source,
+            generated_source=source_code,
+            generated_tests=test_code,
+            compiler_version="0.6.0",
+            target_language=self.target_language,
+        )
+
         return result
 
-    def compile_to_file(self, source: str, output_dir: str) -> CompilationResult:
-        """Compile AICL source code and write the output to files."""
+    def compile_to_file(self, source: str, output_dir: str, source_path: str = "") -> CompilationResult:
+        """
+        Compile AICL source code and write the output to files.
+
+        Produces:
+            - main.py              (executable program)
+            - test_main.py         (generated tests)
+            - architecture_tree.txt (architecture visualization)
+            - main.aicl-proof      (Proof of Origin — first-class artifact)
+
+        The .aicl-proof file is a self-contained, verifiable record that
+        contains ALL information needed to reconstruct explain() and audit()
+        without the compiler. It is the central artifact of auditable compilation.
+        """
         result = self.compile(source)
 
         if result.success:
@@ -189,6 +219,14 @@ class Compiler:
             tree_path = os.path.join(output_dir, "architecture_tree.txt")
             with open(tree_path, 'w') as f:
                 f.write(result.architecture_tree_str)
+
+            # Write Proof of Origin — the central artifact
+            if result.proof:
+                # Update source_path in proof if provided
+                if source_path:
+                    result.proof.source_path = source_path
+                proof_path = os.path.join(output_dir, "main.aicl-proof")
+                result.proof.to_file(proof_path)
 
         return result
 

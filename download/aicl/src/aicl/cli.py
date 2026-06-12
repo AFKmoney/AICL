@@ -3,16 +3,23 @@
 AICL Command-Line Interface
 
 Provides a CLI for compiling AICL source files into executable code,
-with full provenance tracking and audit capabilities.
+with full provenance tracking, audit capabilities, and Proof of Origin.
 
 Usage:
     aicl compile <source.aicl> [--output-dir <dir>] [--target <language>]
     aicl parse <source.aicl>
     aicl tree <source.aicl>
     aicl check <source.aicl>
-    aicl explain <source.aicl> [--behavior <name>] [--coverage]
-    aicl audit <source.aicl> [--strict]
+    aicl explain <source.aicl | proof.aicl-proof> [--behavior <name>] [--coverage] [--proof]
+    aicl audit <source.aicl | proof.aicl-proof> [--strict] [--proof]
+    aicl proof <proof.aicl-proof> [--verify] [--explain] [--audit]
     aicl version
+
+The Proof of Origin (.aicl-proof) is the central artifact:
+    - aicl compile produces both the program AND the .aicl-proof
+    - aicl explain --proof reads from the proof file (no compiler needed)
+    - aicl audit --proof reads from the proof file (no compiler needed)
+    - aicl proof inspects and verifies a proof file directly
 """
 
 import sys
@@ -23,13 +30,14 @@ import argparse
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from aicl import __version__, Parser, Compiler, ArchitectureTree
+from aicl.provenance import ProofOfOrigin
 
 
 def cmd_compile(args):
-    """Compile an AICL source file into executable code."""
+    """Compile an AICL source file into executable code with Proof of Origin."""
     source = read_source(args.source)
     compiler = Compiler(target_language=args.target)
-    result = compiler.compile_to_file(source, args.output_dir)
+    result = compiler.compile_to_file(source, args.output_dir, source_path=args.source)
 
     if result.success:
         print("Compilation successful")
@@ -38,6 +46,7 @@ def cmd_compile(args):
         print(f"  Main file: {os.path.join(args.output_dir, 'main.py')}")
         print(f"  Test file: {os.path.join(args.output_dir, 'test_main.py')}")
         print(f"  Architecture tree: {os.path.join(args.output_dir, 'architecture_tree.txt')}")
+        print(f"  Proof of Origin: {os.path.join(args.output_dir, 'main.aicl-proof')}")
         print(f"  TODOs remaining: {result.todo_count}")
         print(f"  Fully compiled: {'Yes' if result.fully_compiled else 'No'}")
 
@@ -45,6 +54,11 @@ def cmd_compile(args):
         if result.provenance:
             audit = result.provenance.compute_audit_coverage()
             print(f"  Audit coverage: {audit['audit_coverage']:.1%} ({audit['auditable_artifacts']}/{audit['total_artifacts']} artifacts)")
+
+        # Show Proof of Origin status
+        if result.proof:
+            verification = result.proof.verify()
+            print(f"  Proof of Origin: {'VALID' if verification['valid'] else 'INVALID'}")
 
         if result.warnings:
             print(f"\n  Warnings ({len(result.warnings)}):")
@@ -139,16 +153,59 @@ def cmd_check(args):
 
 def cmd_explain(args):
     """
-    Explain the compilation of an AICL source file.
+    Explain the compilation of an AICL source file or Proof of Origin.
 
     Shows the provenance chain for every generated piece of code,
     answering the question: "Why did the compiler generate this line?"
+
+    Two modes:
+        1. From source: aicl explain pong.aicl
+           Compiles the source and explains the compilation.
+        2. From proof:  aicl explain --proof pong.aicl-proof
+           Reads the Proof of Origin directly — no compiler needed.
+           This proves the proof file is self-contained.
 
     Examples:
         aicl explain pong.aicl                          # Full compilation trace
         aicl explain pong.aicl --behavior MovePaddle    # Specific behavior trace
         aicl explain pong.aicl --coverage               # Explicability coverage report
+        aicl explain --proof output/main.aicl-proof     # Explain from proof file
     """
+    # Mode 1: Read from proof file
+    if args.proof or args.source.endswith('.aicl-proof'):
+        proof_path = args.source
+        if not os.path.exists(proof_path):
+            print(f"Error: Proof file not found: {proof_path}")
+            sys.exit(1)
+
+        proof = ProofOfOrigin.from_file(proof_path)
+
+        if args.coverage:
+            print(proof.coverage_report())
+        elif args.behavior:
+            print(proof.explain_behavior(args.behavior))
+        else:
+            print(proof.explain())
+
+        # Show proof metadata
+        print()
+        print(f"Source: Proof of Origin ({proof_path})")
+        print(f"Compiled: {proof.timestamp}")
+        print(f"Compiler: AICL v{proof.compiler_version}")
+        print(f"Provenance records: {len(proof.records)}")
+        print(f"Artifacts: {len(proof.artifacts)}")
+
+        audit_cov = proof.audit_coverage.get('audit_coverage', 0)
+        print(f"Audit coverage: {audit_cov:.1%}")
+
+        exp_cov = proof.explicability_coverage.get('coverage_ratio', 1.0)
+        exp_total = proof.explicability_coverage.get('total_lines', 0)
+        exp_accounted = proof.explicability_coverage.get('accounted_lines', 0)
+        print(f"Explicability coverage: {exp_cov:.1%} ({exp_accounted}/{exp_total} lines)")
+
+        return
+
+    # Mode 2: Compile from source
     source = read_source(args.source)
     compiler = Compiler()
     result = compiler.compile(source)
@@ -192,22 +249,62 @@ def cmd_explain(args):
 
 def cmd_audit(args):
     """
-    Audit the compilation of an AICL source file.
+    Audit the compilation of an AICL source file or Proof of Origin.
 
     Verifies the Auditability property:
         "A program is auditable if every generated artifact
          can be traced to its originating specification
          through a complete provenance chain."
 
+    Two modes:
+        1. From source: aicl audit pong.aicl
+           Compiles and audits.
+        2. From proof:  aicl audit --proof pong.aicl-proof
+           Audits the Proof of Origin directly — no compiler needed.
+
     The audit computes:
         - Audit Coverage = Auditable Artifacts / Generated Artifacts
         - Orphan Artifacts = Artifacts without provenance
         - Audit Status = VERIFIED / PARTIAL / FAILED
+        - Proof Verification = hash binding, linkage integrity
 
     Examples:
         aicl audit pong.aicl               # Full audit report
         aicl audit pong.aicl --strict       # Fail (exit 1) if coverage < 100%
+        aicl audit --proof output/main.aicl-proof  # Audit from proof file
     """
+    # Mode 1: Read from proof file
+    if args.proof or args.source.endswith('.aicl-proof'):
+        proof_path = args.source
+        if not os.path.exists(proof_path):
+            print(f"Error: Proof file not found: {proof_path}")
+            sys.exit(1)
+
+        proof = ProofOfOrigin.from_file(proof_path)
+
+        # Print the audit report reconstructed from proof
+        print(proof.audit_report())
+
+        # Strict mode: fail if audit doesn't pass
+        if args.strict:
+            if not proof.audit_passed():
+                print()
+                print("STRICT MODE: Audit did not pass.")
+                coverage_val = proof.audit_coverage.get('audit_coverage', 0)
+                if coverage_val < 1.0:
+                    print(f"  Audit coverage: {coverage_val:.1%} (target: 100%)")
+                verification = proof.verify()
+                for check in verification['checks']:
+                    if not check['passed']:
+                        print(f"  Failed check: {check['name']}: {check['description']}")
+                sys.exit(1)
+            else:
+                print()
+                print("STRICT MODE: Audit PASSED. Coverage is 100%. Proof is valid.")
+
+        return
+
+    # Mode 2: Compile from source
     source = read_source(args.source)
     compiler = Compiler()
     result = compiler.compile(source)
@@ -243,10 +340,144 @@ def cmd_audit(args):
             print("STRICT MODE: Audit PASSED. Coverage is 100%.")
 
 
+def cmd_proof(args):
+    """
+    Inspect and verify a Proof of Origin file.
+
+    The Proof of Origin is the central artifact of auditable compilation.
+    It is a self-contained, verifiable record that proves:
+        - Every generated artifact has a traceable provenance chain
+        - No artifact exists without justification (No Orphan Property)
+        - Audit coverage = 1.0 (Complete Coverage Property)
+        - The proof is cryptographically bound to the generated code
+
+    Examples:
+        aicl proof output/main.aicl-proof              # Inspect proof
+        aicl proof output/main.aicl-proof --verify     # Verify proof integrity
+        aicl proof output/main.aicl-proof --explain    # Show explanation from proof
+        aicl proof output/main.aicl-proof --audit      # Show audit report from proof
+    """
+    proof_path = args.proof_file
+    if not os.path.exists(proof_path):
+        print(f"Error: Proof file not found: {proof_path}")
+        sys.exit(1)
+
+    proof = ProofOfOrigin.from_file(proof_path)
+
+    # Default: show proof summary
+    if not args.verify and not args.explain and not args.audit:
+        # Show proof summary
+        print("=" * 70)
+        print("AICL PROOF OF ORIGIN")
+        print("=" * 70)
+        print()
+        print(f"  File:           {proof_path}")
+        print(f"  Format version: {proof.format_version}")
+        print(f"  Compiler:       AICL v{proof.compiler_version}")
+        print(f"  Timestamp:      {proof.timestamp}")
+        print(f"  Source:         {proof.source_path or '<unknown>'}")
+        print(f"  Target:         {proof.target_language}")
+        print()
+        print(f"  Source hash:    {proof.source_hash[:32]}...")
+        print(f"  Program hash:   {proof.program_hash[:32]}...")
+        print(f"  Test hash:      {proof.test_hash[:32]}...")
+        print()
+        print(f"  Provenance records: {len(proof.records)}")
+        print(f"  Generated artifacts: {len(proof.artifacts)}")
+        print()
+
+        # Formal properties
+        print("FORMAL PROPERTIES")
+        print("-" * 70)
+        for prop_name, prop_data in proof.formal_properties.items():
+            label = prop_name.replace("_", " ").title()
+            verified = prop_data.get('verified', False)
+            status = "VERIFIED" if verified else "FAILED"
+            print(f"  {label}: {status}")
+            if 'statement' in prop_data:
+                print(f"    {prop_data['statement']}")
+        print()
+
+        # Audit summary
+        audit_summary = proof.audit_coverage
+        total = audit_summary.get('total_artifacts', len(proof.artifacts))
+        auditable = audit_summary.get('auditable_artifacts',
+            sum(1 for a in proof.artifacts if not a.get('is_orphan', True)))
+        coverage = audit_summary.get('audit_coverage',
+            auditable / total if total > 0 else 1.0)
+        orphans = len(audit_summary.get('orphan_artifacts', []))
+
+        print("AUDIT SUMMARY")
+        print("-" * 70)
+        print(f"  Artifacts:      {total}")
+        print(f"  Auditable:      {auditable}")
+        print(f"  Orphans:        {orphans}")
+        print(f"  Audit Coverage: {coverage:.1%}")
+        print(f"  Audit Status:   {'VERIFIED' if coverage >= 1.0 else 'FAILED'}")
+        print()
+
+        # Verification
+        verification = proof.verify()
+        print("VERIFICATION")
+        print("-" * 70)
+        for check in verification['checks']:
+            status = "PASS" if check['passed'] else "FAIL"
+            print(f"  [{status:4s}] {check['name']}: {check['description']}")
+        print()
+
+        print("=" * 70)
+        if verification['valid'] and coverage >= 1.0:
+            print("PROOF STATUS: VALID")
+            print("  This Proof of Origin is valid and demonstrates full auditability.")
+        else:
+            print("PROOF STATUS: INVALID")
+            print("  This Proof of Origin has verification failures.")
+        print("=" * 70)
+        return
+
+    # --verify: detailed verification
+    if args.verify:
+        verification = proof.verify()
+        print("=" * 70)
+        print("PROOF VERIFICATION")
+        print("=" * 70)
+        print()
+        for check in verification['checks']:
+            status = "PASS" if check['passed'] else "FAIL"
+            print(f"  [{status:4s}] {check['name']}")
+            print(f"         {check['description']}")
+            if 'expected' in check:
+                print(f"         Expected: {check['expected'][:32]}...")
+            if 'actual' in check:
+                print(f"         Actual:   {check['actual'][:32]}...")
+            if 'orphan_count' in check:
+                print(f"         Orphan count: {check['orphan_count']}")
+            if 'coverage' in check:
+                print(f"         Coverage: {check['coverage']:.2%}")
+            print()
+
+        print("=" * 70)
+        if verification['valid']:
+            print("VERIFICATION RESULT: ALL CHECKS PASSED")
+        else:
+            print("VERIFICATION RESULT: SOME CHECKS FAILED")
+            failed = [c for c in verification['checks'] if not c['passed']]
+            print(f"  Failed checks: {len(failed)}")
+        print("=" * 70)
+
+    # --explain: show explanation from proof
+    if args.explain:
+        print(proof.explain())
+
+    # --audit: show audit report from proof
+    if args.audit:
+        print(proof.audit_report())
+
+
 def cmd_version(args):
     """Display the AICL version."""
     print(f"AICL v{__version__}")
-    print("Architecture Compilation Language: Auditable Compilation")
+    print("Architecture Compilation Language: Auditable Compilation with Proof of Origin")
 
 
 def read_source(path: str) -> str:
@@ -263,7 +494,7 @@ def main():
     """Main entry point for the AICL CLI."""
     parser = argparse.ArgumentParser(
         prog='aicl',
-        description='AICL - Architecture Compilation Language'
+        description='AICL - Architecture Compilation Language: Auditable Compilation with Proof of Origin'
     )
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
@@ -290,18 +521,36 @@ def main():
     # explain command
     explain_parser = subparsers.add_parser('explain',
         help='Explain compilation provenance — why each line was generated')
-    explain_parser.add_argument('source', help='AICL source file (.aicl)')
+    explain_parser.add_argument('source',
+        help='AICL source file (.aicl) or Proof of Origin (.aicl-proof)')
     explain_parser.add_argument('--behavior', '-b', default=None,
                                 help='Explain a specific behavior (e.g., MovePaddle)')
     explain_parser.add_argument('--coverage', '-c', action='store_true',
                                 help='Show explicability coverage report')
+    explain_parser.add_argument('--proof', '-p', action='store_true',
+                                help='Read from Proof of Origin file (no compilation needed)')
 
     # audit command
     audit_parser = subparsers.add_parser('audit',
         help='Audit compilation — verify every artifact has provenance')
-    audit_parser.add_argument('source', help='AICL source file (.aicl)')
+    audit_parser.add_argument('source',
+        help='AICL source file (.aicl) or Proof of Origin (.aicl-proof)')
     audit_parser.add_argument('--strict', '-s', action='store_true',
                               help='Fail if audit coverage < 100% (exit code 1)')
+    audit_parser.add_argument('--proof', '-p', action='store_true',
+                              help='Read from Proof of Origin file (no compilation needed)')
+
+    # proof command
+    proof_parser = subparsers.add_parser('proof',
+        help='Inspect and verify a Proof of Origin file')
+    proof_parser.add_argument('proof_file',
+        help='Proof of Origin file (.aicl-proof)')
+    proof_parser.add_argument('--verify', '-v', action='store_true',
+                              help='Verify proof integrity (hashes, linkage, properties)')
+    proof_parser.add_argument('--explain', '-e', action='store_true',
+                              help='Show full explanation from proof')
+    proof_parser.add_argument('--audit', '-a', action='store_true',
+                              help='Show audit report from proof')
 
     # version command
     version_parser = subparsers.add_parser('version', help='Display version')
@@ -320,6 +569,8 @@ def main():
         cmd_explain(args)
     elif args.command == 'audit':
         cmd_audit(args)
+    elif args.command == 'proof':
+        cmd_proof(args)
     elif args.command == 'version':
         cmd_version(args)
     else:
