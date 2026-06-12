@@ -1,0 +1,2002 @@
+     1→#!/usr/bin/env python3
+     2→"""
+     3→AICL White Paper PDF Generator
+     4→
+     5→Generates a comprehensive 40+ page academic white paper for the
+     6→AI-Centric Language (AICL) project using ReportLab Platypus.
+     7→"""
+     8→
+     9→import os
+    10→from reportlab.lib import colors
+    11→from reportlab.lib.pagesizes import A4
+    12→from reportlab.lib.units import cm, mm
+    13→from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    14→from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
+    15→from reportlab.platypus import (
+    16→    SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle,
+    17→    KeepTogether, ListFlowable, ListItem, Flowable, Frame, PageTemplate,
+    18→    BaseDocTemplate, NextPageTemplate,
+    19→)
+    20→from reportlab.platypus.tableofcontents import TableOfContents
+    21→from reportlab.pdfbase import pdfmetrics
+    22→from reportlab.pdfbase.ttfonts import TTFont
+    23→from reportlab.lib.fonts import addMapping
+    24→
+    25→# ─── Palette ────────────────────────────────────────────────────────────────
+    26→ACCENT       = colors.HexColor('#cb552e')
+    27→TEXT_PRIMARY  = colors.HexColor('#262422')
+    28→TEXT_MUTED    = colors.HexColor('#817d75')
+    29→BG_SURFACE   = colors.HexColor('#e5e2db')
+    30→BG_PAGE      = colors.HexColor('#f4f4f2')
+    31→BG_CODE      = colors.HexColor('#f0efeb')
+    32→BORDER_LIGHT = colors.HexColor('#d5d2ca')
+    33→
+    34→# ─── Fonts ──────────────────────────────────────────────────────────────────
+    35→FONT_DIR_SERIF  = '/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf'
+    36→FONT_DIR_SERIF_B= '/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf'
+    37→FONT_DIR_SANS_R = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
+    38→FONT_DIR_SANS_B = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'
+    39→FONT_DIR_MONO   = '/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf'
+    40→FONT_DIR_MONO_B = '/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf'
+    41→FONT_DIR_MONO_I = '/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Oblique.ttf'
+    42→
+    43→pdfmetrics.registerFont(TTFont('DejaVuSerif', FONT_DIR_SERIF))
+    44→pdfmetrics.registerFont(TTFont('DejaVuSerif-Bold', FONT_DIR_SERIF_B))
+    45→pdfmetrics.registerFont(TTFont('DejaVuSans', FONT_DIR_SANS_R))
+    46→pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', FONT_DIR_SANS_B))
+    47→pdfmetrics.registerFont(TTFont('DejaVuMono', FONT_DIR_MONO))
+    48→pdfmetrics.registerFont(TTFont('DejaVuMono-Bold', FONT_DIR_MONO_B))
+    49→pdfmetrics.registerFont(TTFont('DejaVuMono-Oblique', FONT_DIR_MONO_I))
+    50→
+    51→addMapping('DejaVuSerif', 0, 0, 'DejaVuSerif')
+    52→addMapping('DejaVuSerif', 1, 0, 'DejaVuSerif-Bold')
+    53→addMapping('DejaVuSans', 0, 0, 'DejaVuSans')
+    54→addMapping('DejaVuSans', 1, 0, 'DejaVuSans-Bold')
+    55→addMapping('DejaVuMono', 0, 0, 'DejaVuMono')
+    56→addMapping('DejaVuMono', 1, 0, 'DejaVuMono-Bold')
+    57→
+    58→# ─── Page setup ─────────────────────────────────────────────────────────────
+    59→PAGE_W, PAGE_H = A4
+    60→LEFT_MARGIN   = 2.5 * cm
+    61→RIGHT_MARGIN  = 2.5 * cm
+    62→TOP_MARGIN    = 2.5 * cm
+    63→BOTTOM_MARGIN = 2.5 * cm
+    64→CONTENT_W = PAGE_W - LEFT_MARGIN - RIGHT_MARGIN
+    65→
+    66→# ─── Styles ─────────────────────────────────────────────────────────────────
+    67→styles = getSampleStyleSheet()
+    68→
+    69→sH1 = ParagraphStyle(
+    70→    'AiclH1', parent=styles['Heading1'],
+    71→    fontName='DejaVuSans-Bold', fontSize=18, leading=24,
+    72→    textColor=ACCENT, spaceBefore=28, spaceAfter=12,
+    73→    borderWidth=0, borderPadding=0,
+    74→)
+    75→sH2 = ParagraphStyle(
+    76→    'AiclH2', parent=styles['Heading2'],
+    77→    fontName='DejaVuSans-Bold', fontSize=14, leading=19,
+    78→    textColor=TEXT_PRIMARY, spaceBefore=20, spaceAfter=8,
+    79→)
+    80→sH3 = ParagraphStyle(
+    81→    'AiclH3', parent=styles['Heading3'],
+    82→    fontName='DejaVuSans-Bold', fontSize=11.5, leading=15,
+    83→    textColor=TEXT_PRIMARY, spaceBefore=14, spaceAfter=6,
+    84→)
+    85→sBody = ParagraphStyle(
+    86→    'AiclBody', parent=styles['Normal'],
+    87→    fontName='DejaVuSerif', fontSize=10, leading=15,
+    88→    textColor=TEXT_PRIMARY, alignment=TA_JUSTIFY,
+    89→    spaceBefore=4, spaceAfter=6,
+    90→)
+    91→sBodyMuted = ParagraphStyle(
+    92→    'AiclBodyMuted', parent=sBody,
+    93→    textColor=TEXT_MUTED, fontSize=9.5,
+    94→)
+    95→sAbstract = ParagraphStyle(
+    96→    'AiclAbstract', parent=sBody,
+    97→    fontSize=10, leading=15, textColor=TEXT_MUTED,
+    98→    leftIndent=1.5*cm, rightIndent=1.5*cm,
+    99→    spaceBefore=6, spaceAfter=6,
+   100→)
+   101→sCode = ParagraphStyle(
+   102→    'AiclCode', parent=styles['Code'],
+   103→    fontName='DejaVuMono', fontSize=8.2, leading=11.5,
+   104→    textColor=TEXT_PRIMARY, backColor=BG_CODE,
+   105→    borderWidth=0.5, borderColor=BORDER_LIGHT,
+   106→    borderPadding=(6, 8, 6, 8),
+   107→    spaceBefore=6, spaceAfter=8,
+   108→    leftIndent=0.6*cm,
+   109→)
+   110→sCodeLabel = ParagraphStyle(
+   111→    'AiclCodeLabel', parent=sBody,
+   112→    fontName='DejaVuSans-Bold', fontSize=8, leading=10,
+   113→    textColor=TEXT_MUTED, spaceBefore=10, spaceAfter=0,
+   114→)
+   115→sCaption = ParagraphStyle(
+   116→    'AiclCaption', parent=sBody,
+   117→    fontName='DejaVuSans', fontSize=8.5, leading=12,
+   118→    textColor=TEXT_MUTED, alignment=TA_CENTER,
+   119→    spaceBefore=4, spaceAfter=12,
+   120→)
+   121→sBullet = ParagraphStyle(
+   122→    'AiclBullet', parent=sBody,
+   123→    leftIndent=1.2*cm, bulletIndent=0.4*cm,
+   124→    spaceBefore=2, spaceAfter=2,
+   125→)
+   126→sTableCell = ParagraphStyle(
+   127→    'AiclTableCell', parent=sBody,
+   128→    fontSize=8.5, leading=11.5,
+   129→    spaceBefore=2, spaceAfter=2,
+   130→)
+   131→sTableHeader = ParagraphStyle(
+   132→    'AiclTableHeader', parent=sTableCell,
+   133→    fontName='DejaVuSans-Bold', textColor=colors.white,
+   134→)
+   135→sCoverTitle = ParagraphStyle(
+   136→    'AiclCoverTitle', fontName='DejaVuSans-Bold',
+   137→    fontSize=32, leading=40, textColor=ACCENT,
+   138→    alignment=TA_CENTER, spaceBefore=0, spaceAfter=8,
+   139→)
+   140→sCoverSub = ParagraphStyle(
+   141→    'AiclCoverSub', fontName='DejaVuSans',
+   142→    fontSize=14, leading=20, textColor=TEXT_MUTED,
+   143→    alignment=TA_CENTER, spaceBefore=4, spaceAfter=4,
+   144→)
+   145→sCoverInfo = ParagraphStyle(
+   146→    'AiclCoverInfo', fontName='DejaVuSans',
+   147→    fontSize=11, leading=16, textColor=TEXT_PRIMARY,
+   148→    alignment=TA_CENTER, spaceBefore=2, spaceAfter=2,
+   149→)
+   150→sTOC_H1 = ParagraphStyle(
+   151→    'AiclTOC_H1', fontName='DejaVuSans-Bold', fontSize=11,
+   152→    leading=18, textColor=TEXT_PRIMARY, leftIndent=0,
+   153→    spaceBefore=6, spaceAfter=2,
+   154→)
+   155→sTOC_H2 = ParagraphStyle(
+   156→    'AiclTOC_H2', fontName='DejaVuSans', fontSize=10,
+   157→    leading=16, textColor=TEXT_PRIMARY, leftIndent=1.0*cm,
+   158→    spaceBefore=2, spaceAfter=1,
+   159→)
+   160→sRef = ParagraphStyle(
+   161→    'AiclRef', parent=sBody,
+   162→    fontSize=9, leading=13,
+   163→    leftIndent=0.8*cm, firstLineIndent=-0.8*cm,
+   164→    spaceBefore=2, spaceAfter=4,
+   165→)
+   166→
+   167→# ─── Helper functions ────────────────────────────────────────────────────────
+   168→
+   169→def h1(text):
+   170→    return Paragraph(text, sH1)
+   171→
+   172→def h2(text):
+   173→    return Paragraph(text, sH2)
+   174→
+   175→def h3(text):
+   176→    return Paragraph(text, sH3)
+   177→
+   178→def p(text):
+   179→    return Paragraph(text, sBody)
+   180→
+   181→def p_muted(text):
+   182→    return Paragraph(text, sBodyMuted)
+   183→
+   184→def p_abstract(text):
+   185→    return Paragraph(text, sAbstract)
+   186→
+   187→def code(text):
+   188→    """Render code block. Escape XML special chars first."""
+   189→    safe = (text
+   190→        .replace('&', '&amp;')
+   191→        .replace('<', '&lt;')
+   192→        .replace('>', '&gt;')
+   193→    )
+   194→    lines = safe.strip().split('\n')
+   195→    formatted = '<br/>'.join(lines)
+   196→    return Paragraph(formatted, sCode)
+   197→
+   198→def code_label(text):
+   199→    return Paragraph(text, sCodeLabel)
+   200→
+   201→def caption(text):
+   202→    return Paragraph(text, sCaption)
+   203→
+   204→def spacer(h=0.3):
+   205→    return Spacer(1, h * cm)
+   206→
+   207→def bullet_list(items):
+   208→    """Return a list of bullet-point paragraphs."""
+   209→    result = []
+   210→    for item in items:
+   211→        result.append(Paragraph(
+   212→            '<bullet>&bull;</bullet> ' + item, sBullet
+   213→        ))
+   214→    return result
+   215→
+   216→def make_table(headers, rows, col_widths=None):
+   217→    """Build a professional styled table."""
+   218→    header_paras = [Paragraph(h, sTableHeader) for h in headers]
+   219→    data = [header_paras]
+   220→    for row in rows:
+   221→        data.append([Paragraph(str(c), sTableCell) for c in row])
+   222→    if col_widths is None:
+   223→        col_widths = [CONTENT_W / len(headers)] * len(headers)
+   224→    t = Table(data, colWidths=col_widths, repeatRows=1)
+   225→    style_cmds = [
+   226→        ('BACKGROUND', (0, 0), (-1, 0), ACCENT),
+   227→        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+   228→        ('FONTNAME', (0, 0), (-1, 0), 'DejaVuSans-Bold'),
+   229→        ('FONTSIZE', (0, 0), (-1, 0), 9),
+   230→        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+   231→        ('TOPPADDING', (0, 0), (-1, 0), 8),
+   232→        ('ALIGN', (0, 0), (-1, 0), 'LEFT'),
+   233→        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+   234→        ('FONTNAME', (0, 1), (-1, -1), 'DejaVuSerif'),
+   235→        ('FONTSIZE', (0, 1), (-1, -1), 8.5),
+   236→        ('TOPPADDING', (0, 1), (-1, -1), 5),
+   237→        ('BOTTOMPADDING', (0, 1), (-1, -1), 5),
+   238→        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+   239→        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+   240→        ('GRID', (0, 0), (-1, -1), 0.5, BORDER_LIGHT),
+   241→        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, BG_PAGE]),
+   242→    ]
+   243→    t.setStyle(TableStyle(style_cmds))
+   244→    return t
+   245→
+   246→# ─── Accent Rule Flowable ───────────────────────────────────────────────────
+   247→
+   248→class AccentRule(Flowable):
+   249→    """A thin horizontal accent-colored rule."""
+   250→    def __init__(self, width, thickness=1.5):
+   251→        Flowable.__init__(self)
+   252→        self.width = width
+   253→        self.thickness = thickness
+   254→        self.height = thickness + 4
+   255→    def draw(self):
+   256→        self.canv.setStrokeColor(ACCENT)
+   257→        self.canv.setLineWidth(self.thickness)
+   258→        self.canv.line(0, 2, self.width, 2)
+   259→
+   260→# ─── Page number callback ───────────────────────────────────────────────────
+   261→
+   262→def add_page_number(canvas, doc):
+   263→    """Add page number to footer (skip page 1 = cover)."""
+   264→    page_num = doc.page
+   265→    if page_num <= 1:
+   266→        return
+   267→    canvas.saveState()
+   268→    canvas.setFont('DejaVuSans', 8)
+   269→    canvas.setFillColor(TEXT_MUTED)
+   270→    canvas.drawCentredString(PAGE_W / 2.0, 1.2 * cm, str(page_num - 1))
+   271→    # thin top rule on content pages
+   272→    canvas.setStrokeColor(BORDER_LIGHT)
+   273→    canvas.setLineWidth(0.4)
+   274→    canvas.line(LEFT_MARGIN, PAGE_H - 1.8*cm, PAGE_W - RIGHT_MARGIN, PAGE_H - 1.8*cm)
+   275→    canvas.restoreState()
+   276→
+   277→# ═══════════════════════════════════════════════════════════════════════════
+   278→# CONTENT
+   279→# ═══════════════════════════════════════════════════════════════════════════
+   280→
+   281→def build_document():
+   282→    """Assemble all content and return a list of Flowables."""
+   283→
+   284→    story = []
+   285→
+   286→    # ── COVER PAGE ───────────────────────────────────────────────────────
+   287→    story.append(Spacer(1, 5*cm))
+   288→    story.append(Paragraph('AICL', sCoverTitle))
+   289→    story.append(Paragraph('AI-Centric Language', ParagraphStyle(
+   290→        'CoverSub2', fontName='DejaVuSans', fontSize=18, leading=24,
+   291→        textColor=TEXT_PRIMARY, alignment=TA_CENTER, spaceBefore=4, spaceAfter=12,
+   292→    )))
+   293→    story.append(AccentRule(CONTENT_W, 2))
+   294→    story.append(Spacer(1, 0.6*cm))
+   295→    story.append(Paragraph(
+   296→        'A Specification-First Programming Language<br/>for AI-Native Software Development',
+   297→        sCoverSub
+   298→    ))
+   299→    story.append(Spacer(1, 2.5*cm))
+   300→    story.append(Paragraph('Philippe-Antoine', sCoverInfo))
+   301→    story.append(Paragraph('Version 0.1.0', sCoverInfo))
+   302→    story.append(Paragraph('March 2026', sCoverInfo))
+   303→    story.append(Spacer(1, 2.5*cm))
+   304→    story.append(Paragraph(
+   305→        '<i>"Risks, recoveries, and validations are not documentation -- '
+   306→        'they are mandatory syntactic elements of the language."</i>',
+   307→        ParagraphStyle('CoverQuote', fontName='DejaVuSerif', fontSize=10.5,
+   308→                       leading=16, textColor=TEXT_MUTED, alignment=TA_CENTER,
+   309→                       leftIndent=2*cm, rightIndent=2*cm)
+   310→    ))
+   311→    story.append(Spacer(1, 2*cm))
+   312→    story.append(Paragraph(
+   313→        '<b>Abstract.</b> AICL (AI-Centric Language) is a specification-first programming '
+   314→        'language where software is defined through structured architectural intent rather '
+   315→        'than implementation instructions. Unlike traditional programming languages that '
+   316→        'require developers to write step-by-step executable code, AICL enables developers '
+   317→        'to specify objectives, architectural layers, anticipated failure modes, recovery '
+   318→        'procedures, constraints, and validation criteria. The AICL compiler then transforms '
+   319→        'these high-level architectural specifications into executable software through a '
+   320→        'multi-stage, AI-native compilation pipeline. This white paper presents the '
+   321→        'motivation, philosophy, formal grammar, operational semantics, and implementation '
+   322→        'strategy of AICL, along with comparative analyses and research hypotheses that '
+   323→        'position AICL as a foundational contribution to AI-native software engineering.',
+   324→        ParagraphStyle('CoverAbstract', fontName='DejaVuSerif', fontSize=9.5,
+   325→                       leading=14, textColor=TEXT_MUTED, alignment=TA_JUSTIFY,
+   326→                       leftIndent=1.5*cm, rightIndent=1.5*cm,
+   327→                       spaceBefore=6, spaceAfter=6)
+   328→    ))
+   329→    story.append(PageBreak())
+   330→
+   331→    # ── TABLE OF CONTENTS ────────────────────────────────────────────────
+   332→    story.append(h1('Table of Contents'))
+   333→    story.append(AccentRule(CONTENT_W, 1.5))
+   334→    story.append(spacer(0.4))
+   335→
+   336→    toc_items = [
+   337→        ('1', 'Introduction', []),
+   338→        ('2', 'Motivation and Problem Statement', []),
+   339→        ('3', 'Core Philosophy', []),
+   340→        ('4', 'Language Design', [
+   341→            '4.1  Level 1: Architecture',
+   342→            '4.2  Level 2: Entities',
+   343→            '4.3  Level 3: Behaviors',
+   344→            '4.4  Level 4: Conditions',
+   345→            '4.5  Level 5: Events',
+   346→            '4.6  Level 6: Concurrency',
+   347→            '4.7  Level 7: Optimization',
+   348→            '4.8  Level 8: Learning',
+   349→            '4.9  Level 9: Security',
+   350→            '4.10 Level 10: Native Code',
+   351→        ]),
+   352→        ('5', 'Formal Grammar', [
+   353→            '5.1  BNF Grammar',
+   354→            '5.2  Keyword Table',
+   355→            '5.3  Type System',
+   356→        ]),
+   357→        ('6', 'Operational Semantics', [
+   358→            '6.1  Compilation Stages',
+   359→            '6.2  Architecture Tree IR',
+   360→            '6.3  Transformation Rules',
+   361→        ]),
+   362→        ('7', 'AI-Native Compilation Pipeline', [
+   363→            '7.1  Stage 1: Specification Parsing',
+   364→            '7.2  Stage 2: Architecture Validation',
+   365→            '7.3  Stage 3: Dependency Analysis',
+   366→            '7.4  Stage 4: Risk Analysis',
+   367→            '7.5  Stage 5: Recovery Synthesis',
+   368→            '7.6  Stage 6: Code Generation',
+   369→            '7.7  Stage 7: Test Generation',
+   370→            '7.8  Stage 8: Optimization',
+   371→            '7.9  Stage 9: Final Construction',
+   372→        ]),
+   373→        ('8', 'Comparative Analysis', [
+   374→            '8.1  Traditional Programming Languages',
+   375→            '8.2  DSLs and Model-Driven Engineering',
+   376→            '8.3  Specification Languages',
+   377→            '8.4  LLM Code Generation Tools',
+   378→            '8.5  Intentional Programming',
+   379→            '8.6  Comparison Table',
+   380→        ]),
+   381→        ('9', 'Example Programs', [
+   382→            '9.1  Blue Square',
+   383→            '9.2  Pong Game',
+   384→            '9.3  Chat Application',
+   385→            '9.4  Chess Game',
+   386→        ]),
+   387→        ('10', 'Research Hypotheses', []),
+   388→        ('11', 'Implementation', [
+   389→            '11.1  Parser Architecture',
+   390→            '11.2  Compiler Pipeline',
+   391→            '11.3  Architecture Tree IR',
+   392→        ]),
+   393→        ('12', 'Roadmap', []),
+   394→        ('13', 'Related Work', []),
+   395→        ('14', 'Conclusion', []),
+   396→        ('', 'References', []),
+   397→    ]
+   398→
+   399→    for num, title, subs in toc_items:
+   400→        label = f'{num}  {title}' if num else title
+   401→        story.append(Paragraph(label, sTOC_H1))
+   402→        for sub in subs:
+   403→            story.append(Paragraph(sub, sTOC_H2))
+   404→
+   405→    story.append(PageBreak())
+   406→
+   407→    # ── 1. INTRODUCTION ─────────────────────────────────────────────────
+   408→    story.append(h1('1. Introduction'))
+   409→    story.append(AccentRule(CONTENT_W, 1.5))
+   410→    story.append(spacer(0.3))
+   411→
+   412→    story.append(p(
+   413→        'The history of programming languages is a story of progressive abstraction. '
+   414→        'From the raw binary instructions of early computing machines, through the mnemonic '
+   415→        'shorthands of assembly language, to the structured imperatives of FORTRAN and C, '
+   416→        'each generational shift has lifted the level at which humans communicate their '
+   417→        'intentions to machines. Object-oriented programming introduced encapsulation and '
+   418→        'inheritance; functional programming brought compositional purity; domain-specific '
+   419→        'languages offered tailored vocabularies for specialized problems. Yet despite these '
+   420→        'advances, the fundamental relationship between programmer and computer has remained '
+   421→        'largely unchanged: the programmer writes instructions, and the computer executes them.'
+   422→    ))
+   423→    story.append(p(
+   424→        'This instruction-centric paradigm has served the software industry well for decades, '
+   425→        'but it suffers from a critical and increasingly apparent limitation. As software '
+   426→        'systems grow in complexity, the gap between what developers intend and what they '
+   427→        'actually implement widens precipitously. Architectural decisions are documented in '
+   428→        'design documents that drift from the codebase. Failure modes are noted in post-mortem '
+   429→        'reports rather than prevented in the source. Validation criteria exist as external '
+   430→        'test suites that may or may not correspond to the actual requirements. The result '
+   431→        'is a fragmented development ecosystem where intent, implementation, and verification '
+   432→        'are disconnected artifacts that must be manually kept in sync.'
+   433→    ))
+   434→    story.append(p(
+   435→        'The emergence of large language models (LLMs) and AI-assisted development tools has '
+   436→        'made this gap both more visible and more consequential. When an AI system generates '
+   437→        'code from a natural language prompt, it is essentially guessing at the developer\'s '
+   438→        'architectural intent from ambiguous input. The AI has no structured way to understand '
+   439→        'the constraints that bound the solution, the risks that threaten it, or the validation '
+   440→        'criteria that define its success. Current LLM code generation tools treat software '
+   441→        'development as a translation problem -- converting natural language to code -- rather '
+   442→        'than a reasoning problem that requires understanding architecture, risk, and validation '
+   443→        'as first-class concerns.'
+   444→    ))
+   445→    story.append(p(
+   446→        'AICL (AI-Centric Language) proposes a fundamentally different approach. Rather than '
+   447→        'writing implementation instructions, developers using AICL specify the architecture '
+   448→        'of their system: its goals, constraints, risks, recovery procedures, layers, and '
+   449→        'validation criteria. These specifications are not documentation comments or external '
+   450→        'artifacts; they are mandatory syntactic elements of the language itself. The AICL '
+   451→        'compiler then transforms these architectural specifications into executable software '
+   452→        'through a multi-stage compilation pipeline that reasons about the architecture rather '
+   453→        'than merely translating it. In AICL, the architecture is the program.'
+   454→    ))
+   455→    story.append(p(
+   456→        'This white paper presents AICL in its entirety: the motivation and problem statement '
+   457→        'that give rise to it, the core philosophy that underpins its design, the complete '
+   458→        'language specification with its ten hierarchical levels, the formal grammar and '
+   459→        'operational semantics, the AI-native compilation pipeline, comparative analyses with '
+   460→        'existing approaches, illustrative example programs, research hypotheses, and the '
+   461→        'current implementation status. The goal is to provide a comprehensive reference for '
+   462→        'researchers, language designers, and practitioners interested in the intersection of '
+   463→        'programming language theory and AI-native software development.'
+   464→    ))
+   465→
+   466→    story.append(PageBreak())
+   467→
+   468→    # ── 2. MOTIVATION AND PROBLEM STATEMENT ─────────────────────────────
+   469→    story.append(h1('2. Motivation and Problem Statement'))
+   470→    story.append(AccentRule(CONTENT_W, 1.5))
+   471→    story.append(spacer(0.3))
+   472→
+   473→    story.append(h2('2.1 Disconnected Artifacts'))
+   474→    story.append(p(
+   475→        'Modern software development relies on a constellation of disconnected artifacts to '
+   476→        'define what a system should do and verify that it does it correctly. Requirements '
+   477→        'documents capture stakeholder needs in natural language. Architecture diagrams depict '
+   478→        'system structure in visual notation. Design documents specify patterns and constraints. '
+   479→        'Test suites encode verification criteria in code. Monitoring configurations define '
+   480→        'operational health checks. Incident runbooks describe recovery procedures. Each of '
+   481→        'these artifacts contains critical information about the system, but they exist in '
+   482→        'different formats, different tools, and different domains of expertise. The codebase '
+   483→        'itself -- the artifact that actually runs in production -- is but one piece of this '
+   484→        'puzzle, and it often bears little structural resemblance to the architectural vision '
+   485→        'that motivated it.'
+   486→    ))
+   487→    story.append(p(
+   488→        'The consequences of this fragmentation are well-documented and severe. When '
+   489→        'requirements change, the code may not be updated to reflect them. When the code '
+   490→        'evolves, the architecture documentation drifts out of sync. When failures occur in '
+   491→        'production, the recovery procedures documented in runbooks may no longer be applicable '
+   492→        'to the current system state. Studies in empirical software engineering have '
+   493→        'consistently shown that the majority of software defects originate not from incorrect '
+   494→        'implementations of well-understood designs, but from misalignments between intent and '
+   495→        'implementation -- precisely the kind of misalignment that disconnected artifacts make '
+   496→        'inevitable. The cost of this drift is measured not only in bugs and outages, but in '
+   497→        'the enormous cognitive overhead that developers bear when they must constantly '
+   498→        'reconcile multiple sources of truth about a single system.'
+   499→    ))
+   500→
+   501→    story.append(h2('2.2 The Implementation-Centric Paradigm'))
+   502→    story.append(p(
+   503→        'Contemporary programming languages are fundamentally implementation-centric. They '
+   504→        'provide constructs for defining data structures, algorithms, control flow, and '
+   505→        'communication protocols, but they treat architectural concerns as second-class '
+   506→        'citizens at best. Consider a typical web application: the architecture specifies '
+   507→        'that the system must be resilient to database failures, but this requirement lives '
+   508→        'in a design document, not in the source code. The code implements retry logic and '
+   509→        'circuit breakers, but the relationship between the architectural requirement and '
+   510→        'its implementation is implicit and undocumented in the programming language itself. '
+   511→        'If a developer removes the circuit breaker during a refactoring, no compiler or '
+   512→        'linter will flag the violation because the language has no mechanism to express that '
+   513→        'the circuit breaker was architecturally mandated.'
+   514→    ))
+   515→    story.append(p(
+   516→        'This implementation-centric paradigm also fails to leverage the reasoning capabilities '
+   517→        'of modern AI systems. When an LLM is asked to generate or modify code, it operates '
+   518→        'on the implementation level: it generates functions, classes, and statements. It has '
+   519→        'no structured access to the architectural constraints that should guide its output. '
+   520→        'The result is code that may be syntactically correct and even functionally adequate '
+   521→        'for the immediate prompt, but architecturally inconsistent with the broader system. '
+   522→        'The AI cannot reason about risks, recovery strategies, or validation criteria because '
+   523→        'the programming language provides no vocabulary for these concepts. The implementation-'
+   524→        'centric paradigm thus leaves AI-assisted development operating at a severe information '
+   525→        'deficit, generating code without understanding the architectural context that gives '
+   526→        'that code its correctness and robustness.'
+   527→    ))
+   528→
+   529→    story.append(h2('2.3 The Gap Between Design and Code'))
+   530→    story.append(p(
+   531→        'Perhaps the most pernicious consequence of the current paradigm is the structural '
+   532→        'gap between design and code. Software architecture is typically expressed in terms '
+   533→        'of components, connectors, constraints, and qualities. Source code is expressed in '
+   534→        'terms of variables, functions, classes, and modules. The mapping between these two '
+   535→        'representations is neither automatic nor deterministic: the same architectural design '
+   536→        'can be implemented in countless ways, and different implementations may vary '
+   537→        'dramatically in their fidelity to the original intent. This gap is where architectural '
+   538→        'erosion occurs -- the gradual divergence between the intended architecture and the '
+   539→        'implemented system that is one of the most persistent problems in software engineering.'
+   540→    ))
+   541→    story.append(p(
+   542→        'AICL addresses this gap by eliminating it entirely. In AICL, the architectural '
+   543→        'specification is the source code. There is no gap to bridge because there is no '
+   544→        'separate representation: the goals, constraints, layers, risks, recoveries, and '
+   545→        'validations that constitute the architecture are expressed directly in the AICL '
+   546→        'source, using a formal grammar that the compiler can parse, validate, and reason '
+   547→        'about. The compiler is responsible for transforming this architectural specification '
+   548→        'into an implementation, and every element of the specification contributes to the '
+   549→        'generated code. Risks produce error-handling logic; validations produce test cases; '
+   550→        'constraints produce runtime checks; layers produce module boundaries. The gap between '
+   551→        'design and code closes not because we have found a better way to maintain two '
+   552→        'representations in sync, but because we have recognized that there should only be one.'
+   553→    ))
+   554→    story.append(p(
+   555→        'This single-representation approach has profound implications for software quality '
+   556→        'and developer productivity. When the architecture is the program, architectural '
+   557→        'erosion becomes impossible by construction: the architecture cannot drift from the '
+   558→        'code because they are the same artifact. When risks and recoveries are syntactic '
+   559→        'elements, unhandled failure modes become compiler warnings rather than production '
+   560→        'incidents. When validations are part of the language, the test suite is always '
+   561→        'consistent with the requirements because they share the same source of truth. These '
+   562→        'are not incremental improvements; they represent a categorical shift in how we think '
+   563→        'about the relationship between software design and software implementation.'
+   564→    ))
+   565→
+   566→    story.append(PageBreak())
+   567→
+   568→    # ── 3. CORE PHILOSOPHY ──────────────────────────────────────────────
+   569→    story.append(h1('3. Core Philosophy'))
+   570→    story.append(AccentRule(CONTENT_W, 1.5))
+   571→    story.append(spacer(0.3))
+   572→
+   573→    story.append(h2('3.1 The Architecture Is the Program'))
+   574→    story.append(p(
+   575→        'The central thesis of AICL is deceptively simple: the architecture of a software '
+   576→        'system should be its program. In conventional development, architecture is a pre-code '
+   577→        'activity -- something that happens in whiteboard sessions and design documents before '
+   578→        'the first line of code is written. Once coding begins, the architecture becomes a '
+   579→        'reference document that may or may not be consulted, may or may not be updated, and '
+   580→        'may or may not bear any resemblance to the system that actually gets built. AICL '
+   581→        'inverts this relationship by making the architecture the primary artifact that the '
+   582→        'compiler processes. The developer\'s job is not to write code that implements the '
+   583→        'architecture; it is to write the architecture itself, using a formal language that '
+   584→        'captures goals, constraints, risks, recoveries, layers, and validations as structured, '
+   585→        'machine-processable specifications.'
+   586→    ))
+   587→    story.append(p(
+   588→        'This architectural specification is not merely a documentation format dressed in '
+   589→        'syntax. It is a complete, formally defined language with a precise grammar, a type '
+   590→        'system, and a compilation pipeline that transforms it into executable software. Every '
+   591→        'element of an AICL program serves a specific purpose in the compilation process: '
+   592→        'goals establish the system\'s objectives and guide the compiler\'s code generation '
+   593→        'strategy; constraints define the boundaries within which the compiler must operate; '
+   594→        'risks identify failure modes that the compiler must address with error-handling logic; '
+   595→        'recovery procedures specify how the system should respond when those failures occur; '
+   596→        'layers define the modular structure of the generated code; and validations provide '
+   597→        'the criteria against which the generated system will be tested. None of these elements '
+   598→        'are optional; they are the mandatory building blocks of every AICL program.'
+   599→    ))
+   600→
+   601→    story.append(h2('3.2 A Paradigm Shift from Instructions to Architecture'))
+   602→    story.append(p(
+   603→        'Traditional programming languages are built on the paradigm of instruction: the '
+   604→        'programmer tells the computer what to do, step by step, and the computer faithfully '
+   605→        'executes those instructions. Higher-level languages reduce the number of steps '
+   606→        'required, but the fundamental relationship remains instructional. Even declarative '
+   607→        'languages, which specify what the computer should compute rather than how, ultimately '
+   608→        'produce implementations that execute instructions. AICL represents a paradigm shift '
+   609→        'from instruction-based to architecture-based programming, where the programmer '
+   610→        'specifies the structure, constraints, and qualities of the desired system, and the '
+   611→        'compiler is responsible for determining the specific instructions that realize that '
+   612→        'architecture.'
+   613→    ))
+   614→    story.append(p(
+   615→        'This shift has several important consequences. First, it elevates the level of '
+   616→        'abstraction at which developers operate from the algorithmic to the architectural. '
+   617→        'Developers reason about layers, dependencies, failure modes, and validation criteria '
+   618→        'rather than loops, conditionals, and variable assignments. Second, it makes the '
+   619→        'compiler an active participant in the development process rather than a passive '
+   620→        'translator. The AICL compiler must understand the relationships between architectural '
+   621→        'elements, reason about the implications of risks and constraints, and generate code '
+   622→        'that faithfully implements the specified architecture. Third, it creates a natural '
+   623→        'interface for AI-assisted development: the structured, formal specification of AICL '
+   624→        'provides exactly the kind of unambiguous input that AI systems need to generate '
+   625→        'correct, architecturally consistent code.'
+   626→    ))
+   627→    story.append(p(
+   628→        'The philosophical foundation of AICL rests on five design principles that flow '
+   629→        'directly from this paradigm shift. First, the architecture is the program: the '
+   630→        'specification IS the source code, not a precursor to it. Second, risks are first-'
+   631→        'class: failure modeling is mandatory, not optional, because every system must contend '
+   632→        'with the possibility of failure. Third, validation is built-in: success criteria are '
+   633→        'part of the language, not afterthoughts added in testing. Fourth, the grammar is '
+   634→        'strict: deterministic parsing ensures that the compiler can reliably process every '
+   635→        'valid AICL program. Fifth, compilation is AI-native: the compiler reasons about '
+   636→        'architecture, not just translates it, leveraging structured specifications to produce '
+   637→        'implementations that would be impractical to write by hand.'
+   638→    ))
+   639→
+   640→    story.append(PageBreak())
+   641→
+   642→    # ── 4. LANGUAGE DESIGN ──────────────────────────────────────────────
+   643→    story.append(h1('4. Language Design'))
+   644→    story.append(AccentRule(CONTENT_W, 1.5))
+   645→    story.append(spacer(0.3))
+   646→
+   647→    story.append(p(
+   648→        'AICL is organized into ten hierarchical levels, each adding a layer of expressiveness '
+   649→        'to the language. Level 1 (Architecture) is mandatory for all AICL programs and '
+   650→        'defines the core structural elements. Levels 2 through 10 are optional and can be '
+   651→        'added incrementally as the specification requires more detail. This layered design '
+   652→        'allows developers to start with a minimal architectural specification and progressively '
+   653→        'enrich it with entities, behaviors, conditions, events, concurrency directives, '
+   654→        'optimization targets, learning objectives, security requirements, and native code '
+   655→        'escapes. The following subsections describe each level in detail with illustrative '
+   656→        'examples drawn from the AICL specification.'
+   657→    ))
+   658→
+   659→    # Level 1
+   660→    story.append(h2('4.1 Level 1: Architecture (Mandatory)'))
+   661→    story.append(p(
+   662→        'Level 1 is the foundation of every AICL program. It provides six core constructs -- '
+   663→        'Goal, Constraint, Risk, Recovery, Layer, and Validation -- that define the '
+   664→        'architectural intent of the system. No AICL program is valid without at least one '
+   665→        'Goal, one Layer, and one Validation. This requirement ensures that every AICL '
+   666→        'program explicitly states what it aims to achieve, how it is structured, and how '
+   667→        'its success will be measured. The architectural level is not merely a header or a '
+   668→        'preamble; it is the substantive core of the specification that drives all subsequent '
+   669→        'compilation stages.'
+   670→    ))
+   671→
+   672→    story.append(h3('Goal'))
+   673→    story.append(p(
+   674→        'The Goal section defines the primary objective of the system. It answers the question: '
+   675→        '"What is this system supposed to accomplish?" Goals are stated in structured natural '
+   676→        'language and serve as the top-level directive that guides the compiler\'s code '
+   677→        'generation strategy. Every decision the compiler makes -- from module structure to '
+   678→        'error handling to test generation -- is ultimately traceable to the goals defined at '
+   679→        'this level. A well-specified goal is concrete enough to be testable but abstract '
+   680→        'enough to allow the compiler flexibility in how it achieves the objective.'
+   681→    ))
+   682→    story.append(code_label('Example: Goal specification'))
+   683→    story.append(code('Goal:\nDisplay a blue square on screen'))
+   684→
+   685→    story.append(h3('Constraint'))
+   686→    story.append(p(
+   687→        'Constraints define the boundaries within which the system must operate. They express '
+   688→        'limitations, requirements, and non-negotiable conditions that the generated code must '
+   689→        'respect. Constraints can address performance requirements (such as minimum frame rates '
+   690→        'or maximum memory usage), platform restrictions, regulatory compliance, or any other '
+   691→        'bounded condition that constrains the solution space. The compiler treats constraints '
+   692→        'as hard boundaries: generated code that violates a constraint is considered incorrect, '
+   693→        'and the compiler will generate runtime checks and assertions to enforce them.'
+   694→    ))
+   695→    story.append(code_label('Example: Constraint specifications'))
+   696→    story.append(code('Constraint:\nMust run at 60 FPS minimum\n\nConstraint:\nMaximum memory usage 512 MB'))
+   697→
+   698→    story.append(h3('Risk'))
+   699→    story.append(p(
+   700→        'Risk sections identify anticipated failure modes that the system may encounter during '
+   701→        'operation. Unlike traditional programming where error handling is an implementation '
+   702→        'detail, AICL requires that known risks be declared at the architectural level. This '
+   703→        'ensures that failure modeling is an integral part of the system design rather than an '
+   704→        'afterthought. Each risk declaration describes a specific condition that could cause '
+   705→        'the system to fail or degrade, and the compiler uses these declarations to generate '
+   706→        'appropriate defensive code, monitoring logic, and alerting mechanisms. Risks are '
+   707→        'paired with Recovery sections that specify corrective actions.'
+   708→    ))
+   709→    story.append(code_label('Example: Risk declarations'))
+   710→    story.append(code('Risk:\nServer becomes unavailable\n\nRisk:\nNetwork latency exceeds threshold'))
+   711→
+   712→    story.append(h3('Recovery'))
+   713→    story.append(p(
+   714→        'Recovery sections define the corrective actions to be taken when a corresponding Risk '
+   715→        'materializes. They are the architectural counterpart to exception handlers, but unlike '
+   716→        'try-catch blocks in traditional languages, recoveries are specified at the design level '
+   717→        'and are automatically integrated into the generated code by the compiler. The pairing '
+   718→        'of risks and recoveries ensures that every identified failure mode has an explicit '
+   719→        'mitigation strategy. The compiler enforces this pairing during the risk analysis stage, '
+   720→        'generating warnings for any risk that lacks a corresponding recovery procedure.'
+   721→    ))
+   722→    story.append(code_label('Example: Recovery procedures'))
+   723→    story.append(code('Recovery:\nReconnect automatically with exponential backoff\n\nRecovery:\nEnable offline mode with message queue'))
+   724→
+   725→    story.append(h3('Layer'))
+   726→    story.append(p(
+   727→        'Layer sections define the modular structure of the system. Each Layer represents a '
+   728→        'logical component or subsystem, and layers can contain Sublayers that further decompose '
+   729→        'the architecture. The layer hierarchy directly maps to the module structure of the '
+   730→        'generated code: each top-level layer becomes a module or package, and sublayers become '
+   731→        'submodules or classes within that package. The compiler uses the layer structure to '
+   732→        'determine dependency relationships, generate import statements, and organize the '
+   733→        'output codebase. Layers also serve as the unit of concurrency: the Parallel construct '
+   734→        'at Level 6 operates on named layers, instructing the compiler to generate concurrent '
+   735→        'execution for the specified layers.'
+   736→    ))
+   737→    story.append(code_label('Example: Layer with sublayers'))
+   738→    story.append(code(
+   739→        'Layer:\nRendering System\n'
+   740→        '    Sublayer:\n    Sprite rendering\n'
+   741→        '    Sublayer:\n    Text rendering\n'
+   742→        '    Sublayer:\n    Background rendering'
+   743→    ))
+   744→
+   745→    story.append(h3('Validation'))
+   746→    story.append(p(
+   747→        'Validation sections define measurable success criteria for the system. They answer the '
+   748→        'question: "How do we know the system is working correctly?" Validations are not test '
+   749→        'implementations; they are architectural specifications of what constitutes success, '
+   750→        'expressed in structured natural language. The compiler uses these specifications to '
+   751→        'generate concrete test cases during the test generation stage. This ensures that the '
+   752→        'test suite is always derived from and consistent with the architectural specification, '
+   753→        'eliminating the common problem of tests that verify implementation details rather than '
+   754→        'requirements.'
+   755→    ))
+   756→    story.append(code_label('Example: Validation criteria'))
+   757→    story.append(code(
+   758→        'Validation:\nComplete one playable match\n\n'
+   759→        'Validation:\nMaintain 60 FPS during gameplay\n\n'
+   760→        'Validation:\nScore increments correctly on point'
+   761→    ))
+   762→
+   763→    # Level 2
+   764→    story.append(h2('4.2 Level 2: Entities'))
+   765→    story.append(p(
+   766→        'Entities define the data structures of the system. Each Entity has a name and a set of '
+   767→        'typed fields, similar to structs in C or classes in object-oriented languages, but with '
+   768→        'an important distinction: AICL entities are purely declarative. They specify what data '
+   769→        'exists, not how it is stored, accessed, or manipulated. The compiler determines the '
+   770→        'appropriate representation based on the target language and the constraints specified '
+   771→        'at Level 1. Entity fields are typed using AICL\'s built-in type system, which includes '
+   772→        'primitive types (string, integer, float, boolean), temporal types (datetime), collection '
+   773→        'types (list, dict, set), and special types (any, void, bytes). Additionally, fields can '
+   774→        'reference other entities by name, establishing the data relationships that the compiler '
+   775→        'uses to generate appropriate data structures and serialization logic.'
+   776→    ))
+   777→    story.append(code_label('Example: Entity definitions'))
+   778→    story.append(code(
+   779→        'Entity Player\n'
+   780→        '    name: string\n'
+   781→        '    score: integer\n'
+   782→        '    paddle_position: float\n\n'
+   783→        'Entity Ball\n'
+   784→        '    x: float\n'
+   785→        '    y: float\n'
+   786→        '    velocity_x: float\n'
+   787→        '    velocity_y: float'
+   788→    ))
+   789→    story.append(p(
+   790→        'The entity system in AICL is deliberately simple compared to the type systems of '
+   791→        'general-purpose programming languages. There are no visibility modifiers, no inheritance '
+   792→        'hierarchies, and no generic type parameters. This simplicity is intentional: AICL '
+   793→        'entities capture the what of data, not the how. The compiler is free to add accessors, '
+   794→        'mutators, serialization methods, equality checks, and any other implementation details '
+   795→        'that the target language and the architectural constraints require. By keeping entities '
+   796→        'declarative, AICL ensures that the data model remains a clean architectural artifact '
+   797→        'that does not prematurely constrain the implementation.'
+   798→    ))
+   799→
+   800→    # Level 3
+   801→    story.append(h2('4.3 Level 3: Behaviors'))
+   802→    story.append(p(
+   803→        'Behaviors define what entities do. Each Behavior has a name, a set of inputs, an '
+   804→        'optional output, and an action description. Like entities, behaviors are declarative: '
+   805→        'they specify the intent of the operation rather than its implementation. The Input '
+   806→        'section lists the entities and values that the behavior consumes; the Output section '
+   807→        'specifies what the behavior produces; and the Action section describes, in structured '
+   808→        'natural language, what the behavior does. The compiler uses these specifications to '
+   809→        'generate function signatures, implementation logic, and integration code that connects '
+   810→        'behaviors to the entities they operate on.'
+   811→    ))
+   812→    story.append(code_label('Example: Behavior definitions'))
+   813→    story.append(code(
+   814→        'Behavior SendMessage\n\n'
+   815→        'Input:\n    User Message\n\n'
+   816→        'Output:\n    DeliveredMessage\n\n'
+   817→        'Action:\n    transmit message to server and broadcast to channel'
+   818→    ))
+   819→    story.append(p(
+   820→        'The separation of inputs, outputs, and actions in AICL behaviors serves a specific '
+   821→        'architectural purpose. By explicitly declaring what goes in and what comes out, '
+   822→        'behaviors establish clear contracts that the compiler can verify against the entity '
+   823→        'definitions. If a behavior references an entity that does not exist, the compiler '
+   824→        'will generate a warning during the architecture validation stage. If a behavior\'s '
+   825→        'action description is inconsistent with its inputs and outputs, the compiler can flag '
+   826→        'this as a potential specification error. This contract-based approach to behavior '
+   827→        'specification ensures that the system\'s operational logic is internally consistent '
+   828→        'before any code is generated.'
+   829→    ))
+   830→
+   831→    # Level 4
+   832→    story.append(h2('4.4 Level 4: Conditions'))
+   833→    story.append(p(
+   834→        'Conditions replace traditional if/else constructs with When/Then clauses that specify '
+   835→        'conditional behavior at the architectural level. A Condition consists of a When clause '
+   836→        'that describes the triggering circumstance and a Then clause that describes the '
+   837→        'consequence. This formulation is more expressive than a simple if/else because it '
+   838→        'focuses on the relationship between a situation and a response rather than on the '
+   839→        'control flow of the implementation. The compiler generates appropriate conditional '
+   840→        'logic from these specifications, determining where and how to implement the checks '
+   841→        'based on the system\'s layer structure and the entities involved.'
+   842→    ))
+   843→    story.append(code_label('Example: Condition specifications'))
+   844→    story.append(code(
+   845→        'Condition:\n\n'
+   846→        'When king in check\n\n'
+   847→        'Then highlight threatened squares\n\n'
+   848→        'Condition:\n\n'
+   849→        'When checkmate detected\n\n'
+   850→        'Then end game and declare winner'
+   851→    ))
+   852→    story.append(p(
+   853→        'The When/Then formulation of conditions is inspired by rule-based systems and event-'
+   854→        'condition-action patterns from active database research. Unlike imperative conditionals, '
+   855→        'which are bound to a specific point in the execution flow, AICL conditions are '
+   856→        'architectural declarations that apply wherever the specified circumstance arises. The '
+   857→        'compiler is responsible for determining the appropriate points in the generated code '
+   858→        'to check the When clause and execute the Then clause. This decoupling of specification '
+   859→        'from execution order is a key aspect of AICL\'s architecture-first philosophy: the '
+   860→        'developer specifies what must happen under what conditions, and the compiler determines '
+   861→        'how and where to implement those conditional behaviors.'
+   862→    ))
+   863→
+   864→    # Level 5
+   865→    story.append(h2('4.5 Level 5: Events'))
+   866→    story.append(p(
+   867→        'Events define event-driven behaviors using On/Action pairs. An Event consists of an '
+   868→        'On clause that specifies the triggering event and an Action clause that specifies the '
+   869→        'response. Events are similar to Conditions but differ in their semantic orientation: '
+   870→        'Conditions specify state-based triggers (When some state holds), while Events specify '
+   871→        'occurrence-based triggers (On some event happens). This distinction mirrors the '
+   872→        'difference between polling and interrupt-driven architectures, and the compiler uses '
+   873→        'it to generate appropriate event-handling mechanisms in the target language.'
+   874→    ))
+   875→    story.append(code_label('Example: Event specifications'))
+   876→    story.append(code(
+   877→        'Event:\n\n'
+   878→        'On message received\n\n'
+   879→        'Action:\n    display message in channel\n\n'
+   880→        'Event:\n\n'
+   881→        'On user join\n\n'
+   882→        'Action:\n    update user list'
+   883→    ))
+   884→    story.append(p(
+   885→        'The event system in AICL provides a natural way to specify reactive behaviors that '
+   886→        'respond to external stimuli, user interactions, system notifications, or inter-component '
+   887→        'messages. In the generated code, events translate to callback registrations, event '
+   888→        'listener bindings, or message handler invocations, depending on the target language '
+   889→        'and the architectural layer in which the event occurs. The compiler also generates '
+   890→        'the necessary event dispatch infrastructure, ensuring that events are properly routed '
+   891→        'to their handlers and that event processing does not block the main execution flow when '
+   892→        'the architecture specifies concurrent execution.'
+   893→    ))
+   894→
+   895→    # Level 6
+   896→    story.append(h2('4.6 Level 6: Concurrency'))
+   897→    story.append(p(
+   898→        'The Parallel construct specifies that named layers should execute concurrently. Rather '
+   899→        'than requiring developers to manage threads, locks, and synchronization primitives '
+   900→        'directly, AICL allows them to declare which architectural layers can operate '
+   901→        'independently, leaving the specific concurrency implementation to the compiler. The '
+   902→        'compiler determines the appropriate threading strategy -- whether to use threads, '
+   903→        'async tasks, processes, or some combination -- based on the target language, the '
+   904→        'constraints specified at Level 1, and the dependency relationships between layers.'
+   905→    ))
+   906→    story.append(code_label('Example: Parallel execution'))
+   907→    story.append(code(
+   908→        'Parallel:\n\n'
+   909→        'Rendering System\n'
+   910→        'Input System\n'
+   911→        'Physics Engine'
+   912→    ))
+   913→    story.append(p(
+   914→        'The Parallel construct exemplifies AICL\'s principle of architectural specification '
+   915→        'over implementation detail. Concurrency is one of the most error-prone aspects of '
+   916→        'software development, and a significant portion of concurrency bugs arise from '
+   917→        'mismatches between the intended concurrency model and its implementation. By specifying '
+   918→        'concurrency at the architectural level, AICL ensures that the concurrency model is '
+   919→        'always consistent with the layer structure, and the compiler can generate '
+   920→        'synchronization code that respects the dependencies identified during the dependency '
+   921→        'analysis stage. This approach does not eliminate all concurrency challenges, but it '
+   922→        'provides a structurally sound foundation that avoids many common pitfalls.'
+   923→    ))
+   924→
+   925→    # Level 7
+   926→    story.append(h2('4.7 Level 7: Optimization'))
+   927→    story.append(p(
+   928→        'The Optimize and Priority constructs specify performance optimization targets and '
+   929→        'their relative importance. Optimization in AICL is not about writing faster code; '
+   930→        'it is about telling the compiler which qualities of the system matter most so that '
+   931→        'it can make informed trade-offs during code generation. For example, a system that '
+   932→        'optimizes for latency will generate different code than one that optimizes for '
+   933→        'throughput, even if both systems have the same architecture. The Priority keyword '
+   934→        'allows developers to rank optimization targets when multiple, potentially conflicting '
+   935→        'targets are specified.'
+   936→    ))
+   937→    story.append(code_label('Example: Optimization specifications'))
+   938→    story.append(code(
+   939→        'Optimize:\nMemory usage\n\n'
+   940→        'Optimize:\nNetwork latency'
+   941→    ))
+   942→    story.append(p(
+   943→        'The optimization level reflects a key insight about software performance: optimization '
+   944→        'is an architectural concern, not just an implementation technique. When performance '
+   945→        'targets are specified alongside the architecture, the compiler can make optimization '
+   946→        'decisions that are globally consistent rather than locally optimal. A traditional '
+   947→        'developer might optimize a hot loop without realizing that the architectural bottleneck '
+   948→        'lies elsewhere; an AICL compiler, armed with both the architectural structure and the '
+   949→        'optimization targets, can allocate optimization effort where it will have the greatest '
+   950→        'system-level impact. This architectural approach to optimization also makes it '
+   951→        'possible to re-optimize the system for different targets without changing the '
+   952→        'specification, simply by adjusting the optimization directives and recompiling.'
+   953→    ))
+   954→
+   955→    # Level 8
+   956→    story.append(h2('4.8 Level 8: Learning'))
+   957→    story.append(p(
+   958→        'The Learn and Adapt constructs specify machine learning integration and adaptive '
+   959→        'behavior. The Learn section declares what the system should learn and provides a '
+   960→        'goal for the learning process. The Adapt section declares what aspect of the system '
+   961→        'should adapt and specifies the basis for adaptation. These constructs are unique to '
+   962→        'AICL and reflect its AI-native design philosophy: rather than treating machine learning '
+   963→        'as an external component to be integrated through APIs and libraries, AICL makes '
+   964→        'learning and adaptation first-class language features that the compiler can reason '
+   965→        'about and generate infrastructure for.'
+   966→    ))
+   967→    story.append(code_label('Example: Learning and adaptation'))
+   968→    story.append(code(
+   969→        'Learn:\n    User behavior\n\n'
+   970→        'Goal:\n    improve message suggestions\n\n'
+   971→        'Adapt:\n    Graphics quality\n\n'
+   972→        'Based:\n    device performance'
+   973→    ))
+   974→    story.append(p(
+   975→        'The learning level opens a new dimension in programming language design. Traditional '
+   976→        'languages assume that program behavior is fully determined by the code; AICL '
+   977→        'acknowledges that some behaviors should be learned from data and adapted over time. '
+   978→        'The compiler generates the necessary training infrastructure, inference pipelines, '
+   979→        'and feedback loops based on these specifications. For the Learn construct, the '
+   980→        'compiler generates data collection, model training, and prediction serving code. For '
+   981→        'the Adapt construct, the compiler generates monitoring, evaluation, and dynamic '
+   982→        'reconfiguration logic. The specific ML techniques used are determined by the compiler '
+   983→        'based on the learning goal, the available data, and the system constraints.'
+   984→    ))
+   985→
+   986→    # Level 9
+   987→    story.append(h2('4.9 Level 9: Security'))
+   988→    story.append(p(
+   989→        'The Security construct specifies security requirements using Encrypt and Protect '
+   990→        'directives. The Encrypt directive indicates that specific data must be encrypted, '
+   991→        'while the Protect directive indicates that specific assets must be access-controlled. '
+   992→        'Like other AICL constructs, security specifications are architectural declarations '
+   993→        'that the compiler translates into concrete security implementations. This approach '
+   994→        'ensures that security is not an afterthought applied to existing code, but a '
+   995→        'structural property of the system that is built into the architecture from the start.'
+   996→    ))
+   997→    story.append(code_label('Example: Security specifications'))
+   998→    story.append(code(
+   999→        'Security:\n\n'
+  1000→        'Encrypt:\n    message content\n\n'
+  1001→        'Protect:\n    user credentials'
+  1002→    ))
+  1003→    story.append(p(
+  1004→        'The security level of AICL addresses a well-known problem in software security: '
+  1005→        'the gap between security policies and security implementations. Security policies '
+  1006→        'are typically defined in compliance documents and threat models, while security '
+  1007→        'implementations are scattered across the codebase in the form of encryption calls, '
+  1008→        'access control checks, and authentication middleware. This fragmentation makes it '
+  1009→        'difficult to verify that the implementation faithfully reflects the policy, and '
+  1010→        'security vulnerabilities often arise from this gap. AICL\'s approach of specifying '
+  1011→        'security requirements as architectural elements ensures that the compiler generates '
+  1012→        'consistent, comprehensive security implementations that are traceable to the '
+  1013→        'architectural specification.'
+  1014→    ))
+  1015→
+  1016→    # Level 10
+  1017→    story.append(h2('4.10 Level 10: Native Code'))
+  1018→    story.append(p(
+  1019→        'The Native construct provides an escape hatch for low-level implementation in any '
+  1020→        'programming language. It consists of a language identifier and a code block containing '
+  1021→        'raw source code in the specified language. The Native construct is AICL\'s '
+  1022→        'acknowledgment that some problems require hand-written, performance-critical, or '
+  1023→        'platform-specific code that cannot be adequately expressed at the architectural level. '
+  1024→        'It serves a similar role to inline assembly in C or foreign function interfaces in '
+  1025→        'higher-level languages, but it is more general: any programming language can be '
+  1026→        'embedded within a Native block.'
+  1027→    ))
+  1028→    story.append(code_label('Example: Native code block'))
+  1029→    story.append(code(
+  1030→        'Native: python {\n'
+  1031→        '    import numpy as np\n'
+  1032→        '    def compute_fft(signal):\n'
+  1033→        '        return np.fft.fft(signal)\n'
+  1034→        '}'
+  1035→    ))
+  1036→    story.append(p(
+  1037→        'The Native construct is deliberately positioned as the highest and most optional level '
+  1038→        'of AICL. Its placement at Level 10 reflects the design philosophy that native code '
+  1039→        'should be a last resort, used only when the architectural specification cannot '
+  1040→        'adequately capture the required behavior. In a mature AICL ecosystem, the need for '
+  1041→        'Native blocks should diminish as the compiler\'s code generation capabilities improve '
+  1042→        'and as higher-level AICL constructs are added to cover more implementation domains. '
+  1043→        'The Native construct ensures that AICL remains practically useful even in its early '
+  1044→        'stages, when the compiler cannot yet generate code for every possible architectural '
+  1045→        'pattern.'
+  1046→    ))
+  1047→
+  1048→    story.append(PageBreak())
+  1049→
+  1050→    # ── 5. FORMAL GRAMMAR ───────────────────────────────────────────────
+  1051→    story.append(h1('5. Formal Grammar'))
+  1052→    story.append(AccentRule(CONTENT_W, 1.5))
+  1053→    story.append(spacer(0.3))
+  1054→
+  1055→    story.append(h2('5.1 BNF Grammar'))
+  1056→    story.append(p(
+  1057→        'The syntax of AICL is defined by the following Backus-Naur Form (BNF) grammar. The '
+  1058→        'grammar is designed for deterministic, line-based parsing: each non-blank line begins '
+  1059→        'with a keyword, and indentation denotes structural nesting. This design ensures that '
+  1060→        'every valid AICL program can be parsed unambiguously without lookahead beyond the '
+  1061→        'current line and its indentation level. The grammar is intentionally simple, reflecting '
+  1062→        'the language\'s philosophy that the structure of a specification should be immediately '
+  1063→        'clear to both human readers and machine parsers.'
+  1064→    ))
+  1065→    story.append(code(
+  1066→        '<program>       ::= <section>*\n'
+  1067→        '<section>       ::= <goal-section> | <constraint-section>\n'
+  1068→        '                  | <risk-section> | <recovery-section>\n'
+  1069→        '                  | <layer-section> | <validation-section>\n'
+  1070→        '                  | <entity-section> | <behavior-section>\n'
+  1071→        '                  | <condition-section> | <event-section>\n'
+  1072→        '                  | <parallel-section> | <optimize-section>\n'
+  1073→        '                  | <learn-section> | <adapt-section>\n'
+  1074→        '                  | <security-section> | <native-section>\n\n'
+  1075→        '<goal-section>      ::= "Goal:" <text>\n'
+  1076→        '<constraint-section>::= "Constraint:" <text>\n'
+  1077→        '<risk-section>      ::= "Risk:" <text>\n'
+  1078→        '<recovery-section>  ::= "Recovery:" <text>\n'
+  1079→        '<validation-section>::= "Validation:" <text>\n'
+  1080→        '<optimize-section>  ::= "Optimize:" <text>\n'
+  1081→        '<priority-section>  ::= "Priority:" <text>\n\n'
+  1082→        '<layer-section>     ::= "Layer:" <text> <sublayer-section>*\n'
+  1083→        '<sublayer-section>  ::= "Sublayer:" <text>\n\n'
+  1084→        '<entity-section>    ::= "Entity" <identifier> <entity-body>\n'
+  1085→        '<entity-body>       ::= INDENT <field-def>+ DEDENT\n'
+  1086→        '<field-def>         ::= <identifier> ":" <type-name>\n\n'
+  1087→        '<behavior-section>  ::= "Behavior" <identifier> <behavior-body>\n'
+  1088→        '<behavior-body>     ::= INDENT (<input-section> | <output-section>\n'
+  1089→        '                  | <action-section>)+ DEDENT\n'
+  1090→        '<input-section>     ::= "Input:" <text>\n'
+  1091→        '<output-section>    ::= "Output:" <text>\n'
+  1092→        '<action-section>    ::= "Action:" <text>\n\n'
+  1093→        '<condition-section> ::= "Condition:" <condition-body>\n'
+  1094→        '<condition-body>    ::= INDENT <when-clause> <then-clause> DEDENT\n'
+  1095→        '<when-clause>       ::= "When" <text>\n'
+  1096→        '<then-clause>       ::= "Then" <text>\n\n'
+  1097→        '<event-section>     ::= "Event:" <event-body>\n'
+  1098→        '<event-body>        ::= INDENT <on-clause> <action-section> DEDENT\n'
+  1099→        '<on-clause>         ::= "On" <text>\n\n'
+  1100→        '<parallel-section>  ::= "Parallel:" <layer-list>\n'
+  1101→        '<layer-list>        ::= INDENT <text>+ DEDENT\n\n'
+  1102→        '<learn-section>     ::= "Learn:" <text> <learn-goal>\n'
+  1103→        '<learn-goal>        ::= INDENT "Goal:" <text> DEDENT\n\n'
+  1104→        '<adapt-section>     ::= "Adapt:" <text> <adapt-based>\n'
+  1105→        '<adapt-based>       ::= INDENT "Based:" <text> DEDENT\n\n'
+  1106→        '<security-section>  ::= "Security:" <security-body>\n'
+  1107→        '<security-body>     ::= INDENT (<encrypt-action>\n'
+  1108→        '                  | <protect-action>)* DEDENT\n'
+  1109→        '<encrypt-action>    ::= "Encrypt:" <text>\n'
+  1110→        '<protect-action>    ::= "Protect:" <text>\n\n'
+  1111→        '<native-section>    ::= "Native:" <language-name> <native-block>\n'
+  1112→        '<native-block>      ::= "{" <raw-code> "}"\n\n'
+  1113→        '<type-name>     ::= "string" | "integer" | "float" | "boolean"\n'
+  1114→        '                  | "datetime" | "list" | "dict" | "set" | "any"\n'
+  1115→        '                  | "void" | "bytes" | <identifier>\n'
+  1116→        '<identifier>    ::= <letter> (<letter> | <digit> | "_")*\n'
+  1117→        '<text>          ::= <any printable text until end of line>\n'
+  1118→        '<language-name> ::= <identifier>\n'
+  1119→        '<raw-code>      ::= <any text between braces>'
+  1120→    ))
+  1121→
+  1122→    story.append(h2('5.2 Keyword Table'))
+  1123→    story.append(p(
+  1124→        'AICL has 27 reserved keywords, organized by language level. Each keyword serves a '
+  1125→        'specific purpose in the architectural specification and is recognized by the parser '
+  1126→        'as a section header. Keywords are case-sensitive and must appear exactly as specified. '
+  1127→        'The following table lists all AICL keywords along with their level and purpose.'
+  1128→    ))
+  1129→
+  1130→    kw_data = [
+  1131→        ['Goal', '1', 'Define system objective'],
+  1132→        ['Constraint', '1', 'Define system limitation'],
+  1133→        ['Risk', '1', 'Define failure condition'],
+  1134→        ['Recovery', '1', 'Define corrective action'],
+  1135→        ['Layer', '1', 'Define architectural layer'],
+  1136→        ['Sublayer', '1', 'Define sub-layer within a layer'],
+  1137→        ['Validation', '1', 'Define success criterion'],
+  1138→        ['Entity', '2', 'Define data entity'],
+  1139→        ['Behavior', '3', 'Define entity behavior'],
+  1140→        ['Input', '3', 'Define behavior input'],
+  1141→        ['Output', '3', 'Define behavior output'],
+  1142→        ['Action', '3/5', 'Define action to perform'],
+  1143→        ['Condition', '4', 'Define conditional behavior'],
+  1144→        ['When', '4', 'Condition trigger'],
+  1145→        ['Then', '4', 'Condition consequence'],
+  1146→        ['Event', '5', 'Define event-driven behavior'],
+  1147→        ['On', '5', 'Event trigger'],
+  1148→        ['Parallel', '6', 'Define concurrent execution'],
+  1149→        ['Optimize', '7', 'Define optimization target'],
+  1150→        ['Priority', '7', 'Define optimization priority'],
+  1151→        ['Learn', '8', 'Define learning objective'],
+  1152→        ['Adapt', '8', 'Define adaptive behavior'],
+  1153→        ['Based', '8', 'Adaptation criterion'],
+  1154→        ['Security', '9', 'Define security requirements'],
+  1155→        ['Encrypt', '9', 'Encryption directive'],
+  1156→        ['Protect', '9', 'Protection directive'],
+  1157→        ['Native', '10', 'Inline native code'],
+  1158→    ]
+  1159→    story.append(make_table(
+  1160→        ['Keyword', 'Level', 'Purpose'],
+  1161→        kw_data,
+  1162→        col_widths=[3.5*cm, 2*cm, CONTENT_W - 5.5*cm]
+  1163→    ))
+  1164→    story.append(caption('Table 1: AICL reserved keywords by level and purpose'))
+  1165→
+  1166→    story.append(h2('5.3 Type System'))
+  1167→    story.append(p(
+  1168→        'AICL provides a built-in type system with eleven types that cover the common data '
+  1169→        'categories needed in architectural specifications. The type system is deliberately '
+  1170→        'minimal: it provides enough expressiveness to define entity fields and behavior '
+  1171→        'signatures without introducing the complexity of a full type system with generics, '
+  1172→        'type functions, or dependent types. The compiler maps AICL types to appropriate types '
+  1173→        'in the target language during code generation. The following table shows the mapping '
+  1174→        'from AICL types to Python target types.'
+  1175→    ))
+  1176→
+  1177→    type_data = [
+  1178→        ['string', 'str', 'Text data'],
+  1179→        ['integer', 'int', 'Whole numbers'],
+  1180→        ['float', 'float', 'Floating-point numbers'],
+  1181→        ['boolean', 'bool', 'True/False values'],
+  1182→        ['datetime', 'datetime', 'Date and time'],
+  1183→        ['list', 'List[Any]', 'Ordered collection'],
+  1184→        ['dict', 'Dict[str, Any]', 'Key-value mapping'],
+  1185→        ['set', 'set', 'Unique collection'],
+  1186→        ['any', 'Any', 'Dynamic type'],
+  1187→        ['void', 'None', 'No return value'],
+  1188→        ['bytes', 'bytes', 'Binary data'],
+  1189→    ]
+  1190→    story.append(make_table(
+  1191→        ['AICL Type', 'Python Target', 'Description'],
+  1192→        type_data,
+  1193→        col_widths=[3.5*cm, 4*cm, CONTENT_W - 7.5*cm]
+  1194→    ))
+  1195→    story.append(caption('Table 2: AICL type system with Python target mapping'))
+  1196→
+  1197→    story.append(PageBreak())
+  1198→
+  1199→    # ── 6. OPERATIONAL SEMANTICS ─────────────────────────────────────────
+  1200→    story.append(h1('6. Operational Semantics'))
+  1201→    story.append(AccentRule(CONTENT_W, 1.5))
+  1202→    story.append(spacer(0.3))
+  1203→
+  1204→    story.append(p(
+  1205→        'This section provides a formal definition of the operational semantics of AICL, '
+  1206→        'describing the stages through which an AICL specification is transformed into '
+  1207→        'executable software. The operational semantics define not only what each compilation '
+  1208→        'stage does, but how the artifacts produced by one stage are consumed by the next. '
+  1209→        'This formal treatment ensures that the behavior of the AICL compiler is well-defined '
+  1210→        'and predictable, providing a foundation for verification, optimization, and future '
+  1211→        'language extensions.'
+  1212→    ))
+  1213→
+  1214→    story.append(h2('6.1 Compilation Stages'))
+  1215→    story.append(p(
+  1216→        'The AICL compilation process consists of nine sequential stages, each producing a '
+  1217→        'well-defined intermediate artifact. The stages are: (1) Specification Parsing, which '
+  1218→        'transforms AICL source text into an Abstract Syntax Tree (AST); (2) Architecture '
+  1219→        'Validation, which checks the AST for structural completeness and consistency; '
+  1220→        '(3) Dependency Analysis, which determines the relationships between architectural '
+  1221→        'layers; (4) Risk Analysis, which pairs identified risks with recovery procedures; '
+  1222→        '(5) Recovery Synthesis, which generates concrete recovery logic from the risk-recovery '
+  1223→        'pairs; (6) Code Generation, which produces executable source code in the target '
+  1224→        'language; (7) Test Generation, which derives test cases from validation specifications; '
+  1225→        '(8) Optimization, which applies performance improvements guided by the optimization '
+  1226→        'directives; and (9) Final Construction, which assembles the complete output including '
+  1227→        'source code, tests, and configuration files.'
+  1228→    ))
+  1229→    story.append(p(
+  1230→        'Formally, the compilation pipeline can be expressed as a sequence of transformation '
+  1231→        'functions. Let S denote the AICL source text, A the AST, V the set of validation '
+  1232→        'warnings, D the dependency order, R the risk-recovery pairs, M the recovery map, '
+  1233→        'C the generated source code, T the generated test code, and O the final output. The '
+  1234→        'pipeline is then: A = parse(S), (V) = validate(A), D = analyze_deps(A), R = '
+  1235→        'analyze_risks(A), M = synthesize_recoveries(R), C = generate_code(A, D, R, M), '
+  1236→        'T = generate_tests(A, D), C = optimize(C, A), O = construct(C, T). Each transformation '
+  1237→        'is deterministic given its inputs, ensuring reproducible compilation results.'
+  1238→    ))
+  1239→
+  1240→    story.append(h2('6.2 Architecture Tree IR'))
+  1241→    story.append(p(
+  1242→        'The Architecture Tree is the central Intermediate Representation (IR) of the AICL '
+  1243→        'compiler. It is constructed from the AST after the parsing and validation stages and '
+  1244→        'serves as the primary data structure for all subsequent compilation stages. The '
+  1245→        'Architecture Tree transforms the flat list of AST sections into a hierarchical tree '
+  1246→        'structure that represents the system\'s architecture, with risk-recovery pairs and '
+  1247→        'validation criteria attached to the appropriate nodes. Each node in the tree '
+  1248→        'represents an architectural layer and contains references to its associated risks, '
+  1249→        'recoveries, validations, constraints, behaviors, conditions, events, optimization '
+  1250→        'targets, and security actions.'
+  1251→    ))
+  1252→    story.append(p(
+  1253→        'The Architecture Tree is rooted at a System node that represents the entire '
+  1254→        'application. The root node\'s children are the top-level layers, entities, and '
+  1255→        'behaviors defined in the AICL source. Layer nodes can contain sublayer children, '
+  1256→        'forming a hierarchical decomposition of the system\'s modular structure. The tree '
+  1257→        'provides several important operations: dependency ordering via topological sort, '
+  1258→        'risk propagation from parent nodes to children, and layer lookup by name for the '
+  1259→        'Parallel construct. The Architecture Tree IR is the single source of truth for all '
+  1260→        'downstream compilation stages, ensuring that code generation, test generation, and '
+  1261→        'optimization all operate on a consistent view of the architecture.'
+  1262→    ))
+  1263→    story.append(code_label('Architecture Tree Node Structure'))
+  1264→    story.append(code(
+  1265→        'ArchitectureNode:\n'
+  1266→        '  name: str\n'
+  1267→        '  node_type: layer | entity | behavior | root\n'
+  1268→        '  goal: str\n'
+  1269→        '  risks: List[str]\n'
+  1270→        '  recoveries: List[str]\n'
+  1271→        '  validations: List[str]\n'
+  1272→        '  constraints: List[str]\n'
+  1273→        '  behaviors: List[str]\n'
+  1274→        '  conditions: List[str]\n'
+  1275→        '  events: List[str]\n'
+  1276→        '  optimization_targets: List[str]\n'
+  1277→        '  security_actions: List[str]\n'
+  1278→        '  children: List[ArchitectureNode]\n'
+  1279→        '  parent: ArchitectureNode | None'
+  1280→    ))
+  1281→
+  1282→    story.append(h2('6.3 Transformation Rules'))
+  1283→    story.append(p(
+  1284→        'The transformation from AICL specifications to executable code follows a set of '
+  1285→        'well-defined rules that map each AICL construct to its generated output. Goal '
+  1286→        'sections produce top-level docstrings and configuration constants that guide runtime '
+  1287→        'behavior. Constraint sections generate assertion functions and runtime checks that '
+  1288→        'verify the constraints hold during execution. Risk-Recovery pairs produce try-except '
+  1289→        'blocks with specific exception handlers and recovery logic. Layer sections generate '
+  1290→        'module structures with appropriate imports and class hierarchies. Validation sections '
+  1291→        'produce test functions that verify the specified success criteria.'
+  1292→    ))
+  1293→    story.append(p(
+  1294→        'Entity sections generate data classes with typed fields, constructors, and '
+  1295→        'serialization methods. Behavior sections generate function signatures with parameter '
+  1296→        'validation and return type enforcement. Condition sections generate conditional logic '
+  1297→        'that checks the When clause and executes the Then clause, placed at the appropriate '
+  1298→        'location in the control flow based on the dependency analysis. Event sections generate '
+  1299→        'event handler registrations and callback functions. Parallel sections generate '
+  1300→        'concurrent execution scaffolding using the target language\'s concurrency primitives. '
+  1301→        'Optimize sections influence code generation choices, such as data structure selection '
+  1302→        'and algorithm choice, based on the specified optimization targets.'
+  1303→    ))
+  1304→    story.append(p(
+  1305→        'Learn sections generate data collection pipelines, model training infrastructure, '
+  1306→        'and inference serving code. Adapt sections generate monitoring and dynamic '
+  1307→        'reconfiguration logic that adjusts system behavior based on the specified criteria. '
+  1308→        'Security sections generate encryption and access control code, including key '
+  1309→        'management and permission checking. Native sections are passed through verbatim to '
+  1310→        'the output, with appropriate integration code generated to connect the native block '
+  1311→        'to the surrounding AICL-generated code. These transformation rules are not arbitrary; '
+  1312→        'they are derived from the principle that every architectural element must contribute '
+  1313→        'to the generated code, ensuring that the implementation is a faithful realization of '
+  1314→        'the specification.'
+  1315→    ))
+  1316→
+  1317→    story.append(PageBreak())
+  1318→
+  1319→    # ── 7. AI-NATIVE COMPILATION PIPELINE ────────────────────────────────
+  1320→    story.append(h1('7. AI-Native Compilation Pipeline'))
+  1321→    story.append(AccentRule(CONTENT_W, 1.5))
+  1322→    story.append(spacer(0.3))
+  1323→
+  1324→    story.append(p(
+  1325→        'The AICL compilation pipeline is designed from the ground up to be AI-native, meaning '
+  1326→        'that the compiler reasons about the architecture rather than merely translating it. '
+  1327→        'Unlike conventional compilers that perform syntactic transformations on a fixed IR, the '
+  1328→        'AICL compiler uses the rich semantic information encoded in the specification -- goals, '
+  1329→        'constraints, risks, recoveries, and validations -- to guide every stage of code '
+  1330→        'generation. This section describes each of the nine compilation stages in detail, '
+  1331→        'explaining how architectural information flows through the pipeline and shapes the '
+  1332→        'generated output.'
+  1333→    ))
+  1334→
+  1335→    stages = [
+  1336→        ('7.1 Stage 1: Specification Parsing',
+  1337→         'The first stage transforms AICL source text into an Abstract Syntax Tree (AST) using '
+  1338→         'a line-based parser. The parser reads the source code line by line, identifying '
+  1339→         'keywords, extracting values, and building the hierarchical AST structure that '
+  1340→         'represents the program. AICL\'s line-based grammar makes parsing straightforward: '
+  1341→         'each non-blank, non-comment line begins with a recognized keyword, and indentation '
+  1342→         'levels indicate structural nesting. The parser handles both same-line values '
+  1343→         '(e.g., "Goal: Display a blue square") and next-line values (e.g., "Goal:" followed '
+  1344→         'by the value on the next line). The output of this stage is a complete AICLProgram '
+  1345→         'AST node containing all goals, constraints, risks, recoveries, layers, validations, '
+  1346→         'entities, behaviors, conditions, events, parallels, optimizations, learning '
+  1347→         'directives, security sections, and native code blocks found in the source.'),
+  1348→
+  1349→        ('7.2 Stage 2: Architecture Validation',
+  1350→         'The architecture validation stage checks the AST for structural completeness and '
+  1351→         'consistency. It enforces the mandatory elements: every valid AICL program must have '
+  1352→         'at least one Goal, one Layer, and one Validation section. It also checks for common '
+  1353→         'specification errors such as duplicate layer names, entity field references to '
+  1354→         'undefined types, risks without corresponding recoveries, and recoveries without '
+  1355→         'corresponding risks. The output of this stage is a list of warnings and errors that '
+  1356→         'inform the developer of any structural issues in the specification. Unlike many '
+  1357→         'compilers that treat warnings as optional, AICL\'s validation warnings are '
+  1358→         'architecturally significant because they indicate potential gaps between the '
+  1359→         'developer\'s intent and the specification\'s expressiveness.'),
+  1360→
+  1361→        ('7.3 Stage 3: Dependency Analysis',
+  1362→         'The dependency analysis stage determines the relationships between architectural '
+  1363→         'layers. It constructs the layer hierarchy from the AST, identifies which layers '
+  1364→         'depend on which other layers based on entity references and behavior interactions, '
+  1365→         'and computes a topological ordering that respects these dependencies. This ordering '
+  1366→         'is critical for code generation: layers must be initialized in dependency order, and '
+  1367→         'the generated code must ensure that a layer\'s dependencies are available before it '
+  1368→         'is used. The dependency analysis also identifies layers that can execute concurrently '
+  1369→         '(those with no mutual dependencies), providing the information needed to implement '
+  1370→         'Parallel directives.'),
+  1371→
+  1372→        ('7.4 Stage 4: Risk Analysis',
+  1373→         'The risk analysis stage examines the declared risks and pairs each risk with its '
+  1374→         'corresponding recovery procedure. Risks and recoveries are paired sequentially: the '
+  1375→         'first Risk is paired with the first Recovery, the second with the second, and so on. '
+  1376→         'If there are more risks than recoveries, unpaired risks are flagged as warnings. If '
+  1377→         'there are more recoveries than risks, the excess recoveries are treated as general '
+  1378→         'fallback strategies. The compiler also attempts to distribute risks to specific '
+  1379→         'architectural layers based on keyword matching between risk descriptions and layer '
+  1380→         'names, enabling more targeted error handling in the generated code.'),
+  1381→
+  1382→        ('7.5 Stage 5: Recovery Synthesis',
+  1383→         'The recovery synthesis stage generates concrete recovery logic from the risk-recovery '
+  1384→         'pairs identified in the previous stage. For each pair, the compiler produces a '
+  1385→         'recovery function that implements the specified corrective action, wrapped in '
+  1386→         'appropriate error-handling constructs. The synthesis process takes into account the '
+  1387→         'target language\'s error-handling idioms (e.g., try-except in Python, try-catch in '
+  1388→         'Java, Result types in Rust) and generates code that integrates seamlessly with the '
+  1389→         'layer structure. The output of this stage is a recovery map that associates each '
+  1390→         'risk-recovery pair with the generated recovery function and its location in the '
+  1391→         'codebase.'),
+  1392→
+  1393→        ('7.6 Stage 6: Code Generation',
+  1394→         'The code generation stage is the core of the AICL compiler. It produces executable '
+  1395→         'source code in the target language from the validated AST, the dependency order, the '
+  1396→         'risk-recovery pairs, and the recovery map. Code generation follows the layer '
+  1397→         'hierarchy: each top-level layer becomes a module, and each sublayer becomes a class '
+  1398→         'or function within that module. Entities generate data classes, behaviors generate '
+  1399→         'functions, conditions generate conditional logic, and events generate event handlers. '
+  1400→         'Risk-recovery pairs are woven into the generated code as error-handling blocks. '
+  1401→         'Constraints generate assertion functions and runtime checks. The current v0.1 '
+  1402→         'implementation targets Python as the output language.'),
+  1403→
+  1404→        ('7.7 Stage 7: Test Generation',
+  1405→         'The test generation stage derives test cases from the Validation specifications '
+  1406→         'defined in the AICL source. Each Validation section produces one or more test '
+  1407→         'functions that verify the specified success criterion. The test generator creates '
+  1408→         'test setup code that initializes the system in a known state, test execution code '
+  1409→         'that exercises the relevant behaviors, and test assertion code that checks the '
+  1410→         'validation criterion. The generated tests are organized by layer, mirroring the '
+  1411→         'architectural structure of the system. This ensures that the test suite provides '
+  1412→         'coverage at every level of the architecture, from individual behaviors to system-'
+  1413→         'wide validations.'),
+  1414→
+  1415→        ('7.8 Stage 8: Optimization',
+  1416→         'The optimization stage applies performance improvements to the generated code, '
+  1417→         'guided by the Optimize and Priority directives specified in the AICL source. The '
+  1418→         'optimizer can apply a range of techniques including loop optimization, data structure '
+  1419→         'selection, caching strategy insertion, and algorithm substitution. The specific '
+  1420→         'optimizations applied depend on the optimization targets: a system that optimizes for '
+  1421→         'latency may use different data structures and algorithms than one that optimizes for '
+  1422→         'memory usage. The optimizer operates on the generated code rather than on a separate '
+  1423→         'IR, allowing it to leverage target-language-specific optimization techniques.'),
+  1424→
+  1425→        ('7.9 Stage 9: Final Construction',
+  1426→         'The final construction stage assembles the complete output from the generated source '
+  1427→         'code, test code, and any configuration files or auxiliary artifacts. It produces a '
+  1428→         'directory structure that mirrors the layer hierarchy, generates a main entry point '
+  1429→         'that initializes the system in dependency order and starts execution, and writes all '
+  1430→         'output files to the specified directory. The final output also includes the '
+  1431→         'Architecture Tree as a human-readable text file, providing developers with a '
+  1432→         'visualization of the system\'s architecture as understood by the compiler.'),
+  1433→    ]
+  1434→
+  1435→    for title, body_text in stages:
+  1436→        story.append(h2(title))
+  1437→        story.append(p(body_text))
+  1438→
+  1439→    story.append(p(
+  1440→        'The multi-stage pipeline architecture of the AICL compiler provides several important '
+  1441→        'properties. First, it ensures separation of concerns: each stage has a well-defined '
+  1442→        'input and output, making it possible to verify, debug, and optimize each stage '
+  1443→        'independently. Second, it enables incremental compilation: if only the optimization '
+  1444→        'directives change, the compiler can re-run only the optimization stage and subsequent '
+  1445→        'stages, avoiding the cost of re-parsing and re-generating the entire program. Third, '
+  1446→        'it provides natural extension points for future language features: new constructs can '
+  1447→        'be added by extending the parser, adding new AST nodes, and defining their '
+  1448→        'transformation rules in the code generation stage without modifying the other stages.'
+  1449→    ))
+  1450→
+  1451→    story.append(PageBreak())
+  1452→
+  1453→    # ── 8. COMPARATIVE ANALYSIS ─────────────────────────────────────────
+  1454→    story.append(h1('8. Comparative Analysis'))
+  1455→    story.append(AccentRule(CONTENT_W, 1.5))
+  1456→    story.append(spacer(0.3))
+  1457→
+  1458→    story.append(p(
+  1459→        'To understand AICL\'s position in the programming language landscape, it is essential '
+  1460→        'to compare it with existing approaches across several dimensions: expressiveness, '
+  1461→        'compilation model, risk handling, validation support, AI integration, and architectural '
+  1462→        'fidelity. This section provides a detailed comparison with traditional programming '
+  1463→        'languages, domain-specific languages and model-driven engineering tools, formal '
+  1464→        'specification languages, LLM code generation tools, and intentional programming systems.'
+  1465→    ))
+  1466→
+  1467→    story.append(h2('8.1 Traditional Programming Languages'))
+  1468→    story.append(p(
+  1469→        'Traditional programming languages such as Java, Python, and Rust are fundamentally '
+  1470→        'instruction-centric. Developers write code that specifies what the computer should do '
+  1471→        'step by step, and the compiler or interpreter translates these instructions into '
+  1472→        'machine-executable form. Architectural concerns -- goals, constraints, risks, '
+  1473→        'recoveries, and validation criteria -- are expressed through external mechanisms such as '
+  1474→        'comments, documentation, design patterns, and testing frameworks. Java provides '
+  1475→        'annotations and exception hierarchies that partially capture constraints and error '
+  1476→        'handling, but these are optional and inconsistently applied. Python\'s dynamic type '
+  1477→        'system and lack of formal interface specifications make architectural intent even '
+  1478→        'harder to express within the code. Rust\'s type system and ownership model provide '
+  1479→        'strong compile-time guarantees about memory safety, but they do not address '
+  1480→        'architectural concerns such as risk modeling or validation criteria. None of these '
+  1481→        'languages treat risks, recoveries, or validations as syntactic elements; they are '
+  1482→        'always implementation details that the developer must remember to include.'
+  1483→    ))
+  1484→    story.append(p(
+  1485→        'The key difference between AICL and traditional languages is not the level of '
+  1486→        'abstraction but the nature of the abstraction. Traditional languages abstract over '
+  1487→        'machine instructions; AICL abstracts over architectural specifications. A Java '
+  1488→        'developer writes a class that implements an interface; an AICL developer writes a '
+  1489→        'layer that has a goal, risks, and validations. The Java class may or may not handle '
+  1490→        'errors correctly; the AICL layer must specify its risks and recoveries or the compiler '
+  1491→        'will warn about the omission. The Java class may or may not have tests; the AICL '
+  1492→        'layer must specify its validations, and the compiler generates the tests automatically.'
+  1493→    ))
+  1494→
+  1495→    story.append(h2('8.2 DSLs and Model-Driven Engineering'))
+  1496→    story.append(p(
+  1497→        'Domain-specific languages (DSLs) and model-driven engineering (MDE) approaches share '
+  1498→        'AICL\'s goal of raising the level of abstraction at which developers specify software. '
+  1499→        'DSLs like SQL, HTML, and regular expressions provide tailored vocabularies for specific '
+  1500→        'problem domains, while MDE tools like Eclipse Modeling Framework (EMF) and MetaEdit+ '
+  1501→        'allow developers to define domain models and generate code from them. However, DSLs '
+  1502→        'and MDE tools typically focus on structural modeling rather than architectural '
+  1503→        'specification. A UML model may define class hierarchies and relationships, but it does '
+  1504→        'not specify failure modes, recovery procedures, or validation criteria. A DSL may '
+  1505→        'express queries or user interfaces concisely, but it does not provide a vocabulary for '
+  1506→        'risks, constraints, or architectural goals.'
+  1507→    ))
+  1508→    story.append(p(
+  1509→        'AICL differs from DSLs and MDE in three important ways. First, AICL is a general-'
+  1510→        'purpose specification language, not a domain-specific one: it can express the '
+  1511→        'architecture of any software system, not just systems in a particular domain. Second, '
+  1512→        'AICL includes risk, recovery, and validation as first-class constructs, which are '
+  1513→        'absent from most DSLs and modeling languages. Third, AICL\'s compilation pipeline is '
+  1514→        'designed to be AI-native, leveraging the structured specification to enable intelligent '
+  1515→        'code generation that goes beyond the template-based code generation used by most MDE '
+  1516→        'tools. While MDE tools generate code by filling in templates, AICL generates code by '
+  1517→        'reasoning about the architecture, producing error-handling logic, test cases, and '
+  1518→        'security implementations that template-based approaches cannot provide.'
+  1519→    ))
+  1520→
+  1521→    story.append(h2('8.3 Specification Languages'))
+  1522→    story.append(p(
+  1523→        'Formal specification languages such as TLA+, Alloy, and Z notation provide rigorous '
+  1524→        'mathematical frameworks for specifying system behavior and proving correctness '
+  1525→        'properties. TLA+ allows developers to write temporal logic specifications of '
+  1526→        'concurrent systems and verify them with the TLC model checker. Alloy provides a '
+  1527→        'relational specification language with automatic analysis through bounded model '
+  1528→        'checking. Z notation offers a mathematical notation based on set theory and predicate '
+  1529→        'logic for specifying system state and operations. These languages are powerful tools '
+  1530→        'for formal verification, but they operate in a different domain than AICL.'
+  1531→    ))
+  1532→    story.append(p(
+  1533→        'The fundamental difference is that specification languages are designed for analysis, '
+  1534→        'not compilation. A TLA+ specification can be model-checked to verify safety and '
+  1535→        'liveness properties, but it cannot be compiled into executable software. An Alloy '
+  1536→        'model can be analyzed for counterexamples, but it does not generate a running system. '
+  1537→        'A Z specification can be refined into an implementation, but the refinement is a '
+  1538→        'manual process that requires significant mathematical expertise. AICL, by contrast, '
+  1539→        'is designed for compilation: every AICL specification can be compiled into executable '
+  1540→        'software through the multi-stage pipeline. AICL sacrifices some of the mathematical '
+  1541→        'rigor of formal specification languages in exchange for practical compilability, but '
+  1542→        'it retains the key insight that specifications should be precise, structured, and '
+  1543→        'machine-processable.'
+  1544→    ))
+  1545→
+  1546→    story.append(h2('8.4 LLM Code Generation Tools'))
+  1547→    story.append(p(
+  1548→        'Large language model code generation tools such as GitHub Copilot, ChatGPT, and '
+  1549→        'Claude have transformed the way many developers write code. These tools accept natural '
+  1550→        'language prompts and generate code that attempts to satisfy the prompt\'s intent. While '
+  1551→        'impressive in their ability to produce syntactically correct and often functionally '
+  1552→        'adequate code, these tools suffer from a fundamental limitation: they have no '
+  1553→        'structured understanding of the architecture they are implementing. A Copilot suggestion '
+  1554→        'may implement a function correctly in isolation but violate the system\'s architectural '
+  1555→        'constraints, ignore known failure modes, or omit required validation checks. The '
+  1556→        'natural language prompts that drive these tools are inherently ambiguous, and the '
+  1557→        'generated code reflects this ambiguity.'
+  1558→    ))
+  1559→    story.append(p(
+  1560→        'AICL provides a natural interface for LLM-assisted development that addresses these '
+  1561→        'limitations. Because AICL specifications are structured, formal, and unambiguous, an '
+  1562→        'LLM can parse them to understand the complete architectural context before generating '
+  1563→        'code. The LLM can see the system\'s goals, constraints, risks, and validations, and '
+  1564→        'generate code that is consistent with all of them. Moreover, the AICL compilation '
+  1565→        'pipeline provides multiple checkpoints where LLM-generated code can be validated '
+  1566→        'against the specification: architecture validation checks structural completeness, '
+  1567→        'risk analysis ensures that failure modes are addressed, and test generation provides '
+  1568→        'automated verification. AICL thus transforms the LLM from an unguided code generator '
+  1569→        'into an architecturally aware code synthesis engine.'
+  1570→    ))
+  1571→
+  1572→    story.append(h2('8.5 Intentional Programming'))
+  1573→    story.append(p(
+  1574→        'Intentional programming (IP), proposed by Charles Simonyi in the 1990s, shares AICL\'s '
+  1575→        'vision of elevating programming from instruction-writing to intent-expression. IP '
+  1576→        'allows developers to define "intentions" -- high-level programming constructs that '
+  1577→        'capture the developer\'s purpose -- and provides an environment for composing and '
+  1578→        'transforming these intentions into executable code. The key insight of IP is that '
+  1579→        'programming should be about capturing intent rather than specifying implementation, '
+  1580→        'an insight that AICL shares and extends.'
+  1581→    ))
+  1582→    story.append(p(
+  1583→        'However, intentional programming and AICL differ significantly in their approach and '
+  1584→        'scope. IP focuses on the extensibility of programming constructs: developers can '
+  1585→        'define new intentions and customize how they are rendered and compiled. AICL focuses '
+  1586→        'on the completeness of architectural specification: developers must specify not only '
+  1587→        'what the system should do (the "intention") but also what could go wrong (risks), '
+  1588→        'how to recover from failures (recoveries), what the boundaries are (constraints), and '
+  1589→        'how success is measured (validations). IP does not provide constructs for these '
+  1590→        'architectural concerns; they would need to be added as custom intentions, which '
+  1591→        'defeats the purpose of having a standardized vocabulary. AICL\'s built-in support for '
+  1592→        'risks, recoveries, constraints, and validations ensures that these concerns are always '
+  1593→        'addressed, not just when developers remember to define the appropriate intentions.'
+  1594→    ))
+  1595→
+  1596→    story.append(h2('8.6 Comparison Table'))
+  1597→    story.append(p(
+  1598→        'The following table provides a structured comparison of AICL with the approaches '
+  1599→        'discussed above, across several key dimensions that capture the essential differences '
+  1600→        'in philosophy, expressiveness, and practical utility.'
+  1601→    ))
+  1602→
+  1603→    comp_data = [
+  1604→        ['AICL', 'Arch. Spec.', 'Multi-stage AI', 'Mandatory', 'Auto-gen', 'Native'],
+  1605→        ['Java', 'Imperative', 'Standard', 'Optional', 'Manual', 'None'],
+  1606→        ['Python', 'Imperative', 'Interpreted', 'Optional', 'Manual', 'None'],
+  1607→        ['Rust', 'Imperative', 'Standard', 'Partial', 'Manual', 'None'],
+  1608→        ['TLA+', 'Formal Spec.', 'Model Check', 'N/A', 'N/A', 'None'],
+  1609→        ['Alloy', 'Formal Spec.', 'Analysis', 'N/A', 'N/A', 'None'],
+  1610→        ['SQL (DSL)', 'Declarative', 'Query Eng.', 'Optional', 'Manual', 'None'],
+  1611→        ['EMF/MDE', 'Model-Based', 'Template', 'Optional', 'Template', 'None'],
+  1612→        ['Copilot', 'NLP Prompt', 'LLM Gen.', 'None', 'None', 'LLM'],
+  1613→        ['Intentional', 'Intent-Based', 'IP Env.', 'Optional', 'Custom', 'None'],
+  1614→    ]
+  1615→    story.append(make_table(
+  1616→        ['Language', 'Paradigm', 'Compilation', 'Risk Handling', 'Validation', 'AI Integ.'],
+  1617→        comp_data,
+  1618→        col_widths=[2.3*cm, 2.5*cm, 2.5*cm, 2.5*cm, 2.5*cm, 2.2*cm]
+  1619→    ))
+  1620→    story.append(caption(
+  1621→        'Table 3: Comparative analysis across key dimensions'
+  1622→    ))
+  1623→
+  1624→    story.append(PageBreak())
+  1625→
+  1626→    # ── 9. EXAMPLE PROGRAMS ─────────────────────────────────────────────
+  1627→    story.append(h1('9. Example Programs'))
+  1628→    story.append(AccentRule(CONTENT_W, 1.5))
+  1629→    story.append(spacer(0.3))
+  1630→
+  1631→    story.append(p(
+  1632→        'This section presents four complete AICL programs that demonstrate the language\'s '
+  1633→        'expressive range, from a minimal graphical application to a complex networked game. '
+  1634→        'Each example shows how AICL\'s layered architecture, risk-recovery pairing, and '
+  1635→        'validation specifications combine to create comprehensive software specifications '
+  1636→        'that the compiler can transform into executable systems.'
+  1637→    ))
+  1638→
+  1639→    # Blue Square
+  1640→    story.append(h2('9.1 Blue Square'))
+  1641→    story.append(p(
+  1642→        'The Blue Square program is the simplest non-trivial AICL application. It demonstrates '
+  1643→        'the mandatory Level 1 constructs (Goal, Constraint, Risk, Recovery, Layer, Validation) '
+  1644→        'in a minimal configuration. The specification defines a system that displays a blue '
+  1645→        'square on screen, handles the risk of graphics device unavailability and shader '
+  1646→        'compilation failure, organizes the rendering pipeline into layers, and specifies '
+  1647→        'validation criteria that ensure the square is visible and the application remains '
+  1648→        'responsive. Despite its simplicity, this example illustrates several key AICL '
+  1649→        'principles: risks are explicitly declared and paired with recoveries, the architecture '
+  1650→        'is decomposed into layers with clear responsibilities, and success criteria are '
+  1651→        'specified as part of the program.'
+  1652→    ))
+  1653→    story.append(code(
+  1654→        'Goal:\nDisplay a blue square on screen\n\n'
+  1655→        'Constraint:\nMust use hardware acceleration when available\n\n'
+  1656→        'Risk:\nGraphics device unavailable\n\n'
+  1657→        'Recovery:\nUse software renderer\n\n'
+  1658→        'Risk:\nShader compilation failure\n\n'
+  1659→        'Recovery:\nLoad fallback shader\n\n'
+  1660→        'Layer:\nApplication Window\n\n'
+  1661→        'Layer:\nRenderer\n'
+  1662→        '    Sublayer:\n    Device creation\n'
+  1663→        '    Sublayer:\n    Resource management\n'
+  1664→        '    Sublayer:\n    Shader system\n\n'
+  1665→        'Layer:\nBlue Square\n\n'
+  1666→        'Layer:\nBlue Shader\n\n'
+  1667→        'Validation:\nBlue square is visible on screen\n\n'
+  1668→        'Validation:\nApplication remains responsive for 60 seconds'
+  1669→    ))
+  1670→
+  1671→    # Pong Game
+  1672→    story.append(h2('9.2 Pong Game'))
+  1673→    story.append(p(
+  1674→        'The Pong Game example extends the architectural specification with Levels 2 through 6, '
+  1675→        'demonstrating entities, behaviors, conditions, events, and concurrency. The '
+  1676→        'specification defines Player and Ball entities, MovePaddle and UpdateBall behaviors, '
+  1677→        'conditions for paddle collision and score thresholds, events for key presses and '
+  1678→        'collisions, and a Parallel directive that executes the rendering, input, and physics '
+  1679→        'layers concurrently. This example shows how AICL scales from simple to complex '
+  1680→        'applications: the same architectural framework that describes a blue square also '
+  1681→        'describes a real-time game with physics, input handling, and concurrent execution.'
+  1682→    ))
+  1683→    story.append(code(
+  1684→        'Goal:\nBuild a Pong game\n\n'
+  1685→        'Constraint:\nMust run at 60 FPS minimum\n\n'
+  1686→        'Risk:\nBall leaves play area\n'
+  1687→        'Recovery:\nClamp ball position to boundaries\n\n'
+  1688→        'Risk:\nScore not displayed correctly\n'
+  1689→        'Recovery:\nReinitialize score display\n\n'
+  1690→        'Risk:\nInput lag detected\n'
+  1691→        'Recovery:\nEnable input buffering\n\n'
+  1692→        'Layer:\nWindow Manager\n\n'
+  1693→        'Layer:\nRendering System\n'
+  1694→        '    Sublayer:\n    Sprite rendering\n'
+  1695→        '    Sublayer:\n    Text rendering\n'
+  1696→        '    Sublayer:\n    Background rendering\n\n'
+  1697→        'Layer:\nInput System\n\n'
+  1698→        'Layer:\nPhysics Engine\n'
+  1699→        '    Sublayer:\n    Ball movement\n'
+  1700→        '    Sublayer:\n    Collision detection\n'
+  1701→        '    Sublayer:\n    Paddle movement\n\n'
+  1702→        'Layer:\nGame Logic\n'
+  1703→        '    Sublayer:\n    Score tracking\n'
+  1704→        '    Sublayer:\n    Game state management\n'
+  1705→        '    Sublayer:\n    Round management\n\n'
+  1706→        'Entity Player\n'
+  1707→        '    name: string\n'
+  1708→        '    score: integer\n'
+  1709→        '    paddle_position: float\n\n'
+  1710→        'Entity Ball\n'
+  1711→        '    x: float\n'
+  1712→        '    y: float\n'
+  1713→        '    velocity_x: float\n'
+  1714→        '    velocity_y: float\n\n'
+  1715→        'Behavior MovePaddle\n'
+  1716→        'Input:\n    Player direction string\n'
+  1717→        'Action:\n    Update paddle position based on direction\n\n'
+  1718→        'Condition:\n'
+  1719→        'When ball hits paddle\n'
+  1720→        'Then reflect ball velocity\n\n'
+  1721→        'Event:\n'
+  1722→        'On key press\n'
+  1723→        'Action:\n    move corresponding paddle\n\n'
+  1724→        'Parallel:\n'
+  1725→        'Rendering System\n'
+  1726→        'Input System\n'
+  1727→        'Physics Engine'
+  1728→    ))
+  1729→
+  1730→    # Chat Application
+  1731→    story.append(h2('9.3 Chat Application'))
+  1732→    story.append(p(
+  1733→        'The Chat Application example demonstrates AICL\'s ability to specify a networked, '
+  1734→        'concurrent application with multiple constraints, complex risk-recovery pairs, and '
+  1735→        'security requirements. It uses Levels 1 through 9, including Optimization (Level 7), '
+  1736→        'Learning (Level 8), and Security (Level 9). The specification addresses network '
+  1737→        'unavailability, latency thresholds, and message delivery failures with specific '
+  1738→        'recovery strategies including exponential backoff, offline mode, and local storage '
+  1739→        'with retry. The Security section mandates encryption of message content and protection '
+  1740→        'of user credentials, while the Learn section specifies that the system should learn '
+  1741→        'from user behavior to improve message suggestions.'
+  1742→    ))
+  1743→    story.append(code(
+  1744→        'Goal:\nCreate a multiplayer chat application\n\n'
+  1745→        'Constraint:\nMust support at least 100 concurrent users\n\n'
+  1746→        'Constraint:\nMaximum memory usage 512 MB\n\n'
+  1747→        'Risk:\nServer becomes unavailable\n'
+  1748→        'Recovery:\nReconnect automatically with exponential backoff\n\n'
+  1749→        'Risk:\nNetwork latency exceeds threshold\n'
+  1750→        'Recovery:\nEnable offline mode with message queue\n\n'
+  1751→        'Entity User\n'
+  1752→        '    name: string\n'
+  1753→        '    id: integer\n'
+  1754→        '    status: string\n\n'
+  1755→        'Entity Message\n'
+  1756→        '    content: string\n'
+  1757→        '    timestamp: datetime\n'
+  1758→        '    sender: User\n\n'
+  1759→        'Optimize:\nMemory usage\n\n'
+  1760→        'Security:\n'
+  1761→        'Encrypt:\n    message content\n'
+  1762→        'Protect:\n    user credentials\n\n'
+  1763→        'Learn:\n    User behavior\n'
+  1764→        'Goal:\n    improve message suggestions\n\n'
+  1765→        'Validation:\nSend and receive messages successfully\n\n'
+  1766→        'Validation:\nAverage latency below 100 ms'
+  1767→    ))
+  1768→
+  1769→    # Chess Game
+  1770→    story.append(h2('9.4 Chess Game'))
+  1771→    story.append(p(
+  1772→        'The Chess Game example represents the most complex AICL specification in this paper, '
+  1773→        'demonstrating all ten language levels including the Native code escape hatch. It '
+  1774→        'specifies a multiplayer chess game with network support, move validation, check and '
+  1775→        'checkmate detection, and adaptive graphics quality. The specification defines Player, '
+  1776→        'ChessPiece, and GameState entities, MakeMove and ValidateMove behaviors, conditions '
+  1777→        'for check, checkmate, and stalemate, events for piece selection and move submission, '
+  1778→        'and an Adapt directive that adjusts graphics quality based on device performance. '
+  1779→        'This example demonstrates that AICL can express the full complexity of a real-world '
+  1780→        'application, from high-level architectural goals to low-level implementation details.'
+  1781→    ))
+  1782→    story.append(code(
+  1783→        'Goal:\nCreate a multiplayer chess game\n\n'
+  1784→        'Constraint:\nMust run on mobile devices\n\n'
+  1785→        'Constraint:\nMove validation must be under 10 ms\n\n'
+  1786→        'Risk:\nInvalid move received\n'
+  1787→        'Recovery:\nReject move and request resend\n\n'
+  1788→        'Entity ChessPiece\n'
+  1789→        '    type: string\n'
+  1790→        '    color: string\n'
+  1791→        '    position: string\n'
+  1792→        '    has_moved: boolean\n\n'
+  1793→        'Entity GameState\n'
+  1794→        '    board: list\n'
+  1795→        '    current_turn: string\n'
+  1796→        '    move_count: integer\n'
+  1797→        '    status: string\n\n'
+  1798→        'Condition:\n'
+  1799→        'When checkmate detected\n'
+  1800→        'Then end game and declare winner\n\n'
+  1801→        'Adapt:\n    Graphics quality\n'
+  1802→        'Based:\n    device performance\n\n'
+  1803→        'Security:\n'
+  1804→        'Encrypt:\n    game state\n'
+  1805→        'Protect:\n    player credentials\n\n'
+  1806→        'Validation:\nTwo players complete a full game\n\n'
+  1807→        'Validation:\nMove validation completes in under 10 ms'
+  1808→    ))
+  1809→
+  1810→    story.append(PageBreak())
+  1811→
+  1812→    # ── 10. RESEARCH HYPOTHESES ──────────────────────────────────────────
+  1813→    story.append(h1('10. Research Hypotheses'))
+  1814→    story.append(AccentRule(CONTENT_W, 1.5))
+  1815→    story.append(spacer(0.3))
+  1816→
+  1817→    story.append(p(
+  1818→        'AICL is grounded in a set of research hypotheses that motivate its design and define '
+  1819→        'the empirical questions that future work must address. Each hypothesis represents a '
+  1820→        'testable claim about the relationship between specification-first programming and '
+  1821→        'software quality, developer productivity, or system reliability. These hypotheses are '
+  1822→        'not assertions of fact; they are conjectures that the AICL project aims to validate '
+  1823→        'or refute through controlled experiments, case studies, and real-world deployments.'
+  1824→    ))
+  1825→
+  1826→    story.append(h2('H1: Architecture-Code Consistency'))
+  1827→    story.append(p(
+  1828→        'Software systems specified in AICL will exhibit higher consistency between their '
+  1829→        'documented architecture and their implementation compared to systems developed using '
+  1830→        'traditional programming languages. This hypothesis follows directly from AICL\'s core '
+  1831→        'principle that the architecture is the program: because there is only one artifact, '
+  1832→        'architectural drift is impossible by construction. Testing this hypothesis requires '
+  1833→        'comparing the architectural fidelity of systems built with and without AICL over '
+  1834→        'extended development periods, measuring the degree to which implementation diverges '
+  1835→        'from the documented architecture.'
+  1836→    ))
+  1837→
+  1838→    story.append(h2('H2: Failure Coverage'))
+  1839→    story.append(p(
+  1840→        'AICL\'s mandatory risk-recovery specification will result in higher coverage of known '
+  1841→        'failure modes compared to traditional error-handling approaches. In conventional '
+  1842→        'development, error handling is an implementation detail that developers may forget, '
+  1843→        'deprioritize, or implement inconsistently. In AICL, every risk must have a '
+  1844→        'corresponding recovery, and the compiler enforces this pairing during the risk '
+  1845→        'analysis stage. This hypothesis can be tested by comparing the ratio of handled to '
+  1846→        'unhandled failure modes in AICL-specified systems versus traditionally developed '
+  1847→        'systems of similar complexity.'
+  1848→    ))
+  1849→
+  1850→    story.append(h2('H3: Specification-to-Test Traceability'))
+  1851→    story.append(p(
+  1852→        'AICL\'s validation-driven test generation will produce test suites with higher '
+  1853→        'traceability to system requirements compared to manually written test suites. '
+  1854→        'Traditional test suites often verify implementation details rather than requirements, '
+  1855→        'and the mapping between test cases and requirements is frequently implicit or '
+  1856→        'undocumented. AICL generates tests directly from validation specifications, creating '
+  1857→        'an explicit, one-to-one mapping between requirements and test cases. This hypothesis '
+  1858→        'can be tested by measuring the traceability of test suites in AICL projects versus '
+  1859→        'conventional projects, using coverage of requirements as the primary metric.'
+  1860→    ))
+  1861→
+  1862→    story.append(h2('H4: AI-Assisted Code Quality'))
+  1863→    story.append(p(
+  1864→        'LLM-assisted code generation guided by AICL specifications will produce higher-quality '
+  1865→        'code compared to LLM-assisted generation from natural language prompts. The structured, '
+  1866→        'formal nature of AICL specifications provides LLMs with unambiguous information about '
+  1867→        'goals, constraints, risks, and validations, enabling them to generate code that is '
+  1868→        'architecturally consistent and failure-aware. This hypothesis can be tested through '
+  1869→        'controlled experiments where the same development tasks are performed using AICL '
+  1870→        'specifications and natural language prompts, with code quality measured across '
+  1871→        'dimensions including correctness, robustness, security, and adherence to architectural '
+  1872→        'constraints.'
+  1873→    ))
+  1874→
+  1875→    story.append(h2('H5: Developer Productivity'))
+  1876→    story.append(p(
+  1877→        'For systems of sufficient complexity, AICL will improve developer productivity by '
+  1878→        'reducing the total effort required to produce a correctly functioning system. While '
+  1879→        'writing AICL specifications requires upfront investment in architectural thinking, '
+  1880→        'this investment is expected to pay off through reduced debugging, fewer production '
+  1881→        'incidents, and less time spent maintaining consistency between design documents and '
+  1882→        'code. This hypothesis can be tested through longitudinal studies that measure the '
+  1883→        'total development time, defect rate, and maintenance effort for AICL-specified '
+  1884→        'systems versus traditionally developed systems of comparable scope and complexity.'
+  1885→    ))
+  1886→
+  1887→    story.append(PageBreak())
+  1888→
+  1889→    # ── 11. IMPLEMENTATION ──────────────────────────────────────────────
+  1890→    story.append(h1('11. Implementation'))
+  1891→    story.append(AccentRule(CONTENT_W, 1.5))
+  1892→    story.append(spacer(0.3))
+  1893→
+  1894→    story.append(p(
+  1895→        'The current AICL implementation, version 0.1, provides a complete parser, a '
+  1896→        'multi-stage compiler targeting Python, and an Architecture Tree intermediate '
+  1897→        'representation. The implementation is written in Python and consists of approximately '
+  1898→        '2,500 lines of code distributed across six modules: tokenizer, parser, AST nodes, '
+  1899→        'architecture tree, compiler, and CLI. This section describes the key architectural '
+  1900→        'decisions and implementation details of each component.'
+  1901→    ))
+  1902→
+  1903→    story.append(h2('11.1 Parser Architecture'))
+  1904→    story.append(p(
+  1905→        'The AICL parser uses a line-based parsing strategy that reads source code line by '
+  1906→        'line, identifying keywords at the start of each line and extracting their values. '
+  1907→        'This approach is well-suited to AICL\'s grammar, where each non-blank line begins '
+  1908→        'with a keyword and indentation indicates structural nesting. The parser maintains a '
+  1909→        'current position in the source and advances through the lines sequentially, building '
+  1910→        'the AST incrementally. It supports both same-line values (e.g., "Goal: Display a '
+  1911→        'blue square") and next-line values (e.g., "Goal:" followed by the value on the next '
+  1912→        'line), handling the flexibility that AICL\'s grammar allows while maintaining '
+  1913→        'deterministic parsing behavior.'
+  1914→    ))
+  1915→    story.append(p(
+  1916→        'The parser identifies 27 reserved keywords and dispatches each recognized keyword '
+  1917→        'to a specialized parsing method. Simple value keywords (Goal, Constraint, Risk, '
+  1918→        'Recovery, Validation, Optimize, Priority) are handled directly by extracting the '
+  1919→        'value text. Structured keywords (Layer, Entity, Behavior, Condition, Event, '
+  1920→        'Parallel, Learn, Adapt, Security, Native) require reading an indented block of '
+  1921→        'sub-keywords and values. The parser uses indentation counting to determine block '
+  1922→        'boundaries, supporting both space and tab indentation. Error handling is implemented '
+  1923→        'through a ParseError exception that includes the line number where the error was '
+  1924→        'detected, providing developers with precise feedback about specification errors.'
+  1925→    ))
+  1926→
+  1927→    story.append(h2('11.2 Compiler Pipeline'))
+  1928→    story.append(p(
+  1929→        'The compiler implements the nine-stage compilation pipeline described in Section 7. '
+  1930→        'Each stage is implemented as a method on the Compiler class, taking the output of '
+  1931→        'the previous stage as input and producing the input for the next stage. The compiler '
+  1932→        'maintains a list of warnings and errors that accumulate through the pipeline, and a '
+  1933→        'list of completed stages that enables partial compilation and progress reporting. '
+  1934→        'The current implementation targets Python as the output language, generating Python '
+  1935→        'source code with dataclasses for entities, functions for behaviors, and try-except '
+  1936→        'blocks for risk-recovery pairs.'
+  1937→    ))
+  1938→    story.append(p(
+  1939→        'Code generation in the v0.1 compiler follows a template-based approach where each '
+  1940→        'AICL construct maps to a Python code template. Entity sections generate dataclass '
+  1941→        'definitions. Behavior sections generate function definitions with parameter validation. '
+  1942→        'Risk-recovery pairs generate try-except blocks with specific exception handlers. '
+  1943→        'Validation sections generate test functions using Python\'s unittest framework. '
+  1944→        'Layer sections generate module-level organization with appropriate imports. While '
+  1945→        'template-based generation limits the sophistication of the output, it provides a '
+  1946→        'reliable foundation that can be extended with more intelligent generation strategies '
+  1947→        'in future versions. The compiler also produces an Architecture Tree visualization '
+  1948→        'that shows the hierarchical structure of the specification with associated risks, '
+  1949→        'recoveries, validations, and constraints.'
+  1950→    ))
+  1951→
+  1952→    story.append(h2('11.3 Architecture Tree IR'))
+  1953→    story.append(p(
+  1954→        'The Architecture Tree intermediate representation is implemented as a tree data '
+  1955→        'structure with ArchitectureNode objects that can have children, forming a hierarchical '
+  1956→        'representation of the system\'s architecture. Each node stores its name, type (root, '
+  1957→        'layer, entity, or behavior), and lists of associated architectural elements including '
+  1958→        'risks, recoveries, validations, constraints, behaviors, conditions, events, '
+  1959→        'optimization targets, and security actions. The tree provides methods for finding '
+  1960→        'nodes by name, computing dependency order through topological sort, and rendering '
+  1961→        'the tree as a human-readable string with Unicode box-drawing characters.'
+  1962→    ))
+  1963→    story.append(p(
+  1964→        'The Architecture Tree is constructed from the AST after parsing by iterating through '
+  1965→        'the program\'s sections and creating appropriate nodes. Global risks, recoveries, '
+  1966→        'validations, and constraints are attached to the root node. Layer nodes are created '
+  1967→        'with their sublayer children. Entity and behavior nodes are added as children of the '
+  1968→        'root. Conditions and events are attached to the root for later distribution by the '
+  1969→        'compiler. The tree also implements a risk distribution algorithm that attempts to '
+  1970→        'match global risks to specific layers based on keyword overlap between risk '
+  1971→        'descriptions and layer names. This distribution enables more targeted error handling '
+  1972→        'in the generated code, as the compiler can place recovery logic in the layers most '
+  1973→        'likely to encounter the corresponding failures.'
+  1974→    ))
+  1975→
+  1976→    story.append(PageBreak())
+  1977→
+  1978→    # ── 12. ROADMAP ─────────────────────────────────────────────────────
+  1979→    story.append(h1('12. Roadmap'))
+  1980→    story.append(AccentRule(CONTENT_W, 1.5))
+  1981→    story.append(spacer(0.3))
+  1982→
+  1983→    story.append(p(
+  1984→        'The AICL project follows an incremental development roadmap that gradually expands '
+  1985→        'the language\'s capabilities, the compiler\'s intelligence, and the ecosystem\'s '
+  1986→        'tooling. Each version adds functionality while maintaining backward compatibility '
+  1987→        'with existing AICL specifications. The roadmap is organized into four major releases, '
+  1988→        'each building on the foundation established by its predecessor.'
+  1989→    ))
+  1990→
+  1991→    roadmap_data = [
+  1992→        ['v0.1', 'Current', 'Core parser, 9-stage compiler, Architecture Tree IR, Python code '
+  1993→         'generation, test generation, CLI tool. Supports all 10 language levels with '
+  1994→         'template-based code generation.'],
+  1995→        ['v0.2', 'Q3 2026', 'Enhanced code generation with pattern-based templates, '
+  1996→         'multi-language targets (Rust, TypeScript), improved risk distribution, '
+  1997→         'validation-to-test traceability, and interactive specification validation.'],
+  1998→        ['v0.3', 'Q1 2027', 'LLM-integrated compilation: AI-assisted code generation that '
+  1999→         'uses the structured specification to guide LLM output, automatic specification '
+  2000→         'completion, and specification quality scoring. Support for compilation caching '
+
+[showing lines 1-2000 of 2288; use offset=2001 with limit to continue reading]
