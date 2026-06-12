@@ -1,16 +1,16 @@
 """
-AICL - AI-Centric Language
-Architecture is the program. Risks are syntax. Validations compile.
+AICL - Architecture Compilation Language
+Explicable Compilation: if the compiler cannot explain why, it does not generate.
 
-Version: 0.3.0
+Version: 0.4.0
 Author: Philippe-Antoine
 """
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __author__ = "Philippe-Antoine"
 
 from .parser import Parser, ParseError
-from .ast_nodes import (
+from .ast import (
     AICLProgram, GoalSection, ConstraintSection, RiskSection,
     RecoverySection, LayerSection, ValidationSection, EntitySection,
     BehaviorSection, ConditionSection, EventSection, ParallelSection,
@@ -18,7 +18,7 @@ from .ast_nodes import (
     NativeSection, EntityField, BehaviorInput, BehaviorOutput,
     SecurityAction,
 )
-from .architecture_tree import ArchitectureTree, ArchitectureNode
+from .ir import ArchitectureTree, ArchitectureNode
 from .compiler import Compiler, CompilationResult
 from .patterns import (
     BehaviorPatternLibrary, BehaviorCompiler,

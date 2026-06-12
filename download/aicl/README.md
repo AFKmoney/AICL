@@ -2,14 +2,14 @@
 
 # AICL
 
-**AI-Centric Language**
+**Architecture Compilation Language**
 
-*Architecture is the program. Risks are syntax. Validations compile.*
+*If the compiler cannot explain why it generated a line, it should not generate it.*
 
-[![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)](https://github.com/AFKmoney/AICL)
+[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](https://github.com/AFKmoney/AICL)
 [![Status](https://img.shields.io/badge/status-alpha-orange.svg)](https://github.com/AFKmoney/AICL)
 [![Python](https://img.shields.io/badge/python-3.10+-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-38%20passing-brightgreen.svg)](https://github.com/AFKmoney/AICL)
+[![Tests](https://img.shields.io/badge/tests-63%20passing-brightgreen.svg)](https://github.com/AFKmoney/AICL)
 [![License](https://img.shields.io/badge/license-MIT-purple.svg)](https://github.com/AFKmoney/AICL/blob/main/LICENSE)
 
 [Install](#install) · [Quick Start](#quick-start) · [Examples](#examples) · [Language Reference](#language-levels) · [Grammar](spec/grammar.md) · [White Paper](docs/whitepaper.pdf)
@@ -18,21 +18,31 @@
 
 ---
 
-## The Problem
+## Why AICL Exists
 
 Every production system needs error handling, failure recovery, and validation. Yet in every mainstream language, these are **optional afterthoughts** — scattered across try/catch blocks, buried in documentation, or forgotten entirely.
 
 **3:00 AM pages happen because risks were documented in Confluence, not compiled into code.**
 
-The gap between what we *intend* to build and what we *actually* build is where most production failures live. Architecture documents describe risk scenarios and recovery strategies, but nothing enforces their implementation. Code reviews miss edge cases. Tests skip failure paths. The result: systems that work on the happy path and crumble on every other one.
+But there is a deeper problem. Modern compilers generate millions of lines of code without ever being able to answer a simple question: **why?** Why was this line generated? What architectural decision produced it? What risk does this recovery address? What validation does this test verify?
 
-## The Idea
+No mainstream compiler can answer these questions. The code exists, but the reasoning behind it is lost the moment compilation finishes.
 
-AICL is a **specification-first programming language** where you describe *what* a system must achieve — not *how*. The core insight:
+AICL exists to change this.
 
-> **Risks, recoveries, and validations are not documentation — they are mandatory syntactic elements of the language.**
+## The Core Idea
 
-You cannot write an AICL program without specifying what can fail and how to recover. The compiler enforces this the way other compilers enforce types. This isn't a linting rule you can suppress or a best practice you can skip — it's a compile-time requirement built into the grammar itself.
+AICL is an **Architecture Compilation System** — not just a language. It compiles architectural specifications into executable code where:
+
+> **Risks, recoveries, and validations are mandatory syntactic elements, and every generated line carries full provenance.**
+
+This means three things that no other system does together:
+
+1. **Risk and Recovery are not optional.** You cannot write an AICL program without specifying what can fail and how to recover. The compiler enforces this the way other compilers enforce types.
+
+2. **Validation compiles into tests.** Every `Validation:` section becomes executable test code — not a comment, not a wish, but a compiled test.
+
+3. **Every line is explainable.** `aicl explain` tells you exactly why each line was generated, what pattern matched, what source it came from, and what confidence the compiler had. If the compiler cannot explain itself, it falls back to explicit sub-language syntax rather than guessing.
 
 ```aicl
 Risk:
@@ -42,7 +52,25 @@ Recovery:
     Clamp ball position to boundaries
 ```
 
-This isn't a comment. It's not a try/catch you might remember to write. It's a **first-class language construct** that the compiler transforms into executable recovery logic. Every Risk must have a paired Recovery. Every Validation must be testable. Every Layer must be accounted for in the generated architecture.
+This is not a comment. It is not a try/catch you might remember to write. It is a **first-class language construct** that the compiler transforms into executable recovery logic — and can later explain why it generated that specific clamping code.
+
+## What Makes This Different
+
+Several systems have tried "architecture to code." That is not the novelty here.
+
+The novelty is **explicable compilation** — the principle that a compiler should never generate code it cannot justify:
+
+| | Traditional Compilers | AI Code Generators | AICL |
+|---|---|---|---|
+| **Risks** | Optional try/catch | Not considered | Mandatory `Risk:` keyword |
+| **Recovery** | Scattered error handlers | Not considered | Paired `Recovery:` per risk |
+| **Validation** | Separate test files | Not generated | Compiled from `Validation:` sections |
+| **Architecture** | Documentation only | Hallucinated | Executable `Layer:` definitions |
+| **Provenance** | None | None | Full audit trail (`aicl explain`) |
+| **Determinism** | Deterministic | Probabilistic | Deterministic by contract |
+| **Explainability** | No | No | Every line traceable to source |
+
+The key insight: **AICL does not use AI to write code.** AI is an optional plugin. The core compiler is 100% deterministic, using a library of 30+ behavior patterns. This is a deliberate design choice — you should never need to wonder whether your compiler made a creative decision.
 
 ---
 
@@ -146,21 +174,13 @@ The compiler generates:
 - **`test_main.py`** — Test suite derived from `Validation:` sections
 - **`architecture_tree.txt`** — Visual architecture representation
 
----
+Then ask it why:
 
-## How It's Different
+```bash
+aicl explain examples/02_pong.aicl --behavior MovePaddle
+```
 
-| | Traditional Code | AICL |
-|---|---|---|
-| **Risks** | Optional try/catch, if you remember | Mandatory `Risk:` keyword |
-| **Recovery** | Scattered error handlers | Paired `Recovery:` per risk |
-| **Validation** | Separate test files, best effort | Compiled from `Validation:` sections |
-| **Architecture** | Documentation / diagrams | Executable `Layer:` definitions |
-| **Behavior** | Free-form function bodies | Deterministic pattern compilation |
-| **Compiler** | Translates syntax | Reasons about architecture |
-| **Provenance** | None | Every generated line is traceable (`aicl explain`) |
-
-This is not "natural language programming." AICL has a **strict, deterministic grammar** with 27 reserved keywords and a formal BNF specification. The compiler uses a library of 30+ behavior patterns to generate concrete, deterministic code — no AI guessing required. AI-assisted code filling (`--ai-fill`) is a separate, optional mode.
+The compiler will trace exactly which pattern matched, why, and with what confidence — because **every generated line must be explainable**.
 
 ---
 
@@ -193,9 +213,10 @@ aicl check examples/01_blue_square.aicl # Validate without compiling
 ```bash
 aicl explain examples/02_pong.aicl                          # Full compilation trace
 aicl explain examples/02_pong.aicl --behavior MovePaddle    # Specific behavior trace
+aicl explain examples/02_pong.aicl --provenance             # Full provenance report
 ```
 
-Every generated line of code has a provenance chain. The `aicl explain` command shows you exactly why the compiler generated each line, what pattern it matched, and what AICL source it came from.
+Every generated line of code has a provenance chain. The `aicl explain` command shows you exactly why the compiler generated each line, what pattern it matched, what AICL source it came from, and what confidence level it had.
 
 ### Run the tests
 
@@ -254,7 +275,7 @@ Validation:
 
 ## Compilation Pipeline
 
-The AICL compiler doesn't just translate — it **reasons** about your architecture through a 9-stage pipeline:
+The AICL compiler does not just translate — it **reasons** about your architecture through a 9-stage pipeline, recording provenance at every step:
 
 ```
   ┌─────────────┐
@@ -282,17 +303,18 @@ The AICL compiler doesn't just translate — it **reasons** about your architect
          │
     ┌────▼──────────┐
     │  Recovery     │  ──→ Recovery logic synthesis
-    │  Synthesis    │
+    │  Synthesis    │     + provenance recording
     └────┬──────────┘
          │
     ┌────▼──────────┐
     │  Code         │  ──→ Python source + error handling
-    │  Generation   │     (30+ deterministic behavior patterns)
+    │  Generation   │     (30+ deterministic patterns)
+    │               │     + provenance per line
     └────┬──────────┘
          │
     ┌────▼──────────┐
     │  Test         │  ──→ pytest suite from Validations
-    │  Generation   │
+    │  Generation   │     + provenance linking
     └────┬──────────┘
          │
     ┌────▼──────────┐
@@ -301,24 +323,25 @@ The AICL compiler doesn't just translate — it **reasons** about your architect
          │
     ┌────▼──────────┐
     │  Final        │  ──→ main.py + test_main.py + tree
-    │  Construction │
+    │  Construction │     + explain report
     └──────────────┘
 ```
 
 ### Deterministic Behavior Compilation
 
-The key innovation in v0.3 is the **Behavior Pattern Library** — a set of 30+ deterministic patterns that map action descriptions to concrete code:
+The **Behavior Pattern Library** maps action descriptions to concrete code through 30+ deterministic patterns:
 
 | Category | Patterns | Example |
 |----------|----------|---------|
-| Movement | MOVE, BOUNCE, ORBIT | "Update paddle position" → MOVE pattern |
-| Creation | CREATE, INITIALIZE, SPAWN | "Create new game" → CREATE pattern |
-| Update | UPDATE, ASSIGN, CLAMP | "Clamp ball position" → CLAMP pattern |
-| Communication | BROADCAST, SEND, RECEIVE | "Transmit message" → BROADCAST pattern |
-| Validation | VALIDATE, CHECK, VERIFY | "Validate move" → VALIDATE pattern |
-| Transform | TRANSFORM, CONVERT, PARSE | "Parse input" → TRANSFORM pattern |
-| Storage | STORE, LOAD, PERSIST | "Save game state" → STORE pattern |
-| Security | ENCRYPT, HASH, PROTECT | "Encrypt message" → ENCRYPT pattern |
+| Movement | MOVE, MOVE_BALL, REFLECT_VELOCITY, CLAMP_POSITION | "Update paddle position" → MOVE pattern |
+| Creation | CREATE, INIT_LAYER, CREATE_WINDOW | "Create new game" → CREATE pattern |
+| Communication | BROADCAST, SEND_MESSAGE | "Transmit message" → BROADCAST pattern |
+| Update | UPDATE, INCREMENT_SCORE, UPDATE_STATE | "Clamp ball position" → CLAMP pattern |
+| Display | DISPLAY, RENDER_FRAME, HIGHLIGHT | "Draw game frame" → RENDER pattern |
+| Validation | VALIDATE, CHECK_COLLISION | "Validate move" → VALIDATE pattern |
+| Networking | CONNECT, RECONNECT, DISCONNECT | "Connect to server" → CONNECT pattern |
+| Persistence | STORE, LOAD | "Save game state" → STORE pattern |
+| Security | ENCRYPT_DATA, PROTECT_ACCESS | "Encrypt message" → ENCRYPT pattern |
 
 When no pattern matches, the **sub-language parser** handles explicit action specifications:
 
@@ -329,7 +352,26 @@ Behavior MovePaddle
             clamp paddle_position between 0 and screen_width
 ```
 
-This means **zero TODOs** in compiled output. Every behavior compiles to real, executable code.
+This means **zero TODOs** in compiled output. Every behavior compiles to real, executable code — and every compilation decision is recorded in the provenance chain.
+
+### Compilation Provenance
+
+Every compilation decision is tracked through the `ProvenanceType` enum:
+
+| Type | Meaning |
+|------|---------|
+| `PATTERN_MATCH` | A behavior pattern matched with sufficient confidence |
+| `SUB_LANGUAGE` | Explicit sub-language syntax was used |
+| `FALLBACK` | No pattern matched; structured skeleton generated |
+| `ARCHITECTURE_TEMPLATE` | Goal mapped to application structure |
+| `DIRECT_MAPPING` | Keyword directly mapped to code |
+| `RECOVERY_SYNTHESIS` | Recovery code synthesized from Risk/Recovery pair |
+| `VALIDATION_SYNTHESIS` | Test code generated from Validation section |
+| `CONDITION_SYNTHESIS` | Condition handler generated from When/Then |
+| `EVENT_SYNTHESIS` | Event handler generated from On/Action |
+| `ENTITY_GENERATION` | Dataclass generated from Entity definition |
+
+The `aicl explain` command traverses this provenance chain and shows the full reasoning path for every generated line.
 
 ---
 
@@ -338,26 +380,26 @@ This means **zero TODOs** in compiled output. Every behavior compiles to real, e
 ```
 AICL/
 ├── src/aicl/                    # Compiler source
-│   ├── __init__.py              # Package exports (v0.3.0)
+│   ├── __init__.py              # Package exports (v0.4.0)
 │   ├── cli.py                   # CLI: compile, parse, tree, check, explain
 │   ├── parser.py                # Line-based parser → AST
-│   ├── ast_nodes.py             # 17 AST node dataclasses
-│   ├── architecture_tree.py     # Intermediate representation (IR)
+│   ├── ast.py                   # 17 AST node dataclasses
+│   ├── ir.py                    # Intermediate representation (Architecture Tree)
 │   ├── compiler.py              # 9-stage compilation pipeline
 │   ├── patterns.py              # 30+ deterministic behavior patterns
 │   ├── provenance.py            # Compilation provenance tracker
-│   └── tokenizer.py             # Lexical analyzer (standalone)
+│   └── lexer.py                 # Lexical analyzer (standalone)
 ├── examples/                    # Example programs
 │   ├── 01_blue_square.aicl      # Level 1 — simple graphics
 │   ├── 02_pong.aicl             # Levels 1–6 — game with behaviors
 │   ├── 03_chat.aicl             # Levels 1–9 — full-featured app
 │   └── 04_chess.aicl            # Levels 1–9 — complex state management
 ├── tests/                       # Test suite
-│   └── test_aicl.py             # 38 tests (all passing)
+│   └── test_aicl.py             # 63 tests (all passing)
 ├── spec/                        # Language specification
 │   └── grammar.md               # Formal BNF grammar & keyword table
 ├── docs/                        # Documentation
-│   └── whitepaper.pdf           # Academic white paper
+│   └── whitepaper.pdf           # White paper
 ├── tools/                       # Build and utility scripts
 │   └── generate_whitepaper.py   # White paper PDF generator
 ├── pyproject.toml               # Python package configuration
@@ -382,15 +424,16 @@ The complete language specification is in [`spec/grammar.md`](spec/grammar.md), 
 
 ## White Paper
 
-A comprehensive white paper is available at [`docs/whitepaper.pdf`](docs/whitepaper.pdf), covering:
+The white paper at [`docs/whitepaper.pdf`](docs/whitepaper.pdf) presents AICL as an Architecture Compilation System with **explicable compilation** as its central thesis:
 
-- Formal operational semantics
-- Full BNF grammar with derivation rules
-- Comparative analysis against DSLs, architecture description languages, and AI code generation tools
-- The Architecture Tree intermediate representation
-- Deterministic behavior pattern compilation
-- Compilation provenance and explainability
-- All 10 language levels with examples
+- The provenance principle: a compiler that cannot explain why should not generate
+- Formal BNF grammar with derivation rules
+- Risk and Recovery as mandatory language elements
+- Validation compiled automatically into tests
+- Complete provenance of generation
+- Deterministic compilation contract
+- Strict separation between language and optional AI
+- Comparative analysis against DSLs, ADLs, and AI code generators
 
 ---
 
@@ -400,11 +443,12 @@ A comprehensive white paper is available at [`docs/whitepaper.pdf`](docs/whitepa
 |---------|-----------|--------|
 | **v0.1** | Parser, grammar, Python codegen, 38 tests | Done |
 | **v0.2** | Deterministic patterns, zero-TODO compilation, provenance | Done |
-| **v0.3** | Reorganized project, new white paper, sub-language expansion | Current |
-| **v0.5** | Architecture Tree IR improvements, multi-file programs | Planned |
+| **v0.3** | Sub-language expansion, architecture templates | Done |
+| **v0.4** | Explicable compilation thesis, provenance-first design, project reorganization | Current |
+| **v0.5** | Architecture Tree IR improvements, multi-file programs, real dependency analysis | Planned |
 | **v1.0** | Multi-language targets (Rust, JavaScript, Go), mature compiler | Future |
 | **v2.0** | Self-healing runtime with automatic recovery execution | Future |
-| **v3.0** | Autonomous architecture optimization | Future |
+| **v3.0** | Autonomous architecture optimization, memory management system | Future |
 
 ---
 
@@ -414,9 +458,11 @@ Contributions are welcome. Areas of particular interest:
 
 - **New target languages** — Rust, TypeScript, Go code generation backends
 - **New behavior patterns** — Expand the deterministic pattern library
+- **Provenance visualization** — Tools to explore and visualize compilation provenance
 - **IDE support** — Syntax highlighting, LSP server, VS Code extension
 - **New examples** — Real-world programs showcasing different levels
 - **Formal verification** — Proof that Risk/Recovery pairs are complete
+- **Memory management** — Ultra-simple but effective ownership model
 
 ---
 
@@ -432,6 +478,6 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 <div align="center">
 
-*"The architecture is no longer documentation. The architecture is the program."*
+*"If the compiler cannot explain why it generated a line of code, it should not generate it."*
 
 </div>

@@ -20,13 +20,13 @@ import subprocess
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from aicl.parser import Parser, ParseError
-from aicl.ast_nodes import (
+from aicl.ast import (
     AICLProgram, GoalSection, ConstraintSection, RiskSection,
     RecoverySection, LayerSection, ValidationSection, EntitySection,
     BehaviorSection, ConditionSection, EventSection, ParallelSection,
     OptimizeSection, LearnSection, SecuritySection,
 )
-from aicl.architecture_tree import ArchitectureTree, ArchitectureNode
+from aicl.ir import ArchitectureTree, ArchitectureNode
 from aicl.compiler import Compiler, CompilationResult
 
 

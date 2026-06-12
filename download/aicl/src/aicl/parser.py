@@ -13,7 +13,7 @@ AICL Format:
 
 from typing import List, Optional, Tuple
 
-from .ast_nodes import (
+from .ast import (
     AICLProgram, GoalSection, ConstraintSection, RiskSection,
     RecoverySection, LayerSection, ValidationSection, EntitySection,
     BehaviorSection, ConditionSection, EventSection, ParallelSection,

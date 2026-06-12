@@ -32,14 +32,14 @@ import textwrap
 from typing import List, Dict, Optional, Tuple, Set, Any
 from dataclasses import dataclass, field
 
-from .ast_nodes import (
+from .ast import (
     AICLProgram, GoalSection, ConstraintSection, RiskSection,
     RecoverySection, LayerSection, ValidationSection, EntitySection,
     BehaviorSection, ConditionSection, EventSection, ParallelSection,
     OptimizeSection, LearnSection, AdaptSection, SecuritySection,
     NativeSection, EntityField,
 )
-from .architecture_tree import ArchitectureTree, ArchitectureNode
+from .ir import ArchitectureTree, ArchitectureNode
 from .parser import Parser, ParseError
 from .patterns import (
     BehaviorCompiler, ArchitectureTemplateMapper, PatternMatch,

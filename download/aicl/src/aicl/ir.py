@@ -10,7 +10,7 @@ risk/recovery pairs and validation criteria attached.
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict
 
-from .ast_nodes import (
+from .ast import (
     AICLProgram, GoalSection, ConstraintSection, RiskSection,
     RecoverySection, LayerSection, ValidationSection, EntitySection,
     BehaviorSection, ConditionSection, EventSection, ParallelSection,
