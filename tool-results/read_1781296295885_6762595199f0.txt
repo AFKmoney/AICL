@@ -1,0 +1,890 @@
+     1→     1→"""
+     2→     2→AICL Compiler - Multi-Stage Compilation Pipeline
+     3→     3→
+     4→     4→The AICL compiler transforms architectural specifications into executable
+     5→     5→source code through a multi-stage reasoning pipeline. Unlike conventional
+     6→     6→compilers, the AICL compiler treats compilation as a reasoning process
+     7→     7→where architecture, risks, validations, and constraints all contribute
+     8→     8→to the generated code.
+     9→     9→
+    10→    10→Compilation Stages:
+    11→    11→  1. Specification Parsing (handled by Parser)
+    12→    12→  2. Architecture Validation
+    13→    13→  3. Dependency Analysis
+    14→    14→  4. Risk Analysis
+    15→    15→  5. Recovery Synthesis
+    16→    16→  6. Code Generation
+    17→    17→  7. Test Generation
+    18→    18→  8. Optimization
+    19→    19→  9. Final Output Construction
+    20→    20→"""
+    21→    21→
+    22→    22→import os
+    23→    23→import re
+    24→    24→import textwrap
+    25→    25→from typing import List, Dict, Optional, Tuple, Set
+    26→    26→from dataclasses import dataclass, field
+    27→    27→
+    28→    28→from .ast_nodes import (
+    29→    29→    AICLProgram, GoalSection, ConstraintSection, RiskSection,
+    30→    30→    RecoverySection, LayerSection, ValidationSection, EntitySection,
+    31→    31→    BehaviorSection, ConditionSection, EventSection, ParallelSection,
+    32→    32→    OptimizeSection, LearnSection, AdaptSection, SecuritySection,
+    33→    33→    NativeSection, EntityField,
+    34→    34→)
+    35→    35→from .architecture_tree import ArchitectureTree, ArchitectureNode
+    36→    36→from .parser import Parser, ParseError
+    37→    37→
+    38→    38→
+    39→    39→@dataclass
+    40→    40→class CompilationResult:
+    41→    41→    """Result of a compilation process."""
+    42→    42→    success: bool = True
+    43→    43→    source_code: str = ""
+    44→    44→    test_code: str = ""
+    45→    45→    warnings: List[str] = field(default_factory=list)
+    46→    46→    errors: List[str] = field(default_factory=list)
+    47→    47→    architecture_tree_str: str = ""
+    48→    48→    stages_completed: List[str] = field(default_factory=list)
+    49→    49→
+    50→    50→
+    51→    51→class CompilerError(Exception):
+    52→    52→    """Raised when compilation fails."""
+    53→    53→
+    54→    54→    def __init__(self, message: str, stage: str = ""):
+    55→    55→        self.stage = stage
+    56→    56→        super().__init__(f"Compiler error in stage '{stage}': {message}" if stage else message)
+    57→    57→
+    58→    58→
+    59→    59→class Compiler:
+    60→    60→    """
+    61→    61→    AICL Multi-Stage Compiler.
+    62→    62→
+    63→    63→    Compiles AICL source code into executable Python code.
+    64→    64→    The compilation pipeline includes architecture validation,
+    65→    65→    dependency analysis, risk analysis, recovery synthesis,
+    66→    66→    code generation, test generation, and optimization.
+    67→    67→
+    68→    68→    Usage:
+    69→    69→        compiler = Compiler()
+    70→    70→        result = compiler.compile(source_code)
+    71→    71→        if result.success:
+    72→    72→            print(result.source_code)
+    73→    73→    """
+    74→    74→
+    75→    75→    def __init__(self, target_language: str = "python"):
+    76→    76→        self.target_language = target_language
+    77→    77→        self.warnings: List[str] = []
+    78→    78→        self.errors: List[str] = []
+    79→    79→        self.stages_completed: List[str] = []
+    80→    80→        self._used_names: Set[str] = set()
+    81→    81→
+    82→    82→    def compile(self, source: str) -> CompilationResult:
+    83→    83→        """
+    84→    84→        Compile AICL source code into executable Python code.
+    85→    85→
+    86→    86→        Args:
+    87→    87→            source: AICL source code string.
+    88→    88→
+    89→    89→        Returns:
+    90→    90→            CompilationResult containing the generated code and metadata.
+    91→    91→        """
+    92→    92→        self.warnings = []
+    93→    93→        self.errors = []
+    94→    94→        self.stages_completed = []
+    95→    95→        self._used_names = set()
+    96→    96→
+    97→    97→        result = CompilationResult()
+    98→    98→
+    99→    99→        # Stage 1: Specification Parsing
+   100→   100→        program = self._stage_parsing(source)
+   101→   101→        if program is None:
+   102→   102→            result.success = False
+   103→   103→            result.errors = self.errors
+   104→   104→            return result
+   105→   105→        self.stages_completed.append("Specification Parsing")
+   106→   106→
+   107→   107→        # Stage 2: Architecture Validation
+   108→   108→        validation_warnings = self._stage_architecture_validation(program)
+   109→   109→        self.warnings.extend(validation_warnings)
+   110→   110→        self.stages_completed.append("Architecture Validation")
+   111→   111→
+   112→   112→        # Stage 3: Dependency Analysis
+   113→   113→        dep_order = self._stage_dependency_analysis(program)
+   114→   114→        self.stages_completed.append("Dependency Analysis")
+   115→   115→
+   116→   116→        # Stage 4: Risk Analysis
+   117→   117→        risk_pairs = self._stage_risk_analysis(program)
+   118→   118→        self.stages_completed.append("Risk Analysis")
+   119→   119→
+   120→   120→        # Stage 5: Recovery Synthesis
+   121→   121→        recovery_map = self._stage_recovery_synthesis(program, risk_pairs)
+   122→   122→        self.stages_completed.append("Recovery Synthesis")
+   123→   123→
+   124→   124→        # Stage 6: Code Generation
+   125→   125→        source_code = self._stage_code_generation(
+   126→   126→            program, dep_order, risk_pairs, recovery_map
+   127→   127→        )
+   128→   128→        self.stages_completed.append("Code Generation")
+   129→   129→
+   130→   130→        # Stage 7: Test Generation
+   131→   131→        test_code = self._stage_test_generation(program, dep_order)
+   132→   132→        self.stages_completed.append("Test Generation")
+   133→   133→
+   134→   134→        # Stage 8: Optimization
+   135→   135→        source_code = self._stage_optimization(source_code, program)
+   136→   136→        self.stages_completed.append("Optimization")
+   137→   137→
+   138→   138→        # Stage 9: Final Construction
+   139→   139→        source_code = self._stage_final_construction(source_code, program)
+   140→   140→        self.stages_completed.append("Final Construction")
+   141→   141→
+   142→   142→        # Build Architecture Tree string
+   143→   143→        tree = ArchitectureTree(program)
+   144→   144→        result.architecture_tree_str = tree.to_string()
+   145→   145→
+   146→   146→        result.success = True
+   147→   147→        result.source_code = source_code
+   148→   148→        result.test_code = test_code
+   149→   149→        result.warnings = self.warnings
+   150→   150→        result.errors = self.errors
+   151→   151→        result.stages_completed = self.stages_completed
+   152→   152→
+   153→   153→        return result
+   154→   154→
+   155→   155→    def compile_to_file(self, source: str, output_dir: str) -> CompilationResult:
+   156→   156→        """
+   157→   157→        Compile AICL source code and write the output to files.
+   158→   158→
+   159→   159→        Args:
+   160→   160→            source: AICL source code string.
+   161→   161→            output_dir: Directory to write output files.
+   162→   162→
+   163→   163→        Returns:
+   164→   164→            CompilationResult with file paths in the metadata.
+   165→   165→        """
+   166→   166→        result = self.compile(source)
+   167→   167→
+   168→   168→        if result.success:
+   169→   169→            os.makedirs(output_dir, exist_ok=True)
+   170→   170→
+   171→   171→            # Write main source file
+   172→   172→            main_path = os.path.join(output_dir, "main.py")
+   173→   173→            with open(main_path, 'w') as f:
+   174→   174→                f.write(result.source_code)
+   175→   175→
+   176→   176→            # Write test file
+   177→   177→            test_path = os.path.join(output_dir, "test_main.py")
+   178→   178→            with open(test_path, 'w') as f:
+   179→   179→                f.write(result.test_code)
+   180→   180→
+   181→   181→            # Write architecture tree
+   182→   182→            tree_path = os.path.join(output_dir, "architecture_tree.txt")
+   183→   183→            with open(tree_path, 'w') as f:
+   184→   184→                f.write(result.architecture_tree_str)
+   185→   185→
+   186→   186→        return result
+   187→   187→
+   188→   188→    # =========================================================================
+   189→   189→    # Stage 1: Specification Parsing
+   190→   190→    # =========================================================================
+   191→   191→
+   192→   192→    def _stage_parsing(self, source: str) -> Optional[AICLProgram]:
+   193→   193→        """Parse the AICL source code into an AST."""
+   194→   194→        try:
+   195→   195→            parser = Parser(source)
+   196→   196→            program = parser.parse()
+   197→   197→            return program
+   198→   198→        except (ParseError, Exception) as e:
+   199→   199→            self.errors.append(f"Parse error: {str(e)}")
+   200→   200→            return None
+   201→   201→
+   202→   202→    # =========================================================================
+   203→   203→    # Stage 2: Architecture Validation
+   204→   204→    # =========================================================================
+   205→   205→
+   206→   206→    def _stage_architecture_validation(self, program: AICLProgram) -> List[str]:
+   207→   207→        """Validate the architectural structure of the program."""
+   208→   208→        warnings = program.validate()
+   209→   209→
+   210→   210→        # Check for duplicate layer names
+   211→   211→        layer_names = [l.name for l in program.layers]
+   212→   212→        seen = set()
+   213→   213→        for name in layer_names:
+   214→   214→            if name.lower() in seen:
+   215→   215→                warnings.append(f"Duplicate layer name: {name}")
+   216→   216→            seen.add(name.lower())
+   217→   217→
+   218→   218→        # Check entity field references
+   219→   219→        entity_names = {e.name for e in program.entities}
+   220→   220→        for behavior in program.behaviors:
+   221→   221→            for inp in behavior.inputs:
+   222→   222→                if inp.param_type not in entity_names and inp.param_type not in TYPE_NAMES_SET:
+   223→   223→                    warnings.append(
+   224→   224→                        f"Behavior '{behavior.name}' references unknown type "
+   225→   225→                        f"'{inp.param_type}' in input"
+   226→   226→                    )
+   227→   227→
+   228→   228→        return warnings
+   229→   229→
+   230→   230→    # =========================================================================
+   231→   231→    # Stage 3: Dependency Analysis
+   232→   232→    # =========================================================================
+   233→   233→
+   234→   234→    def _stage_dependency_analysis(self, program: AICLProgram) -> List[LayerSection]:
+   235→   235→        """Analyze dependencies between layers."""
+   236→   236→        return program.layers
+   237→   237→
+   238→   238→    # =========================================================================
+   239→   239→    # Stage 4: Risk Analysis
+   240→   240→    # =========================================================================
+   241→   241→
+   242→   242→    def _stage_risk_analysis(self, program: AICLProgram) -> List[Tuple[RiskSection, Optional[RecoverySection]]]:
+   243→   243→        """Analyze risks and pair them with recovery procedures."""
+   244→   244→        pairs = []
+   245→   245→        for i, risk in enumerate(program.risks):
+   246→   246→            recovery = None
+   247→   247→            if i < len(program.recoveries):
+   248→   248→                recovery = program.recoveries[i]
+   249→   249→            pairs.append((risk, recovery))
+   250→   250→
+   251→   251→        # Handle orphaned recoveries
+   252→   252→        if len(program.recoveries) > len(program.risks):
+   253→   253→            for i in range(len(program.risks), len(program.recoveries)):
+   254→   254→                generic_risk = RiskSection(
+   255→   255→                    description=f"Unspecified risk (for recovery: {program.recoveries[i].description})"
+   256→   256→                )
+   257→   257→                pairs.append((generic_risk, program.recoveries[i]))
+   258→   258→
+   259→   259→        return pairs
+   260→   260→
+   261→   261→    # =========================================================================
+   262→   262→    # Stage 5: Recovery Synthesis
+   263→   263→    # =========================================================================
+   264→   264→
+   265→   265→    def _stage_recovery_synthesis(
+   266→   266→        self,
+   267→   267→        program: AICLProgram,
+   268→   268→        risk_pairs: List[Tuple[RiskSection, Optional[RecoverySection]]]
+   269→   269→    ) -> Dict[str, str]:
+   270→   270→        """Synthesize recovery procedures for each risk."""
+   271→   271→        recovery_map = {}
+   272→   272→        for risk, recovery in risk_pairs:
+   273→   273→            if recovery:
+   274→   274→                recovery_map[risk.description] = recovery.description
+   275→   275→            else:
+   276→   276→                recovery_map[risk.description] = f"log and handle: {risk.description}"
+   277→   277→        return recovery_map
+   278→   278→
+   279→   279→    # =========================================================================
+   280→   280→    # Stage 6: Code Generation
+   281→   281→    # =========================================================================
+   282→   282→
+   283→   283→    def _unique_name(self, base: str) -> str:
+   284→   284→        """Generate a unique Python identifier from a base name."""
+   285→   285→        # Clean the base name
+   286→   286→        clean = re.sub(r'[^a-zA-Z0-9_]', '_', base.lower())
+   287→   287→        clean = re.sub(r'_+', '_', clean).strip('_')
+   288→   288→        if not clean:
+   289→   289→            clean = "item"
+   290→   290→        if clean[0].isdigit():
+   291→   291→            clean = "f_" + clean
+   292→   292→
+   293→   293→        # Make unique
+   294→   294→        name = clean
+   295→   295→        counter = 2
+   296→   296→        while name in self._used_names:
+   297→   297→            name = f"{clean}_{counter}"
+   298→   298→            counter += 1
+   299→   299→
+   300→   300→        self._used_names.add(name)
+   301→   301→        return name
+   302→   302→
+   303→   303→    def _stage_code_generation(
+   304→   304→        self,
+   305→   305→        program: AICLProgram,
+   306→   306→        dep_order: List[LayerSection],
+   307→   307→        risk_pairs: List[Tuple[RiskSection, Optional[RecoverySection]]],
+   308→   308→        recovery_map: Dict[str, str]
+   309→   309→    ) -> str:
+   310→   310→        """Generate executable Python code from the AICL program."""
+   311→   311→        sections = []
+   312→   312→
+   313→   313→        # Module docstring
+   314→   314→        goal_desc = program.goals[0].description if program.goals else "AICL Generated Application"
+   315→   315→        sections.append('"""')
+   316→   316→        sections.append(f'AICL Generated Application')
+   317→   317→        sections.append(f'Goal: {goal_desc}')
+   318→   318→        sections.append(f'')
+   319→   319→        sections.append(f'This file was automatically generated by the AICL compiler.')
+   320→   320→        sections.append(f'Do not edit manually - regenerate from .aicl source.')
+   321→   321→        sections.append(f'"""')
+   322→   322→        sections.append('')
+   323→   323→
+   324→   324→        # Imports
+   325→   325→        sections.append(self._generate_imports(program))
+   326→   326→        sections.append('')
+   327→   327→
+   328→   328→        # Entity classes
+   329→   329→        for entity in program.entities:
+   330→   330→            sections.append(self._generate_entity(entity))
+   331→   331→            sections.append('')
+   332→   332→
+   333→   333→        # Main application class
+   334→   334→        class_name = self._make_class_name(goal_desc)
+   335→   335→        sections.append(self._generate_application_class(
+   336→   336→            program, class_name, dep_order, risk_pairs, recovery_map
+   337→   337→        ))
+   338→   338→        sections.append('')
+   339→   339→
+   340→   340→        # Entry point
+   341→   341→        sections.append(self._generate_entry_point(class_name))
+   342→   342→
+   343→   343→        return '\n'.join(sections)
+   344→   344→
+   345→   345→    def _generate_imports(self, program: AICLProgram) -> str:
+   346→   346→        """Generate import statements based on program content."""
+   347→   347→        imports = [
+   348→   348→            "import sys",
+   349→   349→            "import logging",
+   350→   350→            "import time",
+   351→   351→            "from typing import Optional, List, Dict, Any",
+   352→   352→        ]
+   353→   353→
+   354→   354→        # Check if we need threading for Parallel sections
+   355→   355→        if program.parallels:
+   356→   356→            imports.append("import threading")
+   357→   357→            imports.append("from concurrent.futures import ThreadPoolExecutor, as_completed")
+   358→   358→
+   359→   359→        # Check if we need datetime for Entity fields
+   360→   360→        needs_datetime = False
+   361→   361→        for entity in program.entities:
+   362→   362→            for f in entity.fields:
+   363→   363→                if f.field_type == "datetime":
+   364→   364→                    needs_datetime = True
+   365→   365→                    break
+   366→   366→
+   367→   367→        if needs_datetime:
+   368→   368→            imports.append("from datetime import datetime")
+   369→   369→
+   370→   370→        # Always need dataclass for entities
+   371→   371→        imports.append("from dataclasses import dataclass, field")
+   372→   372→
+   373→   373→        return '\n'.join(imports)
+   374→   374→
+   375→   375→    def _generate_entity(self, entity: EntitySection) -> str:
+   376→   376→        """Generate a Python dataclass for an AICL Entity."""
+   377→   377→        class_name = self._make_class_name(entity.name)
+   378→   378→        lines = []
+   379→   379→        lines.append('@dataclass')
+   380→   380→        lines.append(f'class {class_name}:')
+   381→   381→        lines.append(f'    """Entity: {entity.name}"""')
+   382→   382→
+   383→   383→        if not entity.fields:
+   384→   384→            lines.append('    pass')
+   385→   385→        else:
+   386→   386→            for f in entity.fields:
+   387→   387→                python_type = self._aicl_type_to_python(f.field_type)
+   388→   388→                default = 'None' if python_type not in ('int', 'float', 'bool') else None
+   389→   389→                if default:
+   390→   390→                    lines.append(f'    {f.name}: {python_type} = {default}')
+   391→   391→                else:
+   392→   392→                    lines.append(f'    {f.name}: {python_type} = 0')
+   393→   393→
+   394→   394→        return '\n'.join(lines)
+   395→   395→
+   396→   396→    def _generate_application_class(
+   397→   397→        self,
+   398→   398→        program: AICLProgram,
+   399→   399→        class_name: str,
+   400→   400→        dep_order: List[LayerSection],
+   401→   401→        risk_pairs: List[Tuple[RiskSection, Optional[RecoverySection]]],
+   402→   402→        recovery_map: Dict[str, str]
+   403→   403→    ) -> str:
+   404→   404→        """Generate the main application class."""
+   405→   405→        lines = []
+   406→   406→
+   407→   407→        lines.append(f'class {class_name}:')
+   408→   408→        lines.append(f'    """')
+   409→   409→
+   410→   410→        if program.goals:
+   411→   411→            lines.append(f'    Goal: {program.goals[0].description}')
+   412→   412→        lines.append(f'    """')
+   413→   413→        lines.append('')
+   414→   414→
+   415→   415→        # Class attributes - one per layer with unique names
+   416→   416→        lines.append('    # Layer instances')
+   417→   417→        layer_attr_map = {}  # Map from layer name to attribute name
+   418→   418→        for layer in dep_order:
+   419→   419→            attr_name = self._unique_name(layer.name)
+   420→   420→            layer_attr_map[layer.name] = attr_name
+   421→   421→            lines.append(f'    _{attr_name}: Any = None')
+   422→   422→        lines.append('')
+   423→   423→
+   424→   424→        # Risks as class constants
+   425→   425→        if program.risks:
+   426→   426→            lines.append('    # Known risks')
+   427→   427→            for i, risk in enumerate(program.risks):
+   428→   428→                const_name = self._unique_name(f"risk_{i+1}")
+   429→   429→                lines.append(f'    RISK_{i+1} = {risk.description!r}')
+   430→   430→            lines.append('')
+   431→   431→
+   432→   432→        # Constraints as class constants
+   433→   433→        if program.constraints:
+   434→   434→            lines.append('    # Constraints')
+   435→   435→            for i, con in enumerate(program.constraints):
+   436→   436→                lines.append(f'    CONSTRAINT_{i+1} = {con.description!r}')
+   437→   437→            lines.append('')
+   438→   438→
+   439→   439→        # __init__ method
+   440→   440→        lines.append('    def __init__(self):')
+   441→   441→        lines.append('        """Initialize the application and all layers."""')
+   442→   442→        lines.append('        self._logger = logging.getLogger(self.__class__.__name__)')
+   443→   443→        lines.append('        self._running = False')
+   444→   444→        lines.append('        self._initialized = False')
+   445→   445→        lines.append('')
+   446→   446→
+   447→   447→        # Initialize each layer with error handling
+   448→   448→        for layer in dep_order:
+   449→   449→            attr_name = layer_attr_map[layer.name]
+   450→   450→            lines.append(f'        # Initialize {layer.name}')
+   451→   451→            lines.append(f'        self._{attr_name} = self._init_{attr_name}()')
+   452→   452→            lines.append('')
+   453→   453→
+   454→   454→        lines.append('        self._initialized = True')
+   455→   455→        lines.append('        self._logger.info("Application initialized successfully")')
+   456→   456→        lines.append('')
+   457→   457→
+   458→   458→        # Layer initialization methods
+   459→   459→        for layer in dep_order:
+   460→   460→            attr_name = layer_attr_map[layer.name]
+   461→   461→            lines.append(self._generate_layer_init(layer, attr_name, risk_pairs, recovery_map))
+   462→   462→            lines.append('')
+   463→   463→
+   464→   464→        # Run method
+   465→   465→        lines.append(self._generate_run_method(program, dep_order, layer_attr_map, risk_pairs, recovery_map))
+   466→   466→        lines.append('')
+   467→   467→
+   468→   468→        # Validation methods
+   469→   469→        for i, validation in enumerate(program.validations):
+   470→   470→            lines.append(self._generate_validation_method(validation, i + 1))
+   471→   471→            lines.append('')
+   472→   472→
+   473→   473→        # Condition handlers
+   474→   474→        for i, condition in enumerate(program.conditions):
+   475→   475→            lines.append(self._generate_condition_handler(condition, i + 1))
+   476→   476→            lines.append('')
+   477→   477→
+   478→   478→        # Event handlers
+   479→   479→        for i, event in enumerate(program.events):
+   480→   480→            lines.append(self._generate_event_handler(event, i + 1))
+   481→   481→            lines.append('')
+   482→   482→
+   483→   483→        # Parallel execution
+   484→   484→        if program.parallels:
+   485→   485→            lines.append(self._generate_parallel_execution(program, layer_attr_map))
+   486→   486→            lines.append('')
+   487→   487→
+   488→   488→        # Security methods
+   489→   489→        if program.securities:
+   490→   490→            lines.append(self._generate_security_methods(program))
+   491→   491→            lines.append('')
+   492→   492→
+   493→   493→        # Risk handling method
+   494→   494→        lines.append(self._generate_risk_handler(risk_pairs, recovery_map))
+   495→   495→
+   496→   496→        return '\n'.join(lines)
+   497→   497→
+   498→   498→    def _generate_layer_init(
+   499→   499→        self,
+   500→   500→        layer: LayerSection,
+   501→   501→        attr_name: str,
+   502→   502→        risk_pairs: List[Tuple[RiskSection, Optional[RecoverySection]]],
+   503→   503→        recovery_map: Dict[str, str]
+   504→   504→    ) -> str:
+   505→   505→        """Generate initialization method for a layer."""
+   506→   506→        lines = []
+   507→   507→        lines.append(f'    def _init_{attr_name}(self) -> Any:')
+   508→   508→        lines.append(f'        """Initialize the {layer.name} layer."""')
+   509→   509→        lines.append(f'        self._logger.info("Initializing {layer.name}...")')
+   510→   510→        lines.append(f'        try:')
+   511→   511→        lines.append(f'            # TODO: Implement {layer.name} initialization')
+   512→   512→        lines.append(f'            component = None  # Placeholder')
+   513→   513→
+   514→   514→        # Generate sublayer initialization
+   515→   515→        for sublayer in layer.sublayers:
+   516→   516→            sub_attr = self._unique_name(sublayer.name)
+   517→   517→            lines.append(f'            # Sublayer: {sublayer.name}')
+   518→   518→            lines.append(f'            _{sub_attr} = None  # Placeholder for {sublayer.name}')
+   519→   519→
+   520→   520→        lines.append(f'            self._logger.info("{layer.name} initialized successfully")')
+   521→   521→        lines.append(f'            return component')
+   522→   522→        lines.append(f'        except Exception as e:')
+   523→   523→        lines.append(f'            self._logger.error(f"Failed to initialize {layer.name}: {{e}}")')
+   524→   524→
+   525→   525→        # Add recovery from risk pairs that match this layer
+   526→   526→        for risk, recovery in risk_pairs:
+   527→   527→            if recovery and self._risk_matches_layer(risk.description, layer.name):
+   528→   528→                lines.append(f'            # Recovery: {recovery.description}')
+   529→   529→                lines.append(f'            self._logger.info("Applying recovery: {recovery.description}")')
+   530→   530→
+   531→   531→        lines.append(f'            return None')
+   532→   532→        return '\n'.join(lines)
+   533→   533→
+   534→   534→    def _generate_run_method(
+   535→   535→        self,
+   536→   536→        program: AICLProgram,
+   537→   537→        dep_order: List[LayerSection],
+   538→   538→        layer_attr_map: Dict[str, str],
+   539→   539→        risk_pairs: List[Tuple[RiskSection, Optional[RecoverySection]]],
+   540→   540→        recovery_map: Dict[str, str]
+   541→   541→    ) -> str:
+   542→   542→        """Generate the main run method."""
+   543→   543→        lines = []
+   544→   544→        lines.append('    def run(self) -> None:')
+   545→   545→        lines.append('        """Run the application with full error handling."""')
+   546→   546→        lines.append('        self._logger.info("Starting application...")')
+   547→   547→        lines.append('        self._running = True')
+   548→   548→        lines.append('')
+   549→   549→        lines.append('        try:')
+   550→   550→
+   551→   551→        # Execute layers in order
+   552→   552→        for layer in dep_order:
+   553→   553→            attr_name = layer_attr_map[layer.name]
+   554→   554→            lines.append(f'            # Execute {layer.name}')
+   555→   555→            lines.append(f'            if self._{attr_name} is not None:')
+   556→   556→            lines.append(f'                self._logger.info("Running {layer.name}...")')
+   557→   557→            lines.append(f'            else:')
+   558→   558→            lines.append(f'                self._logger.warning("{layer.name} not initialized, skipping")')
+   559→   559→
+   560→   560→        lines.append('')
+   561→   561→        lines.append('            # Run validations')
+   562→   562→        for i, validation in enumerate(program.validations):
+   563→   563→            lines.append(f'            self._validate_{i+1}()')
+   564→   564→
+   565→   565→        lines.append('')
+   566→   566→        lines.append('            self._logger.info("Application completed successfully")')
+   567→   567→        lines.append('')
+   568→   568→        lines.append('        except Exception as e:')
+   569→   569→        lines.append('            self._logger.error(f"Application error: {e}")')
+   570→   570→        lines.append('            self._handle_risk(e)')
+   571→   571→        lines.append('        finally:')
+   572→   572→        lines.append('            self._running = False')
+   573→   573→        lines.append('            self._logger.info("Application stopped")')
+   574→   574→
+   575→   575→        return '\n'.join(lines)
+   576→   576→
+   577→   577→    def _generate_validation_method(self, validation: ValidationSection, index: int) -> str:
+   578→   578→        """Generate a validation method."""
+   579→   579→        lines = []
+   580→   580→        lines.append(f'    def _validate_{index}(self) -> bool:')
+   581→   581→        lines.append(f'        """Validation: {validation.description}"""')
+   582→   582→        lines.append(f'        self._logger.info("Validating: {validation.description}")')
+   583→   583→        lines.append(f'        try:')
+   584→   584→        lines.append(f'            # TODO: Implement validation for: {validation.description}')
+   585→   585→        lines.append(f'            result = True  # Placeholder - always passes until implemented')
+   586→   586→        lines.append(f'            if result:')
+   587→   587→        lines.append(f'                self._logger.info("Validation passed: {validation.description}")')
+   588→   588→        lines.append(f'            else:')
+   589→   589→        lines.append(f'                self._logger.warning("Validation failed: {validation.description}")')
+   590→   590→        lines.append(f'            return result')
+   591→   591→        lines.append(f'        except Exception as e:')
+   592→   592→        lines.append(f'            self._logger.error(f"Validation error: {{e}}")')
+   593→   593→        lines.append(f'            return False')
+   594→   594→        return '\n'.join(lines)
+   595→   595→
+   596→   596→    def _generate_condition_handler(self, condition: ConditionSection, index: int) -> str:
+   597→   597→        """Generate a condition handler method."""
+   598→   598→        lines = []
+   599→   599→        lines.append(f'    def _handle_condition_{index}(self) -> None:')
+   600→   600→        when_desc = condition.when_clause or "unknown condition"
+   601→   601→        then_desc = condition.then_clause or "unknown action"
+   602→   602→        lines.append(f'        """Condition: WHEN {when_desc} THEN {then_desc}"""')
+   603→   603→        lines.append(f'        condition_met = False  # TODO: Evaluate WHEN clause')
+   604→   604→        lines.append(f'        if condition_met:')
+   605→   605→        lines.append(f'            self._logger.info("Condition triggered: {when_desc}")')
+   606→   606→        lines.append(f'            # TODO: Execute THEN clause: {then_desc}')
+   607→   607→        lines.append(f'            self._logger.info("Executing: {then_desc}")')
+   608→   608→        return '\n'.join(lines)
+   609→   609→
+   610→   610→    def _generate_event_handler(self, event: EventSection, index: int) -> str:
+   611→   611→        """Generate an event handler method."""
+   612→   612→        lines = []
+   613→   613→        lines.append(f'    def _handle_event_{index}(self, event_data: Any = None) -> None:')
+   614→   614→        on_desc = event.on_clause or "unknown event"
+   615→   615→        action_desc = event.action or "unknown action"
+   616→   616→        lines.append(f'        """Event: ON {on_desc} DO {action_desc}"""')
+   617→   617→        lines.append(f'        self._logger.info(f"Event triggered: {on_desc}")')
+   618→   618→        lines.append(f'        # TODO: Execute event action: {action_desc}')
+   619→   619→        lines.append(f'        self._logger.info("Executing: {action_desc}")')
+   620→   620→        return '\n'.join(lines)
+   621→   621→
+   622→   622→    def _generate_parallel_execution(self, program: AICLProgram, layer_attr_map: Dict[str, str]) -> str:
+   623→   623→        """Generate parallel execution code."""
+   624→   624→        lines = []
+   625→   625→        lines.append('    def _run_parallel(self) -> None:')
+   626→   626→        lines.append('        """Execute parallel layers concurrently."""')
+   627→   627→        lines.append('        self._logger.info("Starting parallel execution...")')
+   628→   628→        lines.append('')
+   629→   629→
+   630→   630→        for i, parallel in enumerate(program.parallels):
+   631→   631→            num_workers = max(len(parallel.layers), 1)
+   632→   632→            lines.append(f'        # Parallel group {i+1}')
+   633→   633→            lines.append(f'        with ThreadPoolExecutor(max_workers={num_workers}) as executor:')
+   634→   634→            lines.append(f'            futures = []')
+   635→   635→            for j, layer_name in enumerate(parallel.layers):
+   636→   636→                attr_name = layer_attr_map.get(layer_name, self._unique_name(layer_name))
+   637→   637→                lines.append(f'            # Parallel layer: {layer_name}')
+   638→   638→                lines.append(f'            futures.append(executor.submit(')
+   639→   639→                lines.append(f'                lambda name="{layer_name}": self._logger.info(f"Parallel: {{name}}")')
+   640→   640→                lines.append(f'            ))')
+   641→   641→            lines.append(f'            for future in as_completed(futures):')
+   642→   642→            lines.append(f'                try:')
+   643→   643→            lines.append(f'                    future.result()')
+   644→   644→            lines.append(f'                except Exception as e:')
+   645→   645→            lines.append(f'                    self._logger.error(f"Parallel task error: {{e}}")')
+   646→   646→            lines.append(f'        self._logger.info("Parallel group {i+1} completed")')
+   647→   647→            lines.append('')
+   648→   648→
+   649→   649→        return '\n'.join(lines)
+   650→   650→
+   651→   651→    def _generate_security_methods(self, program: AICLProgram) -> str:
+   652→   652→        """Generate security-related methods."""
+   653→   653→        lines = []
+   654→   654→        lines.append('    def _apply_security(self) -> None:')
+   655→   655→        lines.append('        """Apply security measures."""')
+   656→   656→
+   657→   657→        has_actions = False
+   658→   658→        for sec in program.securities:
+   659→   659→            for action in sec.actions:
+   660→   660→                has_actions = True
+   661→   661→                if action.action_type == "encrypt":
+   662→   662→                    lines.append(f'        # Encrypt: {action.target}')
+   663→   663→                    lines.append(f'        self._logger.info("Encrypting: {action.target}")')
+   664→   664→                    lines.append(f'        # TODO: Implement encryption for {action.target}')
+   665→   665→                elif action.action_type == "protect":
+   666→   666→                    lines.append(f'        # Protect: {action.target}')
+   667→   667→                    lines.append(f'        self._logger.info("Protecting: {action.target}")')
+   668→   668→                    lines.append(f'        # TODO: Implement protection for {action.target}')
+   669→   669→
+   670→   670→        if not has_actions:
+   671→   671→            lines.append('        pass  # No security actions defined')
+   672→   672→
+   673→   673→        return '\n'.join(lines)
+   674→   674→
+   675→   675→    def _generate_risk_handler(
+   676→   676→        self,
+   677→   677→        risk_pairs: List[Tuple[RiskSection, Optional[RecoverySection]]],
+   678→   678→        recovery_map: Dict[str, str]
+   679→   679→    ) -> str:
+   680→   680→        """Generate the risk handling method."""
+   681→   681→        lines = []
+   682→   682→        lines.append('    def _handle_risk(self, error: Exception) -> None:')
+   683→   683→        lines.append('        """Handle errors based on defined risk/recovery pairs."""')
+   684→   684→        lines.append('        error_msg = str(error)')
+   685→   685→        lines.append('        self._logger.error(f"Handling risk: {error_msg}")')
+   686→   686→        lines.append('')
+   687→   687→
+   688→   688→        if risk_pairs:
+   689→   689→            lines.append('        # Check each defined risk')
+   690→   690→            for i, (risk, recovery) in enumerate(risk_pairs):
+   691→   691→                risk_desc = risk.description
+   692→   692→                recovery_desc = recovery.description if recovery else "log and handle"
+   693→   693→                lines.append(f'        # Risk: {risk_desc}')
+   694→   694→                lines.append(f'        if {risk_desc!r} in error_msg:')
+   695→   695→                lines.append(f'            self._logger.warning("Detected risk: {risk_desc}")')
+   696→   696→                lines.append(f'            # Recovery: {recovery_desc}')
+   697→   697→                lines.append(f'            self._logger.info("Applying recovery: {recovery_desc}")')
+   698→   698→                lines.append(f'            # TODO: Implement recovery: {recovery_desc}')
+   699→   699→                lines.append(f'            return')
+   700→   700→                lines.append('')
+   701→   701→
+   702→   702→            lines.append('        # Unrecognized risk - log it')
+   703→   703→            lines.append('        self._logger.warning(f"Unrecognized risk: {error_msg}")')
+   704→   704→        else:
+   705→   705→            lines.append('        # No risks defined - generic error handling')
+   706→   706→            lines.append('        self._logger.warning(f"Error: {error_msg}")')
+   707→   707→
+   708→   708→        return '\n'.join(lines)
+   709→   709→
+   710→   710→    def _generate_entry_point(self, class_name: str) -> str:
+   711→   711→        """Generate the main entry point."""
+   712→   712→        lines = []
+   713→   713→        lines.append('')
+   714→   714→        lines.append('def main():')
+   715→   715→        lines.append('    """Main entry point for the AICL-generated application."""')
+   716→   716→        lines.append('    logging.basicConfig(')
+   717→   717→        lines.append('        level=logging.INFO,')
+   718→   718→        lines.append('        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"')
+   719→   719→        lines.append('    )')
+   720→   720→        lines.append('')
+   721→   721→        lines.append(f'    app = {class_name}()')
+   722→   722→        lines.append('    app.run()')
+   723→   723→        lines.append('')
+   724→   724→        lines.append('')
+   725→   725→        lines.append('if __name__ == "__main__":')
+   726→   726→        lines.append('    main()')
+   727→   727→        return '\n'.join(lines)
+   728→   728→
+   729→   729→    # =========================================================================
+   730→   730→    # Stage 7: Test Generation
+   731→   731→    # =========================================================================
+   732→   732→
+   733→   733→    def _stage_test_generation(
+   734→   734→        self,
+   735→   735→        program: AICLProgram,
+   736→   736→        dep_order: List[LayerSection]
+   737→   737→    ) -> str:
+   738→   738→        """Generate test code from validation sections."""
+   739→   739→        sections = []
+   740→   740→        goal_desc = program.goals[0].description if program.goals else "AICL Application"
+   741→   741→        class_name = self._make_class_name(goal_desc)
+   742→   742→
+   743→   743→        sections.append('"""')
+   744→   744→        sections.append(f'AICL Generated Test Suite')
+   745→   745→        sections.append(f'Goal: {goal_desc}')
+   746→   746→        sections.append(f'')
+   747→   747→        sections.append(f'Auto-generated from AICL validation specifications.')
+   748→   748→        sections.append(f'Run with: pytest test_main.py -v')
+   749→   749→        sections.append('"""')
+   750→   750→        sections.append('')
+   751→   751→        sections.append('import pytest')
+   752→   752→        sections.append('import logging')
+   753→   753→        sections.append('')
+   754→   754→        sections.append('# Import the generated application')
+   755→   755→        sections.append('from main import *')
+   756→   756→        sections.append('')
+   757→   757→
+   758→   758→        # Fixture
+   759→   759→        sections.append('@pytest.fixture')
+   760→   760→        sections.append(f'def app():')
+   761→   761→        sections.append(f'    """Create an instance of the application."""')
+   762→   762→        sections.append(f'    return {class_name}()')
+   763→   763→        sections.append('')
+   764→   764→
+   765→   765→        # Validation tests
+   766→   766→        sections.append('# =============================================================================')
+   767→   767→        sections.append('# Validation Tests')
+   768→   768→        sections.append('# =============================================================================')
+   769→   769→        sections.append('')
+   770→   770→
+   771→   771→        for i, validation in enumerate(program.validations):
+   772→   772→            sections.append(f'def test_validation_{i+1}(app):')
+   773→   773→            sections.append(f'    """Validation: {validation.description}"""')
+   774→   774→            sections.append(f'    result = app._validate_{i+1}()')
+   775→   775→            sections.append(f'    assert result is not None, "Validation returned None"')
+   776→   776→            sections.append('')
+   777→   777→
+   778→   778→        # Risk tests
+   779→   779→        if program.risks:
+   780→   780→            sections.append('# =============================================================================')
+   781→   781→            sections.append('# Risk Handling Tests')
+   782→   782→            sections.append('# =============================================================================')
+   783→   783→            sections.append('')
+   784→   784→
+   785→   785→            for i, risk in enumerate(program.risks):
+   786→   786→                sections.append(f'def test_risk_handling_{i+1}(app):')
+   787→   787→                sections.append(f'    """Risk: {risk.description}"""')
+   788→   788→                sections.append(f'    try:')
+   789→   789→                sections.append(f'        test_error = Exception({risk.description!r})')
+   790→   790→                sections.append(f'        app._handle_risk(test_error)')
+   791→   791→                sections.append(f'    except Exception as e:')
+   792→   792→                sections.append(f'        pytest.fail(f"Risk handling failed: {{e}}")')
+   793→   793→                sections.append('')
+   794→   794→
+   795→   795→        # Initialization tests
+   796→   796→        sections.append('# =============================================================================')
+   797→   797→        sections.append('# Initialization Tests')
+   798→   798→        sections.append('# =============================================================================')
+   799→   799→        sections.append('')
+   800→   800→
+   801→   801→        sections.append('def test_app_initialization(app):')
+   802→   802→        sections.append('    """Test that the application initializes correctly."""')
+   803→   803→        sections.append('    assert app is not None')
+   804→   804→        sections.append('    assert app._initialized')
+   805→   805→        sections.append('')
+   806→   806→
+   807→   807→        sections.append('def test_app_run(app):')
+   808→   808→        sections.append('    """Test that the application can run without errors."""')
+   809→   809→        sections.append('    try:')
+   810→   810→        sections.append('        app.run()')
+   811→   811→        sections.append('    except Exception as e:')
+   812→   812→        sections.append('        pytest.fail(f"Application run failed: {e}")')
+   813→   813→        sections.append('')
+   814→   814→
+   815→   815→        # Entity tests
+   816→   816→        for entity in program.entities:
+   817→   817→            entity_class = self._make_class_name(entity.name)
+   818→   818→            sections.append(f'def test_entity_{entity.name.lower()}():')
+   819→   819→            sections.append(f'    """Test Entity: {entity.name}"""')
+   820→   820→            sections.append(f'    entity = {entity_class}()')
+   821→   821→            sections.append(f'    assert entity is not None')
+   822→   822→            sections.append(f'    assert isinstance(entity, {entity_class})')
+   823→   823→            sections.append('')
+   824→   824→
+   825→   825→        return '\n'.join(sections)
+   826→   826→
+   827→   827→    # =========================================================================
+   828→   828→    # Stage 8: Optimization
+   829→   829→    # =========================================================================
+   830→   830→
+   831→   831→    def _stage_optimization(self, source_code: str, program: AICLProgram) -> str:
+   832→   832→        """Apply optimizations based on Optimize sections."""
+   833→   833→        return source_code
+   834→   834→
+   835→   835→    # =========================================================================
+   836→   836→    # Stage 9: Final Construction
+   837→   837→    # =========================================================================
+   838→   838→
+   839→   839→    def _stage_final_construction(self, source_code: str, program: AICLProgram) -> str:
+   840→   840→        """Final construction of the output source code."""
+   841→   841→        return source_code
+   842→   842→
+   843→   843→    # =========================================================================
+   844→   844→    # Helper Methods
+   845→   845→    # =========================================================================
+   846→   846→
+   847→   847→    def _make_class_name(self, name: str) -> str:
+   848→   848→        """Convert a description to a valid Python class name."""
+   849→   849→        words = name.replace('-', ' ').replace('_', ' ').split()
+   850→   850→        if not words:
+   851→   851→            return "AiclApplication"
+   852→   852→
+   853→   853→        # Filter out common articles and prepositions
+   854→   854→        filtered = [w for w in words if w.lower() not in ('a', 'an', 'the', 'on', 'in', 'of')]
+   855→   855→        if not filtered:
+   856→   856→            filtered = words
+   857→   857→
+   858→   858→        return ''.join(w.capitalize() for w in filtered)
+   859→   859→
+   860→   860→    def _aicl_type_to_python(self, aicl_type: str) -> str:
+   861→   861→        """Convert an AICL type name to a Python type annotation."""
+   862→   862→        type_map = {
+   863→   863→            'string': 'str',
+   864→   864→            'integer': 'int',
+   865→   865→            'float': 'float',
+   866→   866→            'boolean': 'bool',
+   867→   867→            'datetime': 'datetime',
+   868→   868→            'list': 'List[Any]',
+   869→   869→            'dict': 'Dict[str, Any]',
+   870→   870→            'set': 'set',
+   871→   871→            'any': 'Any',
+   872→   872→            'void': 'None',
+   873→   873→            'bytes': 'bytes',
+   874→   874→        }
+   875→   875→        return type_map.get(aicl_type.lower(), aicl_type)
+   876→   876→
+   877→   877→    def _risk_matches_layer(self, risk_description: str, layer_name: str) -> bool:
+   878→   878→        """Check if a risk description is semantically related to a layer."""
+   879→   879→        risk_words = set(risk_description.lower().split())
+   880→   880→        layer_words = set(layer_name.lower().split())
+   881→   881→        return bool(risk_words & layer_words)
+   882→   882→
+   883→   883→
+   884→   884→# Type names set for validation
+   885→   885→TYPE_NAMES_SET = {
+   886→   886→    'string', 'integer', 'float', 'boolean',
+   887→   887→    'datetime', 'list', 'dict', 'set', 'any',
+   888→   888→    'void', 'bytes',
+   889→   889→}
+   890→   890→
