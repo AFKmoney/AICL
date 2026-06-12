@@ -1,0 +1,1007 @@
+     1→#!/usr/bin/env python3
+     2→"""
+     3→AICL Test Suite - Comprehensive Tests
+     4→
+     5→Tests all components of the AICL system:
+     6→- Parser (syntactic analysis)
+     7→- Architecture Tree (IR)
+     8→- Compiler (code generation)
+     9→- End-to-end compilation
+    10→
+    11→Run with: python -m pytest tests/ -v
+    12→"""
+    13→
+    14→import sys
+    15→import os
+    16→import tempfile
+    17→import subprocess
+    18→
+    19→# Add parent directory to path
+    20→sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+    21→
+    22→from aicl.parser import Parser, ParseError
+    23→from aicl.ast import (
+    24→    AICLProgram, GoalSection, ConstraintSection, RiskSection,
+    25→    RecoverySection, LayerSection, ValidationSection, EntitySection,
+    26→    BehaviorSection, ConditionSection, EventSection, ParallelSection,
+    27→    OptimizeSection, LearnSection, SecuritySection,
+    28→)
+    29→from aicl.ir import ArchitectureTree, ArchitectureNode
+    30→from aicl.compiler import Compiler, CompilationResult
+    31→
+    32→
+    33→# =============================================================================
+    34→# Parser Tests
+    35→# =============================================================================
+    36→
+    37→class TestParser:
+    38→    """Test the AICL parser."""
+    39→
+    40→    def test_parse_goal(self):
+    41→        """Test parsing a Goal section."""
+    42→        source = "Goal:\nBuild a game"
+    43→        parser = Parser(source)
+    44→        program = parser.parse()
+    45→        assert len(program.goals) == 1
+    46→        assert "Build a game" in program.goals[0].description
+    47→
+    48→    def test_parse_goal_inline(self):
+    49→        """Test parsing a Goal on the same line."""
+    50→        source = "Goal: Build a game"
+    51→        parser = Parser(source)
+    52→        program = parser.parse()
+    53→        assert len(program.goals) == 1
+    54→        assert "Build a game" in program.goals[0].description
+    55→
+    56→    def test_parse_risk_recovery(self):
+    57→        """Test parsing Risk and Recovery sections."""
+    58→        source = """Goal:
+    59→Test
+    60→
+    61→Risk:
+    62→Server down
+    63→
+    64→Recovery:
+    65→Reconnect
+    66→"""
+    67→        parser = Parser(source)
+    68→        program = parser.parse()
+    69→        assert len(program.risks) == 1
+    70→        assert len(program.recoveries) == 1
+    71→        assert "Server down" in program.risks[0].description
+    72→        assert "Reconnect" in program.recoveries[0].description
+    73→
+    74→    def test_parse_layer(self):
+    75→        """Test parsing Layer sections."""
+    76→        source = """Goal:
+    77→Test
+    78→
+    79→Layer:
+    80→Renderer
+    81→
+    82→Layer:
+    83→Input System
+    84→"""
+    85→        parser = Parser(source)
+    86→        program = parser.parse()
+    87→        assert len(program.layers) == 2
+    88→        assert program.layers[0].name == "Renderer"
+    89→        assert program.layers[1].name == "Input System"
+    90→
+    91→    def test_parse_layer_with_sublayers(self):
+    92→        """Test parsing Layer with Sublayer sections."""
+    93→        source = """Goal:
+    94→Test
+    95→
+    96→Layer:
+    97→Renderer
+    98→    Sublayer:
+    99→    Device creation
+   100→    Sublayer:
+   101→    Shader system
+   102→"""
+   103→        parser = Parser(source)
+   104→        program = parser.parse()
+   105→        assert len(program.layers) == 1
+   106→        assert program.layers[0].name == "Renderer"
+   107→        assert len(program.layers[0].sublayers) == 2
+   108→
+   109→    def test_parse_entity(self):
+   110→        """Test parsing Entity sections with fields."""
+   111→        source = """Goal:
+   112→Test
+   113→
+   114→Entity User
+   115→    name: string
+   116→    id: integer
+   117→"""
+   118→        parser = Parser(source)
+   119→        program = parser.parse()
+   120→        assert len(program.entities) == 1
+   121→        assert program.entities[0].name == "User"
+   122→        assert len(program.entities[0].fields) == 2
+   123→        assert program.entities[0].fields[0].name == "name"
+   124→        assert program.entities[0].fields[0].field_type == "string"
+   125→
+   126→    def test_parse_behavior(self):
+   127→        """Test parsing Behavior sections."""
+   128→        source = """Goal:
+   129→Test
+   130→
+   131→Behavior SendMessage
+   132→    Input:
+   133→        User Message
+   134→    Action:
+   135→        transmit message
+   136→"""
+   137→        parser = Parser(source)
+   138→        program = parser.parse()
+   139→        assert len(program.behaviors) == 1
+   140→        assert program.behaviors[0].name == "SendMessage"
+   141→        assert "transmit" in program.behaviors[0].action
+   142→
+   143→    def test_parse_validation(self):
+   144→        """Test parsing Validation sections."""
+   145→        source = """Goal:
+   146→Test
+   147→
+   148→Validation:
+   149→System works correctly
+   150→"""
+   151→        parser = Parser(source)
+   152→        program = parser.parse()
+   153→        assert len(program.validations) == 1
+   154→        assert "System works correctly" in program.validations[0].description
+   155→
+   156→    def test_parse_constraint(self):
+   157→        """Test parsing Constraint sections."""
+   158→        source = """Goal:
+   159→Test
+   160→
+   161→Constraint:
+   162→Must run at 60 FPS
+   163→"""
+   164→        parser = Parser(source)
+   165→        program = parser.parse()
+   166→        assert len(program.constraints) == 1
+   167→        assert "60 FPS" in program.constraints[0].description
+   168→
+   169→    def test_parse_condition(self):
+   170→        """Test parsing Condition sections."""
+   171→        source = """Goal:
+   172→Test
+   173→
+   174→Condition:
+   175→    When user disconnected
+   176→    Then reconnect
+   177→"""
+   178→        parser = Parser(source)
+   179→        program = parser.parse()
+   180→        assert len(program.conditions) == 1
+   181→        assert "disconnected" in program.conditions[0].when_clause
+   182→
+   183→    def test_parse_event(self):
+   184→        """Test parsing Event sections."""
+   185→        source = """Goal:
+   186→Test
+   187→
+   188→Event:
+   189→    On click
+   190→    Action:
+   191→    open menu
+   192→"""
+   193→        parser = Parser(source)
+   194→        program = parser.parse()
+   195→        assert len(program.events) == 1
+   196→        assert "click" in program.events[0].on_clause
+   197→
+   198→    def test_parse_security(self):
+   199→        """Test parsing Security sections."""
+   200→        source = """Goal:
+   201→Test
+   202→
+   203→Security:
+   204→    Encrypt:
+   205→        user data
+   206→    Protect:
+   207→        passwords
+   208→"""
+   209→        parser = Parser(source)
+   210→        program = parser.parse()
+   211→        assert len(program.securities) == 1
+   212→        assert len(program.securities[0].actions) == 2
+   213→
+   214→    def test_parse_parallel(self):
+   215→        """Test parsing Parallel sections."""
+   216→        source = """Goal:
+   217→Test
+   218→
+   219→Parallel:
+   220→    UI
+   221→    Network
+   222→    Logic
+   223→"""
+   224→        parser = Parser(source)
+   225→        program = parser.parse()
+   226→        assert len(program.parallels) == 1
+   227→        assert len(program.parallels[0].layers) >= 2
+   228→
+   229→    def test_parse_optimize(self):
+   230→        """Test parsing Optimize sections."""
+   231→        source = """Goal:
+   232→Test
+   233→
+   234→Optimize:
+   235→Memory usage
+   236→"""
+   237→        parser = Parser(source)
+   238→        program = parser.parse()
+   239→        assert len(program.optimizations) == 1
+   240→
+   241→    def test_program_validation(self):
+   242→        """Test that program validation detects missing sections."""
+   243→        program = AICLProgram()
+   244→        warnings = program.validate()
+   245→        assert len(warnings) > 0
+   246→
+   247→    def test_complete_program(self):
+   248→        """Test parsing a complete AICL program."""
+   249→        source = """Goal:
+   250→Build a Pong game
+   251→
+   252→Constraint:
+   253→60 FPS minimum
+   254→
+   255→Risk:
+   256→Ball leaves play area
+   257→
+   258→Recovery:
+   259→Clamp ball position
+   260→
+   261→Layer:
+   262→Window Manager
+   263→
+   264→Layer:
+   265→Game Logic
+   266→
+   267→Validation:
+   268→Complete one playable match
+   269→"""
+   270→        parser = Parser(source)
+   271→        program = parser.parse()
+   272→
+   273→        assert len(program.goals) == 1
+   274→        assert len(program.constraints) == 1
+   275→        assert len(program.risks) == 1
+   276→        assert len(program.recoveries) == 1
+   277→        assert len(program.layers) == 2
+   278→        assert len(program.validations) == 1
+   279→
+   280→        warnings = program.validate()
+   281→        assert len(warnings) == 0
+   282→
+   283→
+   284→# =============================================================================
+   285→# Architecture Tree Tests
+   286→# =============================================================================
+   287→
+   288→class TestArchitectureTree:
+   289→    """Test the Architecture Tree IR."""
+   290→
+   291→    def test_tree_construction(self):
+   292→        """Test building an Architecture Tree from a program."""
+   293→        source = """Goal:
+   294→Build a game
+   295→
+   296→Risk:
+   297→Server down
+   298→
+   299→Recovery:
+   300→Reconnect
+   301→
+   302→Layer:
+   303→Renderer
+   304→
+   305→Layer:
+   306→Input System
+   307→
+   308→Validation:
+   309→Game runs correctly
+   310→"""
+   311→        parser = Parser(source)
+   312→        program = parser.parse()
+   313→        tree = ArchitectureTree(program)
+   314→
+   315→        assert tree.root.name == "System"
+   316→        assert "Build a game" in tree.root.goal
+   317→        assert len(tree.root.risks) == 1
+   318→        assert len(tree.root.recoveries) == 1
+   319→        assert len(tree.root.children) >= 2
+   320→
+   321→    def test_tree_to_string(self):
+   322→        """Test the tree string representation."""
+   323→        source = """Goal:
+   324→Build a game
+   325→
+   326→Layer:
+   327→Renderer
+   328→
+   329→Validation:
+   330→Game works
+   331→"""
+   332→        parser = Parser(source)
+   333→        program = parser.parse()
+   334→        tree = ArchitectureTree(program)
+   335→
+   336→        tree_str = tree.to_string()
+   337→        assert "System" in tree_str
+   338→        assert "Renderer" in tree_str
+   339→
+   340→    def test_tree_to_dict(self):
+   341→        """Test the tree dictionary representation."""
+   342→        source = """Goal:
+   343→Test
+   344→
+   345→Layer:
+   346→Network
+   347→
+   348→Validation:
+   349→Works
+   350→"""
+   351→        parser = Parser(source)
+   352→        program = parser.parse()
+   353→        tree = ArchitectureTree(program)
+   354→
+   355→        d = tree.to_dict()
+   356→        assert "name" in d
+   357→        assert d["name"] == "System"
+   358→
+   359→    def test_dependency_order(self):
+   360→        """Test that dependency order is returned correctly."""
+   361→        source = """Goal:
+   362→Test
+   363→
+   364→Layer:
+   365→UI
+   366→
+   367→Layer:
+   368→Logic
+   369→
+   370→Layer:
+   371→Data
+   372→
+   373→Validation:
+   374→Works
+   375→"""
+   376→        parser = Parser(source)
+   377→        program = parser.parse()
+   378→        tree = ArchitectureTree(program)
+   379→
+   380→        order = tree.get_dependency_order()
+   381→        assert len(order) >= 3
+   382→
+   383→
+   384→# =============================================================================
+   385→# Compiler Tests
+   386→# =============================================================================
+   387→
+   388→class TestCompiler:
+   389→    """Test the AICL compiler."""
+   390→
+   391→    def test_compile_simple_program(self):
+   392→        """Test compiling a simple AICL program."""
+   393→        source = """Goal:
+   394→Build a game
+   395→
+   396→Risk:
+   397→Server down
+   398→
+   399→Recovery:
+   400→Reconnect
+   401→
+   402→Layer:
+   403→Renderer
+   404→
+   405→Layer:
+   406→Game Logic
+   407→
+   408→Validation:
+   409→Game runs correctly
+   410→"""
+   411→        compiler = Compiler()
+   412→        result = compiler.compile(source)
+   413→
+   414→        assert result.success, f"Compilation failed: {result.errors}"
+   415→        assert len(result.source_code) > 0
+   416→        assert "class" in result.source_code
+   417→        assert "def run" in result.source_code
+   418→
+   419→    def test_compile_with_entities(self):
+   420→        """Test compiling a program with Entity sections."""
+   421→        source = """Goal:
+   422→Chat app
+   423→
+   424→Layer:
+   425→Network
+   426→
+   427→Entity User
+   428→    name: string
+   429→    id: integer
+   430→
+   431→Entity Message
+   432→    content: string
+   433→    timestamp: datetime
+   434→
+   435→Validation:
+   436→Messages sent correctly
+   437→"""
+   438→        compiler = Compiler()
+   439→        result = compiler.compile(source)
+   440→
+   441→        assert result.success, f"Compilation failed: {result.errors}"
+   442→        assert "class User" in result.source_code
+   443→        assert "class Message" in result.source_code
+   444→
+   445→    def test_compile_generates_tests(self):
+   446→        """Test that the compiler generates test code."""
+   447→        source = """Goal:
+   448→Test app
+   449→
+   450→Layer:
+   451→Core
+   452→
+   453→Validation:
+   454→System works
+   455→
+   456→Validation:
+   457→No errors
+   458→"""
+   459→        compiler = Compiler()
+   460→        result = compiler.compile(source)
+   461→
+   462→        assert result.success
+   463→        assert len(result.test_code) > 0
+   464→        assert "pytest" in result.test_code
+   465→        assert "test_validation" in result.test_code
+   466→
+   467→    def test_compile_generates_architecture_tree(self):
+   468→        """Test that the compiler generates architecture tree string."""
+   469→        source = """Goal:
+   470→Game
+   471→
+   472→Layer:
+   473→Renderer
+   474→
+   475→Validation:
+   476→Works
+   477→"""
+   478→        compiler = Compiler()
+   479→        result = compiler.compile(source)
+   480→
+   481→        assert result.success
+   482→        assert len(result.architecture_tree_str) > 0
+   483→        assert "System" in result.architecture_tree_str
+   484→
+   485→    def test_compile_to_file(self):
+   486→        """Test compiling to output files."""
+   487→        source = """Goal:
+   488→File output test
+   489→
+   490→Layer:
+   491→Core
+   492→
+   493→Validation:
+   494→Files created
+   495→"""
+   496→        compiler = Compiler()
+   497→        with tempfile.TemporaryDirectory() as tmpdir:
+   498→            output_dir = os.path.join(tmpdir, "output")
+   499→            result = compiler.compile_to_file(source, output_dir)
+   500→
+   501→            assert result.success
+   502→            assert os.path.exists(os.path.join(output_dir, "main.py"))
+   503→            assert os.path.exists(os.path.join(output_dir, "test_main.py"))
+   504→            assert os.path.exists(os.path.join(output_dir, "architecture_tree.txt"))
+   505→
+   506→    def test_compile_multiple_risks(self):
+   507→        """Test compiling a program with multiple risks and recoveries."""
+   508→        source = """Goal:
+   509→Robust app
+   510→
+   511→Risk:
+   512→Network failure
+   513→
+   514→Recovery:
+   515→Retry connection
+   516→
+   517→Risk:
+   518→Disk full
+   519→
+   520→Recovery:
+   521→Clean cache
+   522→
+   523→Layer:
+   524→Core
+   525→
+   526→Validation:
+   527→App runs
+   528→"""
+   529→        compiler = Compiler()
+   530→        result = compiler.compile(source)
+   531→
+   532→        assert result.success
+   533→        assert "Network failure" in result.source_code
+   534→        assert "Disk full" in result.source_code
+   535→
+   536→    def test_compile_with_conditions(self):
+   537→        """Test compiling a program with Condition sections."""
+   538→        source = """Goal:
+   539→Interactive app
+   540→
+   541→Layer:
+   542→UI
+   543→
+   544→Condition:
+   545→    When user disconnected
+   546→    Then reconnect
+   547→
+   548→Validation:
+   549→Works
+   550→"""
+   551→        compiler = Compiler()
+   552→        result = compiler.compile(source)
+   553→
+   554→        assert result.success
+   555→        assert "handle_condition" in result.source_code
+   556→
+   557→    def test_compile_with_events(self):
+   558→        """Test compiling a program with Event sections."""
+   559→        source = """Goal:
+   560→Event-driven app
+   561→
+   562→Layer:
+   563→Core
+   564→
+   565→Event:
+   566→    On click
+   567→    Action:
+   568→    open menu
+   569→
+   570→Validation:
+   571→Works
+   572→"""
+   573→        compiler = Compiler()
+   574→        result = compiler.compile(source)
+   575→
+   576→        assert result.success, f"Compilation failed: {result.errors}"
+   577→        assert "handle_event" in result.source_code
+   578→
+   579→    def test_compilation_stages(self):
+   580→        """Test that all compilation stages are completed."""
+   581→        source = """Goal:
+   582→Test
+   583→
+   584→Layer:
+   585→Core
+   586→
+   587→Validation:
+   588→Works
+   589→"""
+   590→        compiler = Compiler()
+   591→        result = compiler.compile(source)
+   592→
+   593→        assert result.success
+   594→        expected_stages = [
+   595→            "Specification Parsing",
+   596→            "Architecture Validation",
+   597→            "Dependency Analysis",
+   598→            "Risk Analysis",
+   599→            "Recovery Synthesis",
+   600→            "Code Generation",
+   601→            "Test Generation",
+   602→            "Optimization",
+   603→            "Final Construction",
+   604→        ]
+   605→        for stage in expected_stages:
+   606→            assert stage in result.stages_completed, f"Stage '{stage}' not completed"
+   607→
+   608→    def test_generated_python_is_syntactically_valid(self):
+   609→        """Test that generated Python code is syntactically valid."""
+   610→        source = """Goal:
+   611→Syntax test
+   612→
+   613→Constraint:
+   614→Must be valid Python
+   615→
+   616→Risk:
+   617→Import error
+   618→
+   619→Recovery:
+   620→Use fallback
+   621→
+   622→Layer:
+   623→Initialization
+   624→
+   625→Layer:
+   626→Runtime
+   627→
+   628→Entity Player
+   629→    name: string
+   630→    score: integer
+   631→
+   632→Validation:
+   633→Code is valid
+   634→
+   635→Validation:
+   636→Runs correctly
+   637→"""
+   638→        compiler = Compiler()
+   639→        result = compiler.compile(source)
+   640→
+   641→        assert result.success, f"Compilation failed: {result.errors}"
+   642→
+   643→        try:
+   644→            compile(result.source_code, '<generated>', 'exec')
+   645→        except SyntaxError as e:
+   646→            print("Generated code:")
+   647→            print(result.source_code)
+   648→            raise AssertionError(f"Generated Python code has syntax error: {e}")
+   649→
+   650→
+   651→# =============================================================================
+   652→# End-to-End Tests with Example Programs
+   653→# =============================================================================
+   654→
+   655→class TestEndToEnd:
+   656→    """End-to-end tests using example AICL programs."""
+   657→
+   658→    EXAMPLES_DIR = os.path.join(os.path.dirname(__file__), '..', 'examples')
+   659→
+   660→    def _load_example(self, name):
+   661→        """Load an example AICL file."""
+   662→        path = os.path.join(self.EXAMPLES_DIR, name)
+   663→        if not os.path.exists(path):
+   664→            import pytest; pytest.skip(f"Example file not found: {path}")
+   665→        with open(path, 'r') as f:
+   666→            return f.read()
+   667→
+   668→    def test_compile_blue_square(self):
+   669→        """Test compiling the Blue Square example."""
+   670→        source = self._load_example('01_blue_square.aicl')
+   671→        compiler = Compiler()
+   672→        result = compiler.compile(source)
+   673→        assert result.success, f"Blue Square compilation failed: {result.errors}"
+   674→        assert "class" in result.source_code
+   675→
+   676→    def test_compile_pong(self):
+   677→        """Test compiling the Pong example."""
+   678→        source = self._load_example('02_pong.aicl')
+   679→        compiler = Compiler()
+   680→        result = compiler.compile(source)
+   681→        assert result.success, f"Pong compilation failed: {result.errors}"
+   682→
+   683→    def test_compile_chat(self):
+   684→        """Test compiling the Chat example."""
+   685→        source = self._load_example('03_chat.aicl')
+   686→        compiler = Compiler()
+   687→        result = compiler.compile(source)
+   688→        assert result.success, f"Chat compilation failed: {result.errors}"
+   689→
+   690→    def test_compile_chess(self):
+   691→        """Test compiling the Chess example."""
+   692→        source = self._load_example('04_chess.aicl')
+   693→        compiler = Compiler()
+   694→        result = compiler.compile(source)
+   695→        assert result.success, f"Chess compilation failed: {result.errors}"
+   696→
+   697→    def test_pong_generated_code_is_valid_python(self):
+   698→        """Test that the Pong example generates valid Python."""
+   699→        source = self._load_example('02_pong.aicl')
+   700→        compiler = Compiler()
+   701→        result = compiler.compile(source)
+   702→        assert result.success
+   703→        try:
+   704→            compile(result.source_code, '<pong>', 'exec')
+   705→        except SyntaxError as e:
+   706→            print("Generated Pong code:")
+   707→            print(result.source_code)
+   708→            raise AssertionError(f"Pong generated code has syntax error: {e}")
+   709→
+   710→    def test_chat_generated_code_is_valid_python(self):
+   711→        """Test that the Chat example generates valid Python."""
+   712→        source = self._load_example('03_chat.aicl')
+   713→        compiler = Compiler()
+   714→        result = compiler.compile(source)
+   715→        assert result.success
+   716→        try:
+   717→            compile(result.source_code, '<chat>', 'exec')
+   718→        except SyntaxError as e:
+   719→            print("Generated Chat code:")
+   720→            print(result.source_code)
+   721→            raise AssertionError(f"Chat generated code has syntax error: {e}")
+   722→
+   723→    def test_chess_generated_code_is_valid_python(self):
+   724→        """Test that the Chess example generates valid Python."""
+   725→        source = self._load_example('04_chess.aicl')
+   726→        compiler = Compiler()
+   727→        result = compiler.compile(source)
+   728→        assert result.success
+   729→        try:
+   730→            compile(result.source_code, '<chess>', 'exec')
+   731→        except SyntaxError as e:
+   732→            print("Generated Chess code:")
+   733→            print(result.source_code)
+   734→            raise AssertionError(f"Chess generated code has syntax error: {e}")
+   735→
+   736→    def test_blue_square_generated_code_is_valid_python(self):
+   737→        """Test that the Blue Square example generates valid Python."""
+   738→        source = self._load_example('01_blue_square.aicl')
+   739→        compiler = Compiler()
+   740→        result = compiler.compile(source)
+   741→        assert result.success
+   742→        try:
+   743→            compile(result.source_code, '<blue_square>', 'exec')
+   744→        except SyntaxError as e:
+   745→            print("Generated Blue Square code:")
+   746→            print(result.source_code)
+   747→            raise AssertionError(f"Blue Square generated code has syntax error: {e}")
+   748→
+   749→
+   750→# =============================================================================
+   751→# Pattern Library Tests
+   752→# =============================================================================
+   753→
+   754→class TestBehaviorPatternLibrary:
+   755→    """Test the behavior pattern library and pattern matching."""
+   756→
+   757→    def test_pattern_matching_move(self):
+   758→        """Test that 'move' actions match the MOVE pattern."""
+   759→        from aicl.patterns import BehaviorPatternLibrary
+   760→        lib = BehaviorPatternLibrary()
+   761→        match = lib.match("Update paddle position based on direction")
+   762→        assert match is not None
+   763→        assert match.pattern_name == "MOVE"
+   764→
+   765→    def test_pattern_matching_broadcast(self):
+   766→        """Test that 'broadcast' actions match a communication pattern."""
+   767→        from aicl.patterns import BehaviorPatternLibrary, PatternCategory
+   768→        lib = BehaviorPatternLibrary()
+   769→        match = lib.match("Broadcast message to all users")
+   770→        assert match is not None
+   771→        # Could match BROADCAST or SEND_MESSAGE, both are communication patterns
+   772→        assert match.category in (PatternCategory.BROADCAST, PatternCategory.ROUTE)
+   773→
+   774→    def test_pattern_matching_clamp(self):
+   775→        """Test that 'clamp' actions match the CLAMP_POSITION pattern."""
+   776→        from aicl.patterns import BehaviorPatternLibrary
+   777→        lib = BehaviorPatternLibrary()
+   778→        match = lib.match("Clamp ball position to boundaries")
+   779→        assert match is not None
+   780→        assert match.pattern_name == "CLAMP_POSITION"
+   781→        # Verify parameters produce valid Python
+   782→        code = match.code_template.format(**match.parameters)
+   783→        try:
+   784→            compile(code, '<test>', 'exec')
+   785→        except SyntaxError:
+   786→            raise AssertionError(f"Pattern code is not valid Python: {code}")
+   787→
+   788→    def test_pattern_matching_reflect(self):
+   789→        """Test that 'reflect' actions match a physics-related pattern."""
+   790→        from aicl.patterns import BehaviorPatternLibrary, PatternCategory
+   791→        lib = BehaviorPatternLibrary()
+   792→        match = lib.match("Reflect ball velocity on collision")
+   793→        assert match is not None
+   794→        # Could match REFLECT_VELOCITY or CHECK_COLLISION, both are valid
+   795→        assert match.category in (PatternCategory.REFLECT, PatternCategory.VALIDATE)
+   796→
+   797→    def test_pattern_matching_encrypt(self):
+   798→        """Test that 'encrypt' actions match a security-related pattern."""
+   799→        from aicl.patterns import BehaviorPatternLibrary, PatternCategory
+   800→        lib = BehaviorPatternLibrary()
+   801→        match = lib.match("Encrypt message content")
+   802→        assert match is not None
+   803→        # Could match ENCRYPT_DATA or SEND_MESSAGE (message keyword), both valid
+   804→        assert match.category in (PatternCategory.ENCRYPT, PatternCategory.ROUTE, PatternCategory.BROADCAST)
+   805→
+   806→    def test_pattern_no_match_for_gibberish(self):
+   807→        """Test that random text doesn't match any pattern."""
+   808→        from aicl.patterns import BehaviorPatternLibrary
+   809→        lib = BehaviorPatternLibrary()
+   810→        match = lib.match("xyzzy foobar bazquux")
+   811→        assert match is None
+   812→
+   813→    def test_word_boundary_matching(self):
+   814→        """Test that keywords match whole words, not substrings."""
+   815→        from aicl.patterns import BehaviorPatternLibrary
+   816→        lib = BehaviorPatternLibrary()
+   817→        # "multiplayer" should NOT match "play" keyword
+   818→        # It should match "multiplayer" in event_driven keywords instead
+   819→        match = lib.match("Update multiplayer state")
+   820→        # Should not match GAME_LOOP patterns via "play" substring
+   821→        if match:
+   822→            assert match.pattern_name != "MOVE" or "update" in match.pattern_name.lower()
+   823→
+   824→
+   825→class TestBehaviorCompiler:
+   826→    """Test the deterministic behavior compiler."""
+   827→
+   828→    def test_compile_move_action(self):
+   829→        """Test compiling a move action."""
+   830→        from aicl.patterns import BehaviorCompiler
+   831→        bc = BehaviorCompiler()
+   832→        code, compiled = bc.compile_action("Update paddle position based on direction")
+   833→        assert compiled is True
+   834→        assert "position" in code
+   835→
+   836→    def test_compile_clamp_action(self):
+   837→        """Test compiling a clamp action produces valid Python."""
+   838→        from aicl.patterns import BehaviorCompiler
+   839→        bc = BehaviorCompiler()
+   840→        code, compiled = bc.compile_action("Clamp ball position to boundaries")
+   841→        assert compiled is True
+   842→        # The generated code must be valid Python
+   843→        try:
+   844→            compile(code, '<test>', 'exec')
+   845→        except SyntaxError:
+   846→            raise AssertionError(f"Clamp code is not valid Python: {code}")
+   847→
+   848→    def test_compile_empty_action(self):
+   849→        """Test compiling an empty action returns pass."""
+   850→        from aicl.patterns import BehaviorCompiler
+   851→        bc = BehaviorCompiler()
+   852→        code, compiled = bc.compile_action("")
+   853→        assert code == "pass"
+   854→        assert compiled is True
+   855→
+   856→    def test_compile_fallback_action(self):
+   857→        """Test that unknown actions get structured fallback (not bare TODO)."""
+   858→        from aicl.patterns import BehaviorCompiler
+   859→        bc = BehaviorCompiler()
+   860→        code, compiled = bc.compile_action("Perform quantum entanglement")
+   861→        assert compiled is False
+   862→        assert "# Intent:" in code
+   863→        assert "# TODO:" not in code  # Should NOT have bare TODO
+   864→
+   865→
+   866→class TestSubLanguageParser:
+   867→    """Test the action sub-language parser."""
+   868→
+   869→    def test_assign_statement(self):
+   870→        """Test parsing an assign statement."""
+   871→        from aicl.patterns import SubLanguageParser
+   872→        parser = SubLanguageParser()
+   873→        stmts = parser.parse("assign x += direction * speed")
+   874→        assert len(stmts) == 1
+   875→        assert stmts[0].target == "x"
+   876→        assert stmts[0].operator == "+="
+   877→        assert stmts[0].value == "direction * speed"
+   878→
+   879→    def test_clamp_statement(self):
+   880→        """Test parsing a clamp statement."""
+   881→        from aicl.patterns import SubLanguageParser
+   882→        parser = SubLanguageParser()
+   883→        stmts = parser.parse("clamp position between 0 and screen_height")
+   884→        assert len(stmts) == 1
+   885→        assert stmts[0].target == "position"
+   886→        assert stmts[0].min_val == "0"
+   887→        assert stmts[0].max_val == "screen_height"
+   888→
+   889→    def test_check_statement(self):
+   890→        """Test parsing a check statement."""
+   891→        from aicl.patterns import SubLanguageParser
+   892→        parser = SubLanguageParser()
+   893→        stmts = parser.parse("check score >= 10")
+   894→        assert len(stmts) == 1
+   895→        assert stmts[0].condition == "score >= 10"
+   896→
+   897→    def test_sub_language_detection_strict(self):
+   898→        """Test that natural language doesn't trigger sub-language parsing."""
+   899→        from aicl.patterns import SubLanguageParser
+   900→        parser = SubLanguageParser()
+   901→        # "Clamp ball position" is natural language, NOT a sub-language statement
+   902→        # (it lacks "between ... and ...")
+   903→        assert parser.is_sub_language("Clamp ball position to boundaries") is False
+   904→        # "clamp position between 0 and 100" IS sub-language
+   905→        assert parser.is_sub_language("clamp position between 0 and 100") is True
+   906→        # "assign x = 5" IS sub-language
+   907→        assert parser.is_sub_language("assign x = 5") is True
+   908→
+   909→    def test_sub_language_assign_requires_operator(self):
+   910→        """Test that 'assign' without operator is not treated as sub-language."""
+   911→        from aicl.patterns import SubLanguageParser
+   912→        parser = SubLanguageParser()
+   913→        assert parser.is_sub_language("assign the task") is False
+   914→        assert parser.is_sub_language("assign x = 5") is True
+   915→
+   916→
+   917→class TestArchitectureTemplateMapper:
+   918→    """Test the Goal → Architecture Template mapper."""
+   919→
+   920→    def test_game_goal_maps_to_game_loop(self):
+   921→        """Test that game-related goals map to game_loop template."""
+   922→        from aicl.patterns import ArchitectureTemplateMapper
+   923→        name, info = ArchitectureTemplateMapper.match("Build a Pong game")
+   924→        assert name == "game_loop"
+   925→
+   926→    def test_chat_goal_maps_to_event_driven(self):
+   927→        """Test that chat-related goals map to event_driven template."""
+   928→        from aicl.patterns import ArchitectureTemplateMapper
+   929→        name, info = ArchitectureTemplateMapper.match("Create a multiplayer chat application")
+   930→        assert name == "event_driven"
+   931→
+   932→    def test_chess_goal_maps_to_game_loop(self):
+   933→        """Test that chess goals map to game_loop template."""
+   934→        from aicl.patterns import ArchitectureTemplateMapper
+   935→        name, info = ArchitectureTemplateMapper.match("Create a multiplayer chess game")
+   936→        assert name == "game_loop"
+   937→
+   938→    def test_pipeline_goal(self):
+   939→        """Test that data processing goals map to pipeline template."""
+   940→        from aicl.patterns import ArchitectureTemplateMapper
+   941→        name, info = ArchitectureTemplateMapper.match("Process and analyze data stream")
+   942→        assert name == "pipeline"
+   943→
+   944→    def test_multiplayer_not_matching_game(self):
+   945→        """Test that 'multiplayer' doesn't accidentally match 'play' in game keywords."""
+   946→        from aicl.patterns import ArchitectureTemplateMapper
+   947→        # "multiplayer chat" should be event_driven, not game_loop
+   948→        name, info = ArchitectureTemplateMapper.match("multiplayer chat application")
+   949→        assert name == "event_driven"
+   950→
+   951→
+   952→class TestZeroTODOCompilation:
+   953→    """Verify that all examples compile with zero TODOs."""
+   954→
+   955→    def test_pong_zero_todos(self):
+   956→        """Test that Pong compiles with zero TODOs."""
+   957→        from aicl.compiler import Compiler
+   958→        with open(os.path.join(os.path.dirname(__file__), '..', 'examples', '02_pong.aicl')) as f:
+   959→            source = f.read()
+   960→        compiler = Compiler()
+   961→        result = compiler.compile(source)
+   962→        assert result.success
+   963→        assert result.todo_count == 0, f"Pong has {result.todo_count} TODOs"
+   964→        assert result.fully_compiled
+   965→
+   966→    def test_chat_zero_todos(self):
+   967→        """Test that Chat compiles with zero TODOs."""
+   968→        from aicl.compiler import Compiler
+   969→        with open(os.path.join(os.path.dirname(__file__), '..', 'examples', '03_chat.aicl')) as f:
+   970→            source = f.read()
+   971→        compiler = Compiler()
+   972→        result = compiler.compile(source)
+   973→        assert result.success
+   974→        assert result.todo_count == 0, f"Chat has {result.todo_count} TODOs"
+   975→        assert result.fully_compiled
+   976→
+   977→    def test_chess_zero_todos(self):
+   978→        """Test that Chess compiles with zero TODOs."""
+   979→        from aicl.compiler import Compiler
+   980→        with open(os.path.join(os.path.dirname(__file__), '..', 'examples', '04_chess.aicl')) as f:
+   981→            source = f.read()
+   982→        compiler = Compiler()
+   983→        result = compiler.compile(source)
+   984→        assert result.success
+   985→        assert result.todo_count == 0, f"Chess has {result.todo_count} TODOs"
+   986→        assert result.fully_compiled
+   987→
+   988→    def test_blue_square_zero_todos(self):
+   989→        """Test that Blue Square compiles with zero TODOs."""
+   990→        from aicl.compiler import Compiler
+   991→        with open(os.path.join(os.path.dirname(__file__), '..', 'examples', '01_blue_square.aicl')) as f:
+   992→            source = f.read()
+   993→        compiler = Compiler()
+   994→        result = compiler.compile(source)
+   995→        assert result.success
+   996→        assert result.todo_count == 0, f"Blue Square has {result.todo_count} TODOs"
+   997→        assert result.fully_compiled
+   998→
+   999→
+  1000→# =============================================================================
+  1001→# Run Tests
+  1002→# =============================================================================
+  1003→
+  1004→if __name__ == '__main__':
+  1005→    import pytest
+  1006→    pytest.main([__file__, '-v'])
+  1007→
