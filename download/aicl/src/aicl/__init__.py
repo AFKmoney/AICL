@@ -2,11 +2,11 @@
 AICL - AI-Centric Language
 A specification-first programming language for AI-native software development.
 
-Version: 0.1.0
+Version: 0.2.0
 Author: Philippe-Antoine
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __author__ = "Philippe-Antoine"
 
 from .parser import Parser, ParseError
@@ -20,6 +20,10 @@ from .ast_nodes import (
 )
 from .architecture_tree import ArchitectureTree, ArchitectureNode
 from .compiler import Compiler, CompilationResult
+from .patterns import (
+    BehaviorPatternLibrary, BehaviorCompiler,
+    SubLanguageParser, ArchitectureTemplateMapper,
+)
 
 __all__ = [
     "Parser", "ParseError",
@@ -31,4 +35,6 @@ __all__ = [
     "SecurityAction",
     "ArchitectureTree", "ArchitectureNode",
     "Compiler", "CompilationResult",
+    "BehaviorPatternLibrary", "BehaviorCompiler",
+    "SubLanguageParser", "ArchitectureTemplateMapper",
 ]

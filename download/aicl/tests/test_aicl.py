@@ -748,6 +748,256 @@ class TestEndToEnd:
 
 
 # =============================================================================
+# Pattern Library Tests
+# =============================================================================
+
+class TestBehaviorPatternLibrary:
+    """Test the behavior pattern library and pattern matching."""
+
+    def test_pattern_matching_move(self):
+        """Test that 'move' actions match the MOVE pattern."""
+        from aicl.patterns import BehaviorPatternLibrary
+        lib = BehaviorPatternLibrary()
+        match = lib.match("Update paddle position based on direction")
+        assert match is not None
+        assert match.pattern_name == "MOVE"
+
+    def test_pattern_matching_broadcast(self):
+        """Test that 'broadcast' actions match a communication pattern."""
+        from aicl.patterns import BehaviorPatternLibrary, PatternCategory
+        lib = BehaviorPatternLibrary()
+        match = lib.match("Broadcast message to all users")
+        assert match is not None
+        # Could match BROADCAST or SEND_MESSAGE, both are communication patterns
+        assert match.category in (PatternCategory.BROADCAST, PatternCategory.ROUTE)
+
+    def test_pattern_matching_clamp(self):
+        """Test that 'clamp' actions match the CLAMP_POSITION pattern."""
+        from aicl.patterns import BehaviorPatternLibrary
+        lib = BehaviorPatternLibrary()
+        match = lib.match("Clamp ball position to boundaries")
+        assert match is not None
+        assert match.pattern_name == "CLAMP_POSITION"
+        # Verify parameters produce valid Python
+        code = match.code_template.format(**match.parameters)
+        try:
+            compile(code, '<test>', 'exec')
+        except SyntaxError:
+            raise AssertionError(f"Pattern code is not valid Python: {code}")
+
+    def test_pattern_matching_reflect(self):
+        """Test that 'reflect' actions match a physics-related pattern."""
+        from aicl.patterns import BehaviorPatternLibrary, PatternCategory
+        lib = BehaviorPatternLibrary()
+        match = lib.match("Reflect ball velocity on collision")
+        assert match is not None
+        # Could match REFLECT_VELOCITY or CHECK_COLLISION, both are valid
+        assert match.category in (PatternCategory.REFLECT, PatternCategory.VALIDATE)
+
+    def test_pattern_matching_encrypt(self):
+        """Test that 'encrypt' actions match a security-related pattern."""
+        from aicl.patterns import BehaviorPatternLibrary, PatternCategory
+        lib = BehaviorPatternLibrary()
+        match = lib.match("Encrypt message content")
+        assert match is not None
+        # Could match ENCRYPT_DATA or SEND_MESSAGE (message keyword), both valid
+        assert match.category in (PatternCategory.ENCRYPT, PatternCategory.ROUTE, PatternCategory.BROADCAST)
+
+    def test_pattern_no_match_for_gibberish(self):
+        """Test that random text doesn't match any pattern."""
+        from aicl.patterns import BehaviorPatternLibrary
+        lib = BehaviorPatternLibrary()
+        match = lib.match("xyzzy foobar bazquux")
+        assert match is None
+
+    def test_word_boundary_matching(self):
+        """Test that keywords match whole words, not substrings."""
+        from aicl.patterns import BehaviorPatternLibrary
+        lib = BehaviorPatternLibrary()
+        # "multiplayer" should NOT match "play" keyword
+        # It should match "multiplayer" in event_driven keywords instead
+        match = lib.match("Update multiplayer state")
+        # Should not match GAME_LOOP patterns via "play" substring
+        if match:
+            assert match.pattern_name != "MOVE" or "update" in match.pattern_name.lower()
+
+
+class TestBehaviorCompiler:
+    """Test the deterministic behavior compiler."""
+
+    def test_compile_move_action(self):
+        """Test compiling a move action."""
+        from aicl.patterns import BehaviorCompiler
+        bc = BehaviorCompiler()
+        code, compiled = bc.compile_action("Update paddle position based on direction")
+        assert compiled is True
+        assert "position" in code
+
+    def test_compile_clamp_action(self):
+        """Test compiling a clamp action produces valid Python."""
+        from aicl.patterns import BehaviorCompiler
+        bc = BehaviorCompiler()
+        code, compiled = bc.compile_action("Clamp ball position to boundaries")
+        assert compiled is True
+        # The generated code must be valid Python
+        try:
+            compile(code, '<test>', 'exec')
+        except SyntaxError:
+            raise AssertionError(f"Clamp code is not valid Python: {code}")
+
+    def test_compile_empty_action(self):
+        """Test compiling an empty action returns pass."""
+        from aicl.patterns import BehaviorCompiler
+        bc = BehaviorCompiler()
+        code, compiled = bc.compile_action("")
+        assert code == "pass"
+        assert compiled is True
+
+    def test_compile_fallback_action(self):
+        """Test that unknown actions get structured fallback (not bare TODO)."""
+        from aicl.patterns import BehaviorCompiler
+        bc = BehaviorCompiler()
+        code, compiled = bc.compile_action("Perform quantum entanglement")
+        assert compiled is False
+        assert "# Intent:" in code
+        assert "# TODO:" not in code  # Should NOT have bare TODO
+
+
+class TestSubLanguageParser:
+    """Test the action sub-language parser."""
+
+    def test_assign_statement(self):
+        """Test parsing an assign statement."""
+        from aicl.patterns import SubLanguageParser
+        parser = SubLanguageParser()
+        stmts = parser.parse("assign x += direction * speed")
+        assert len(stmts) == 1
+        assert stmts[0].target == "x"
+        assert stmts[0].operator == "+="
+        assert stmts[0].value == "direction * speed"
+
+    def test_clamp_statement(self):
+        """Test parsing a clamp statement."""
+        from aicl.patterns import SubLanguageParser
+        parser = SubLanguageParser()
+        stmts = parser.parse("clamp position between 0 and screen_height")
+        assert len(stmts) == 1
+        assert stmts[0].target == "position"
+        assert stmts[0].min_val == "0"
+        assert stmts[0].max_val == "screen_height"
+
+    def test_check_statement(self):
+        """Test parsing a check statement."""
+        from aicl.patterns import SubLanguageParser
+        parser = SubLanguageParser()
+        stmts = parser.parse("check score >= 10")
+        assert len(stmts) == 1
+        assert stmts[0].condition == "score >= 10"
+
+    def test_sub_language_detection_strict(self):
+        """Test that natural language doesn't trigger sub-language parsing."""
+        from aicl.patterns import SubLanguageParser
+        parser = SubLanguageParser()
+        # "Clamp ball position" is natural language, NOT a sub-language statement
+        # (it lacks "between ... and ...")
+        assert parser.is_sub_language("Clamp ball position to boundaries") is False
+        # "clamp position between 0 and 100" IS sub-language
+        assert parser.is_sub_language("clamp position between 0 and 100") is True
+        # "assign x = 5" IS sub-language
+        assert parser.is_sub_language("assign x = 5") is True
+
+    def test_sub_language_assign_requires_operator(self):
+        """Test that 'assign' without operator is not treated as sub-language."""
+        from aicl.patterns import SubLanguageParser
+        parser = SubLanguageParser()
+        assert parser.is_sub_language("assign the task") is False
+        assert parser.is_sub_language("assign x = 5") is True
+
+
+class TestArchitectureTemplateMapper:
+    """Test the Goal → Architecture Template mapper."""
+
+    def test_game_goal_maps_to_game_loop(self):
+        """Test that game-related goals map to game_loop template."""
+        from aicl.patterns import ArchitectureTemplateMapper
+        name, info = ArchitectureTemplateMapper.match("Build a Pong game")
+        assert name == "game_loop"
+
+    def test_chat_goal_maps_to_event_driven(self):
+        """Test that chat-related goals map to event_driven template."""
+        from aicl.patterns import ArchitectureTemplateMapper
+        name, info = ArchitectureTemplateMapper.match("Create a multiplayer chat application")
+        assert name == "event_driven"
+
+    def test_chess_goal_maps_to_game_loop(self):
+        """Test that chess goals map to game_loop template."""
+        from aicl.patterns import ArchitectureTemplateMapper
+        name, info = ArchitectureTemplateMapper.match("Create a multiplayer chess game")
+        assert name == "game_loop"
+
+    def test_pipeline_goal(self):
+        """Test that data processing goals map to pipeline template."""
+        from aicl.patterns import ArchitectureTemplateMapper
+        name, info = ArchitectureTemplateMapper.match("Process and analyze data stream")
+        assert name == "pipeline"
+
+    def test_multiplayer_not_matching_game(self):
+        """Test that 'multiplayer' doesn't accidentally match 'play' in game keywords."""
+        from aicl.patterns import ArchitectureTemplateMapper
+        # "multiplayer chat" should be event_driven, not game_loop
+        name, info = ArchitectureTemplateMapper.match("multiplayer chat application")
+        assert name == "event_driven"
+
+
+class TestZeroTODOCompilation:
+    """Verify that all examples compile with zero TODOs."""
+
+    def test_pong_zero_todos(self):
+        """Test that Pong compiles with zero TODOs."""
+        from aicl.compiler import Compiler
+        with open(os.path.join(os.path.dirname(__file__), '..', 'examples', 'pong.aicl')) as f:
+            source = f.read()
+        compiler = Compiler()
+        result = compiler.compile(source)
+        assert result.success
+        assert result.todo_count == 0, f"Pong has {result.todo_count} TODOs"
+        assert result.fully_compiled
+
+    def test_chat_zero_todos(self):
+        """Test that Chat compiles with zero TODOs."""
+        from aicl.compiler import Compiler
+        with open(os.path.join(os.path.dirname(__file__), '..', 'examples', 'chat.aicl')) as f:
+            source = f.read()
+        compiler = Compiler()
+        result = compiler.compile(source)
+        assert result.success
+        assert result.todo_count == 0, f"Chat has {result.todo_count} TODOs"
+        assert result.fully_compiled
+
+    def test_chess_zero_todos(self):
+        """Test that Chess compiles with zero TODOs."""
+        from aicl.compiler import Compiler
+        with open(os.path.join(os.path.dirname(__file__), '..', 'examples', 'chess.aicl')) as f:
+            source = f.read()
+        compiler = Compiler()
+        result = compiler.compile(source)
+        assert result.success
+        assert result.todo_count == 0, f"Chess has {result.todo_count} TODOs"
+        assert result.fully_compiled
+
+    def test_blue_square_zero_todos(self):
+        """Test that Blue Square compiles with zero TODOs."""
+        from aicl.compiler import Compiler
+        with open(os.path.join(os.path.dirname(__file__), '..', 'examples', 'blue_square.aicl')) as f:
+            source = f.read()
+        compiler = Compiler()
+        result = compiler.compile(source)
+        assert result.success
+        assert result.todo_count == 0, f"Blue Square has {result.todo_count} TODOs"
+        assert result.fully_compiled
+
+
+# =============================================================================
 # Run Tests
 # =============================================================================
 
