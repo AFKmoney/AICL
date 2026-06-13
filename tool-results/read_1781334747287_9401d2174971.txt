@@ -1,0 +1,728 @@
+  1500→        self._provenance.record(
+  1501→            source_type=ProvenanceType.SECURITY_METHOD,
+  1502→            source_location="Security Methods",
+  1503→            source_text=f"Actions: {', '.join(sec_actions)}" if sec_actions else "No actions",
+  1504→            resolution_path=[
+  1505→                "AICL Source",
+  1506→                f"Security Section ({len(program.securities)} policies)",
+  1507→                "Security Action Compilation",
+  1508→                "Generated Code",
+  1509→            ],
+  1510→            generated_code=code,
+  1511→            confidence=1.0,
+  1512→            artifact_names=[artifact_name],
+  1513→        )
+  1514→
+  1515→        return code
+  1516→
+  1517→    def _generate_risk_handler(
+  1518→        self,
+  1519→        risk_pairs: List[Tuple[RiskSection, Optional[RecoverySection]]],
+  1520→        recovery_map: Dict[str, str],
+  1521→        program: AICLProgram,
+  1522→    ) -> str:
+  1523→        """Generate the risk handling method — real recovery code, no TODOs."""
+  1524→        lines = []
+  1525→        lines.append('    def _handle_risk(self, error: Exception) -> None:')
+  1526→        lines.append('        """Handle errors based on defined risk/recovery pairs."""')
+  1527→        lines.append('        error_msg = str(error)')
+  1528→        lines.append('        self._logger.error(f"Handling risk: {error_msg}")')
+  1529→        lines.append('')
+  1530→
+  1531→        if risk_pairs:
+  1532→            lines.append('        # Check each defined risk')
+  1533→            for i, (risk, recovery) in enumerate(risk_pairs):
+  1534→                risk_desc = risk.description
+  1535→                recovery_desc = recovery.description if recovery else "log and handle"
+  1536→
+  1537→                # Compile the recovery action
+  1538→                recovery_code, compiled = self._behavior_compiler.compile_action(
+  1539→                    recovery_desc, context={}
+  1540→                )
+  1541→
+  1542→                lines.append(f'        # Risk: {risk_desc}')
+  1543→                lines.append(f'        if {risk_desc!r} in error_msg or self._matches_risk(error_msg, "{risk_desc}"):')
+  1544→                lines.append(f'            self._logger.warning("Detected risk: {risk_desc}")')
+  1545→                lines.append(f'            # Recovery: {recovery_desc}')
+  1546→                lines.append(f'            self._logger.info("Applying recovery: {recovery_desc}")')
+  1547→                for code_line in recovery_code.split('\n'):
+  1548→                    lines.append(f'            {code_line}')
+  1549→                lines.append(f'            return')
+  1550→                lines.append('')
+  1551→
+  1552→            lines.append('        # Unrecognized risk - log it')
+  1553→            lines.append('        self._logger.warning(f"Unrecognized risk: {error_msg}")')
+  1554→        else:
+  1555→            lines.append('        # No risks defined - generic error handling')
+  1556→            lines.append('        self._logger.warning(f"Error: {error_msg}")')
+  1557→
+  1558→        code = '\n'.join(lines)
+  1559→
+  1560→        # Register artifact
+  1561→        artifact_name = "Method__handle_risk"
+  1562→        self._provenance.register_artifact(
+  1563→            name=artifact_name,
+  1564→            artifact_type=ArtifactType.METHOD,
+  1565→            source=f"Risk/Recovery pairs ({len(risk_pairs)})",
+  1566→            code_snippet="def _handle_risk(self, error):",
+  1567→        )
+  1568→
+  1569→        # Record recovery synthesis provenance
+  1570→        self._provenance.record(
+  1571→            source_type=ProvenanceType.RECOVERY_SYNTHESIS,
+  1572→            source_location="Risk Handler",
+  1573→            source_text=f"{len(risk_pairs)} risk/recovery pairs",
+  1574→            resolution_path=[
+  1575→                "AICL Source",
+  1576→                f"Risks ({len(risk_pairs)} defined)",
+  1577→                "Risk/Recovery Pairing (Stage 4)",
+  1578→                "Recovery Code Synthesis (Stage 5)",
+  1579→                "Generated Code",
+  1580→            ],
+  1581→            generated_code=code,
+  1582→            confidence=1.0,
+  1583→            artifact_names=[artifact_name],
+  1584→        )
+  1585→
+  1586→        return code
+  1587→
+  1588→    def _generate_helper_methods(self, program: AICLProgram, template_name: str) -> str:
+  1589→        """Generate helper methods needed by the application."""
+  1590→        lines = []
+  1591→        lines.append('    # =========================================================================')
+  1592→        lines.append('    # Helper Methods')
+  1593→        lines.append('    # =========================================================================')
+  1594→        lines.append('')
+  1595→
+  1596→        # Track helper artifacts
+  1597→        helper_artifact_names = []
+  1598→
+  1599→        # _matches_risk helper
+  1600→        lines.append('    def _matches_risk(self, error_msg: str, risk_desc: str) -> bool:')
+  1601→        lines.append('        """Check if an error message semantically matches a risk description."""')
+  1602→        lines.append('        risk_words = set(risk_desc.lower().split())')
+  1603→        lines.append('        error_words = set(error_msg.lower().split())')
+  1604→        lines.append('        overlap = risk_words & error_words')
+  1605→        lines.append('        return len(overlap) >= len(risk_words) * 0.5')
+  1606→        lines.append('')
+  1607→
+  1608→        art_name = "Method__matches_risk"
+  1609→        self._provenance.register_artifact(
+  1610→            name=art_name,
+  1611→            artifact_type=ArtifactType.METHOD,
+  1612→            source="Risk Handler (helper)",
+  1613→            code_snippet="def _matches_risk(self, error_msg, risk_desc):",
+  1614→        )
+  1615→        helper_artifact_names.append(art_name)
+  1616→
+  1617→        # _evaluate_condition helper
+  1618→        lines.append('    def _evaluate_condition(self, condition_desc: str) -> bool:')
+  1619→        lines.append('        """Evaluate a condition description against current state."""')
+  1620→        lines.append('        self._logger.debug(f"Evaluating condition: {condition_desc}")')
+  1621→        lines.append('        return False  # Override in specific condition handlers')
+  1622→        lines.append('')
+  1623→
+  1624→        art_name = "Method__evaluate_condition"
+  1625→        self._provenance.register_artifact(
+  1626→            name=art_name,
+  1627→            artifact_type=ArtifactType.METHOD,
+  1628→            source="Condition Handler (helper)",
+  1629→            code_snippet="def _evaluate_condition(self, condition_desc):",
+  1630→        )
+  1631→        helper_artifact_names.append(art_name)
+  1632→
+  1633→        # _check_collisions helper
+  1634→        lines.append('    def _check_collisions(self) -> bool:')
+  1635→        lines.append('        """Check for entity collisions."""')
+  1636→        lines.append('        return False  # Override with specific collision logic')
+  1637→        lines.append('')
+  1638→
+  1639→        art_name = "Method__check_collisions"
+  1640→        self._provenance.register_artifact(
+  1641→            name=art_name,
+  1642→            artifact_type=ArtifactType.METHOD,
+  1643→            source="Condition Handler (helper)",
+  1644→            code_snippet="def _check_collisions(self):",
+  1645→        )
+  1646→        helper_artifact_names.append(art_name)
+  1647→
+  1648→        # Template-specific helpers
+  1649→        if template_name == "game_loop":
+  1650→            lines.append('    def _render_frame(self) -> None:')
+  1651→            lines.append('        """Render one frame of the game."""')
+  1652→            lines.append('        self._logger.debug(f"Rendering frame {self._frame_count}")')
+  1653→            lines.append('')
+  1654→
+  1655→            art_name = "Method__render_frame"
+  1656→            self._provenance.register_artifact(
+  1657→                name=art_name,
+  1658→                artifact_type=ArtifactType.METHOD,
+  1659→                source=f"Template: {template_name}",
+  1660→                code_snippet="def _render_frame(self):",
+  1661→            )
+  1662→            helper_artifact_names.append(art_name)
+  1663→
+  1664→            lines.append('    def _is_in_check(self) -> bool:')
+  1665→            lines.append('        """Check if the king is in check (for chess-like games)."""')
+  1666→            lines.append('        return False')
+  1667→            lines.append('')
+  1668→
+  1669→            art_name = "Method__is_in_check"
+  1670→            self._provenance.register_artifact(
+  1671→                name=art_name,
+  1672→                artifact_type=ArtifactType.METHOD,
+  1673→                source=f"Template: {template_name}",
+  1674→                code_snippet="def _is_in_check(self):",
+  1675→            )
+  1676→            helper_artifact_names.append(art_name)
+  1677→
+  1678→            lines.append('    def _is_stalemate(self) -> bool:')
+  1679→            lines.append('        """Check for stalemate condition."""')
+  1680→            lines.append('        return False')
+  1681→            lines.append('')
+  1682→
+  1683→            art_name = "Method__is_stalemate"
+  1684→            self._provenance.register_artifact(
+  1685→                name=art_name,
+  1686→                artifact_type=ArtifactType.METHOD,
+  1687→                source=f"Template: {template_name}",
+  1688→                code_snippet="def _is_stalemate(self):",
+  1689→            )
+  1690→            helper_artifact_names.append(art_name)
+  1691→
+  1692→        elif template_name == "event_driven":
+  1693→            lines.append('    def _connect(self) -> None:')
+  1694→            lines.append('        """Establish server connection."""')
+  1695→            lines.append('        self._logger.info("Connecting to server...")')
+  1696→            lines.append('        self._connected = True')
+  1697→            lines.append('')
+  1698→
+  1699→            art_name = "Method__connect"
+  1700→            self._provenance.register_artifact(
+  1701→                name=art_name,
+  1702→                artifact_type=ArtifactType.METHOD,
+  1703→                source=f"Template: {template_name}",
+  1704→                code_snippet="def _connect(self):",
+  1705→            )
+  1706→            helper_artifact_names.append(art_name)
+  1707→
+  1708→            lines.append('    def _process_message(self, msg: Any) -> None:')
+  1709→            lines.append('        """Process an incoming message."""')
+  1710→            lines.append('        self._logger.info(f"Processing message: {msg}")')
+  1711→            lines.append('')
+  1712→
+  1713→            art_name = "Method__process_message"
+  1714→            self._provenance.register_artifact(
+  1715→                name=art_name,
+  1716→                artifact_type=ArtifactType.METHOD,
+  1717→                source=f"Template: {template_name}",
+  1718→                code_snippet="def _process_message(self, msg):",
+  1719→            )
+  1720→            helper_artifact_names.append(art_name)
+  1721→
+  1722→            lines.append('    def _sync_offline_messages(self) -> None:')
+  1723→            lines.append('        """Sync messages that were queued while offline."""')
+  1724→            lines.append('        for msg in self._offline_queue:')
+  1725→            lines.append('            self._process_message(msg)')
+  1726→            lines.append('        self._offline_queue.clear()')
+  1727→            lines.append('        self._logger.info("Synced offline messages")')
+  1728→            lines.append('')
+  1729→
+  1730→            art_name = "Method__sync_offline_messages"
+  1731→            self._provenance.register_artifact(
+  1732→                name=art_name,
+  1733→                artifact_type=ArtifactType.METHOD,
+  1734→                source=f"Template: {template_name}",
+  1735→                code_snippet="def _sync_offline_messages(self):",
+  1736→            )
+  1737→            helper_artifact_names.append(art_name)
+  1738→
+  1739→        # Communication helpers
+  1740→        lines.append('    def _send_to(self, destination: Any, message: Any) -> None:')
+  1741→        lines.append('        """Send a message to a destination."""')
+  1742→        lines.append('        self._logger.info(f"Sending to {destination}: {message}")')
+  1743→        lines.append('')
+  1744→
+  1745→        art_name = "Method__send_to"
+  1746→        self._provenance.register_artifact(
+  1747→            name=art_name,
+  1748→            artifact_type=ArtifactType.METHOD,
+  1749→            source="Communication helpers",
+  1750→            code_snippet="def _send_to(self, destination, message):",
+  1751→        )
+  1752→        helper_artifact_names.append(art_name)
+  1753→
+  1754→        lines.append('    def _notify(self, recipient: Any, message: Any) -> None:')
+  1755→        lines.append('        """Notify a recipient."""')
+  1756→        lines.append('        self._logger.info(f"Notifying {recipient}: {message}")')
+  1757→        lines.append('')
+  1758→
+  1759→        art_name = "Method__notify"
+  1760→        self._provenance.register_artifact(
+  1761→            name=art_name,
+  1762→            artifact_type=ArtifactType.METHOD,
+  1763→            source="Communication helpers",
+  1764→            code_snippet="def _notify(self, recipient, message):",
+  1765→        )
+  1766→        helper_artifact_names.append(art_name)
+  1767→
+  1768→        # Render helpers
+  1769→        lines.append('    def _render(self, content: Any, target: Any = None) -> None:')
+  1770→        lines.append('        """Render content to a target."""')
+  1771→        lines.append('        self._logger.debug(f"Rendering {content}")')
+  1772→        lines.append('')
+  1773→
+  1774→        art_name = "Method__render"
+  1775→        self._provenance.register_artifact(
+  1776→            name=art_name,
+  1777→            artifact_type=ArtifactType.METHOD,
+  1778→            source="Render helpers",
+  1779→            code_snippet="def _render(self, content, target):",
+  1780→        )
+  1781→        helper_artifact_names.append(art_name)
+  1782→
+  1783→        lines.append('    def _draw_element(self, element: Any) -> None:')
+  1784→        lines.append('        """Draw a single element."""')
+  1785→        lines.append('        self._logger.debug(f"Drawing {element}")')
+  1786→        lines.append('')
+  1787→
+  1788→        art_name = "Method__draw_element"
+  1789→        self._provenance.register_artifact(
+  1790→            name=art_name,
+  1791→            artifact_type=ArtifactType.METHOD,
+  1792→            source="Render helpers",
+  1793→            code_snippet="def _draw_element(self, element):",
+  1794→        )
+  1795→        helper_artifact_names.append(art_name)
+  1796→
+  1797→        lines.append('    def _flush_display(self) -> None:')
+  1798→        lines.append('        """Flush the display buffer."""')
+  1799→        lines.append('        pass')
+  1800→        lines.append('')
+  1801→
+  1802→        art_name = "Method__flush_display"
+  1803→        self._provenance.register_artifact(
+  1804→            name=art_name,
+  1805→            artifact_type=ArtifactType.METHOD,
+  1806→            source="Render helpers",
+  1807→            code_snippet="def _flush_display(self):",
+  1808→        )
+  1809→        helper_artifact_names.append(art_name)
+  1810→
+  1811→        # Security helpers
+  1812→        lines.append('    def _encrypt(self, data: Any, key: Any = None) -> str:')
+  1813→        lines.append('        """Encrypt data using the provided key."""')
+  1814→        lines.append('        if isinstance(data, str):')
+  1815→        lines.append('            encoded = base64.b64encode(data.encode()).decode()')
+  1816→        lines.append('            return encoded')
+  1817→        lines.append('        return str(data)')
+  1818→        lines.append('')
+  1819→
+  1820→        art_name = "Method__encrypt"
+  1821→        self._provenance.register_artifact(
+  1822→            name=art_name,
+  1823→            artifact_type=ArtifactType.METHOD,
+  1824→            source="Security helpers",
+  1825→            code_snippet="def _encrypt(self, data, key):",
+  1826→        )
+  1827→        helper_artifact_names.append(art_name)
+  1828→
+  1829→        lines.append('    def _check_access(self, resource: Any, role: str = "user") -> bool:')
+  1830→        lines.append('        """Check access permissions for a resource."""')
+  1831→        lines.append('        self._logger.info(f"Access check: {resource} for role {role}")')
+  1832→        lines.append('        return True')
+  1833→        lines.append('')
+  1834→
+  1835→        art_name = "Method__check_access"
+  1836→        self._provenance.register_artifact(
+  1837→            name=art_name,
+  1838→            artifact_type=ArtifactType.METHOD,
+  1839→            source="Security helpers",
+  1840→            code_snippet="def _check_access(self, resource, role):",
+  1841→        )
+  1842→        helper_artifact_names.append(art_name)
+  1843→
+  1844→        lines.append('    def _create_connection(self, host: str, port: int) -> Any:')
+  1845→        lines.append('        """Create a network connection."""')
+  1846→        lines.append('        self._logger.info(f"Creating connection to {host}:{port}")')
+  1847→        lines.append('        return {"host": host, "port": port, "active": True}')
+  1848→        lines.append('')
+  1849→
+  1850→        art_name = "Method__create_connection"
+  1851→        self._provenance.register_artifact(
+  1852→            name=art_name,
+  1853→            artifact_type=ArtifactType.METHOD,
+  1854→            source="Network helpers",
+  1855→            code_snippet="def _create_connection(self, host, port):",
+  1856→        )
+  1857→        helper_artifact_names.append(art_name)
+  1858→
+  1859→        lines.append('    def _measure(self, metric: str) -> float:')
+  1860→        lines.append('        """Measure a performance metric."""')
+  1861→        lines.append('        if metric == "fps" and hasattr(self, "_last_frame_time"):')
+  1862→        lines.append('            elapsed = time.time() - self._last_frame_time')
+  1863→        lines.append('            return 1.0 / max(elapsed, 0.001)')
+  1864→        lines.append('        return 0.0')
+  1865→        lines.append('')
+  1866→
+  1867→        art_name = "Method__measure"
+  1868→        self._provenance.register_artifact(
+  1869→            name=art_name,
+  1870→            artifact_type=ArtifactType.METHOD,
+  1871→            source="Performance helpers",
+  1872→            code_snippet="def _measure(self, metric):",
+  1873→        )
+  1874→        helper_artifact_names.append(art_name)
+  1875→
+  1876→        lines.append('    def _generate_suggestions(self, context: Any) -> List[str]:')
+  1877→        lines.append('        """Generate suggestions based on context."""')
+  1878→        lines.append('        return []')
+  1879→        lines.append('')
+  1880→
+  1881→        art_name = "Method__generate_suggestions"
+  1882→        self._provenance.register_artifact(
+  1883→            name=art_name,
+  1884→            artifact_type=ArtifactType.METHOD,
+  1885→            source="Helper methods",
+  1886→            code_snippet="def _generate_suggestions(self, context):",
+  1887→        )
+  1888→        helper_artifact_names.append(art_name)
+  1889→
+  1890→        # Storage
+  1891→        lines.append('    @property')
+  1892→        lines.append('    def _storage(self) -> Dict[str, Any]:')
+  1893→        lines.append('        """Persistent storage."""')
+  1894→        lines.append('        if not hasattr(self, "__storage"):')
+  1895→        lines.append('            self.__storage = {}')
+  1896→        lines.append('        return self.__storage')
+  1897→        lines.append('')
+  1898→
+  1899→        art_name = "Property__storage"
+  1900→        self._provenance.register_artifact(
+  1901→            name=art_name,
+  1902→            artifact_type=ArtifactType.METHOD,
+  1903→            source="Storage helpers",
+  1904→            code_snippet="def _storage(self):",
+  1905→        )
+  1906→        helper_artifact_names.append(art_name)
+  1907→
+  1908→        code = '\n'.join(lines)
+  1909→
+  1910→        # Record helper method provenance (covers ALL helpers as one record)
+  1911→        self._provenance.record(
+  1912→            source_type=ProvenanceType.HELPER_METHOD,
+  1913→            source_location="Helper Methods",
+  1914→            source_text=f"Template: {template_name}, Helpers: {len(helper_artifact_names)}",
+  1915→            resolution_path=[
+  1916→                "AICL Source",
+  1917→                f"Architecture Template: {template_name}",
+  1918→                "Helper Method Generation",
+  1919→                "Generated Code",
+  1920→            ],
+  1921→            generated_code=code,
+  1922→            confidence=1.0,
+  1923→            template_name=template_name,
+  1924→            artifact_names=helper_artifact_names,
+  1925→        )
+  1926→
+  1927→        return code
+  1928→
+  1929→    def _generate_entry_point(self, class_name: str) -> str:
+  1930→        """Generate the main entry point."""
+  1931→        lines = []
+  1932→        lines.append('')
+  1933→        lines.append('def main():')
+  1934→        lines.append('    """Main entry point for the AICL-generated application."""')
+  1935→        lines.append('    logging.basicConfig(')
+  1936→        lines.append('        level=logging.INFO,')
+  1937→        lines.append('        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"')
+  1938→        lines.append('    )')
+  1939→        lines.append('')
+  1940→        lines.append(f'    app = {class_name}()')
+  1941→        lines.append('    app.run()')
+  1942→        lines.append('')
+  1943→        lines.append('')
+  1944→        lines.append('if __name__ == "__main__":')
+  1945→        lines.append('    main()')
+  1946→
+  1947→        code = '\n'.join(lines)
+  1948→
+  1949→        # Register artifact
+  1950→        artifact_name = "Function_main"
+  1951→        self._provenance.register_artifact(
+  1952→            name=artifact_name,
+  1953→            artifact_type=ArtifactType.FUNCTION,
+  1954→            source=f"Class {class_name}",
+  1955→            code_snippet="def main():",
+  1956→        )
+  1957→
+  1958→        # Record entry point provenance
+  1959→        self._provenance.record(
+  1960→            source_type=ProvenanceType.ENTRY_POINT,
+  1961→            source_location="Entry Point",
+  1962→            source_text=f"Class: {class_name}",
+  1963→            resolution_path=[
+  1964→                "AICL Source",
+  1965→                f"Class {class_name}",
+  1966→                "Entry Point Generation",
+  1967→                "Generated Code",
+  1968→            ],
+  1969→            generated_code=code,
+  1970→            confidence=1.0,
+  1971→            artifact_names=[artifact_name],
+  1972→        )
+  1973→
+  1974→        return code
+  1975→
+  1976→    # =========================================================================
+  1977→    # Stage 7: Test Generation
+  1978→    # =========================================================================
+  1979→
+  1980→    def _stage_test_generation(
+  1981→        self,
+  1982→        program: AICLProgram,
+  1983→        dep_order: List[LayerSection]
+  1984→    ) -> str:
+  1985→        """Generate test code from validation sections."""
+  1986→        sections = []
+  1987→        goal_desc = program.goals[0].description if program.goals else "AICL Application"
+  1988→        class_name = self._make_class_name(goal_desc)
+  1989→
+  1990→        sections.append('"""')
+  1991→        sections.append(f'AICL Generated Test Suite')
+  1992→        sections.append(f'Goal: {goal_desc}')
+  1993→        sections.append(f'')
+  1994→        sections.append(f'Auto-generated from AICL validation specifications.')
+  1995→        sections.append(f'Run with: pytest test_main.py -v')
+  1996→        sections.append('"""')
+  1997→        sections.append('')
+  1998→        sections.append('import pytest')
+  1999→        sections.append('import logging')
+  2000→        sections.append('')
+  2001→        sections.append('# Import the generated application')
+  2002→        sections.append('from main import *')
+  2003→        sections.append('')
+  2004→
+  2005→        # Fixture
+  2006→        sections.append('@pytest.fixture')
+  2007→        sections.append(f'def app():')
+  2008→        sections.append(f'    """Create an instance of the application."""')
+  2009→        sections.append(f'    return {class_name}()')
+  2010→        sections.append('')
+  2011→
+  2012→        # Validation tests
+  2013→        sections.append('# =============================================================================')
+  2014→        sections.append('# Validation Tests')
+  2015→        sections.append('# =============================================================================')
+  2016→        sections.append('')
+  2017→
+  2018→        test_artifact_names = []
+  2019→
+  2020→        for i, validation in enumerate(program.validations):
+  2021→            test_name = f"test_validation_{i+1}"
+  2022→            sections.append(f'def {test_name}(app):')
+  2023→            sections.append(f'    """Validation: {validation.description}"""')
+  2024→            sections.append(f'    result = app._validate_{i+1}()')
+  2025→            sections.append(f'    assert result is not None, "Validation returned None"')
+  2026→            sections.append('')
+  2027→
+  2028→            art_name = f"Test_{test_name}"
+  2029→            self._provenance.register_artifact(
+  2030→                name=art_name,
+  2031→                artifact_type=ArtifactType.TEST_FUNCTION,
+  2032→                source=f"Validation {i+1}",
+  2033→                code_snippet=f"def {test_name}(app):",
+  2034→            )
+  2035→            test_artifact_names.append(art_name)
+  2036→
+  2037→        # Risk tests
+  2038→        if program.risks:
+  2039→            sections.append('# =============================================================================')
+  2040→            sections.append('# Risk Handling Tests')
+  2041→            sections.append('# =============================================================================')
+  2042→            sections.append('')
+  2043→
+  2044→            for i, risk in enumerate(program.risks):
+  2045→                test_name = f"test_risk_handling_{i+1}"
+  2046→                sections.append(f'def {test_name}(app):')
+  2047→                sections.append(f'    """Risk: {risk.description}"""')
+  2048→                sections.append(f'    try:')
+  2049→                sections.append(f'        test_error = Exception({risk.description!r})')
+  2050→                sections.append(f'        app._handle_risk(test_error)')
+  2051→                sections.append(f'    except Exception as e:')
+  2052→                sections.append(f'        pytest.fail(f"Risk handling failed: {{e}}")')
+  2053→                sections.append('')
+  2054→
+  2055→                art_name = f"Test_{test_name}"
+  2056→                self._provenance.register_artifact(
+  2057→                    name=art_name,
+  2058→                    artifact_type=ArtifactType.TEST_FUNCTION,
+  2059→                    source=f"Risk {i+1}",
+  2060→                    code_snippet=f"def {test_name}(app):",
+  2061→                )
+  2062→                test_artifact_names.append(art_name)
+  2063→
+  2064→        # Initialization tests
+  2065→        sections.append('# =============================================================================')
+  2066→        sections.append('# Initialization Tests')
+  2067→        sections.append('# =============================================================================')
+  2068→        sections.append('')
+  2069→
+  2070→        sections.append('def test_app_initialization(app):')
+  2071→        sections.append('    """Test that the application initializes correctly."""')
+  2072→        sections.append('    assert app is not None')
+  2073→        sections.append('    assert app._initialized')
+  2074→        sections.append('')
+  2075→
+  2076→        art_name = "Test_test_app_initialization"
+  2077→        self._provenance.register_artifact(
+  2078→            name=art_name,
+  2079→            artifact_type=ArtifactType.TEST_FUNCTION,
+  2080→            source="Application structure",
+  2081→            code_snippet="def test_app_initialization(app):",
+  2082→        )
+  2083→        test_artifact_names.append(art_name)
+  2084→
+  2085→        sections.append('def test_app_run(app):')
+  2086→        sections.append('    """Test that the application can run without errors."""')
+  2087→        sections.append('    try:')
+  2088→        sections.append('        app.run()')
+  2089→        sections.append('    except Exception as e:')
+  2090→        sections.append('        pytest.fail(f"Application run failed: {e}")')
+  2091→        sections.append('')
+  2092→
+  2093→        art_name = "Test_test_app_run"
+  2094→        self._provenance.register_artifact(
+  2095→            name=art_name,
+  2096→            artifact_type=ArtifactType.TEST_FUNCTION,
+  2097→            source="Application structure",
+  2098→            code_snippet="def test_app_run(app):",
+  2099→        )
+  2100→        test_artifact_names.append(art_name)
+  2101→
+  2102→        # Entity tests
+  2103→        for entity in program.entities:
+  2104→            entity_class = self._make_class_name(entity.name)
+  2105→            test_name = f"test_entity_{entity.name.lower()}"
+  2106→            sections.append(f'def {test_name}():')
+  2107→            sections.append(f'    """Test Entity: {entity.name}"""')
+  2108→            sections.append(f'    entity = {entity_class}()')
+  2109→            sections.append(f'    assert entity is not None')
+  2110→            sections.append(f'    assert isinstance(entity, {entity_class})')
+  2111→            sections.append('')
+  2112→
+  2113→            art_name = f"Test_{test_name}"
+  2114→            self._provenance.register_artifact(
+  2115→                name=art_name,
+  2116→                artifact_type=ArtifactType.TEST_FUNCTION,
+  2117→                source=f"Entity {entity.name}",
+  2118→                code_snippet=f"def {test_name}():",
+  2119→            )
+  2120→            test_artifact_names.append(art_name)
+  2121→
+  2122→        # Behavior tests
+  2123→        for i, behavior in enumerate(program.behaviors):
+  2124→            method_name = self._unique_name(behavior.name).lower()
+  2125→            test_name = f"test_behavior_{method_name}"
+  2126→            sections.append(f'def {test_name}(app):')
+  2127→            sections.append(f'    """Test Behavior: {behavior.name}"""')
+  2128→            sections.append(f'    assert hasattr(app, "_behavior_{method_name}")')
+  2129→            sections.append('')
+  2130→
+  2131→            art_name = f"Test_{test_name}"
+  2132→            self._provenance.register_artifact(
+  2133→                name=art_name,
+  2134→                artifact_type=ArtifactType.TEST_FUNCTION,
+  2135→                source=f"Behavior {behavior.name}",
+  2136→                code_snippet=f"def {test_name}(app):",
+  2137→            )
+  2138→            test_artifact_names.append(art_name)
+  2139→
+  2140→        code = '\n'.join(sections)
+  2141→
+  2142→        # Record test generation provenance
+  2143→        self._provenance.record(
+  2144→            source_type=ProvenanceType.TEST_GENERATION,
+  2145→            source_location="Test Suite",
+  2146→            source_text=f"Validations: {len(program.validations)}, Risks: {len(program.risks)}, Entities: {len(program.entities)}, Behaviors: {len(program.behaviors)}",
+  2147→            resolution_path=[
+  2148→                "AICL Source",
+  2149→                "Validation Sections",
+  2150→                "Risk Sections",
+  2151→                "Entity Sections",
+  2152→                "Behavior Sections",
+  2153→                "Test Function Generation",
+  2154→                "Generated Code",
+  2155→            ],
+  2156→            generated_code=code,
+  2157→            confidence=1.0,
+  2158→            artifact_names=test_artifact_names,
+  2159→        )
+  2160→
+  2161→        return code
+  2162→
+  2163→    # =========================================================================
+  2164→    # Stage 8: Optimization
+  2165→    # =========================================================================
+  2166→
+  2167→    def _stage_optimization(self, source_code: str, program: AICLProgram) -> str:
+  2168→        """Apply optimizations based on Optimize sections."""
+  2169→        # Count remaining TODOs in generated code
+  2170→        self._todo_count = source_code.count('# TODO:')
+  2171→        return source_code
+  2172→
+  2173→    # =========================================================================
+  2174→    # Stage 9: Final Construction
+  2175→    # =========================================================================
+  2176→
+  2177→    def _stage_final_construction(self, source_code: str, program: AICLProgram) -> str:
+  2178→        """Final construction of the output source code."""
+  2179→        return source_code
+  2180→
+  2181→    # =========================================================================
+  2182→    # Helper Methods
+  2183→    # =========================================================================
+  2184→
+  2185→    def _make_class_name(self, name: str) -> str:
+  2186→        """Convert a description to a valid Python class name."""
+  2187→        words = name.replace('-', ' ').replace('_', ' ').split()
+  2188→        if not words:
+  2189→            return "AiclApplication"
+  2190→
+  2191→        filtered = [w for w in words if w.lower() not in ('a', 'an', 'the', 'on', 'in', 'of')]
+  2192→        if not filtered:
+  2193→            filtered = words
+  2194→
+  2195→        return ''.join(w.capitalize() for w in filtered)
+  2196→
+  2197→    def _aicl_type_to_python(self, aicl_type: str) -> str:
+  2198→        """Convert an AICL type name to a Python type annotation."""
+  2199→        type_map = {
+  2200→            'string': 'str',
+  2201→            'integer': 'int',
+  2202→            'float': 'float',
+  2203→            'boolean': 'bool',
+  2204→            'datetime': 'datetime',
+  2205→            'list': 'List[Any]',
+  2206→            'dict': 'Dict[str, Any]',
+  2207→            'set': 'set',
+  2208→            'any': 'Any',
+  2209→            'void': 'None',
+  2210→            'bytes': 'bytes',
+  2211→        }
+  2212→        return type_map.get(aicl_type.lower(), aicl_type)
+  2213→
+  2214→    def _risk_matches_layer(self, risk_description: str, layer_name: str) -> bool:
+  2215→        """Check if a risk description is semantically related to a layer."""
+  2216→        risk_words = set(risk_description.lower().split())
+  2217→        layer_words = set(layer_name.lower().split())
+  2218→        return bool(risk_words & layer_words)
+  2219→
+  2220→
+  2221→# Type names set for validation
+  2222→TYPE_NAMES_SET = {
+  2223→    'string', 'integer', 'float', 'boolean',
+  2224→    'datetime', 'list', 'dict', 'set', 'any',
+  2225→    'void', 'bytes',
+  2226→}
+  2227→
