@@ -1,5 +1,5 @@
      1→"""
-     2→AICL Compiler - Multi-Stage Compilation Pipeline v0.7
+     2→AICL Compiler - Multi-Stage Compilation Pipeline v1.0
      3→
      4→Architecture Compilation with Auditable Provenance.
      5→
@@ -192,7 +192,7 @@
    192→            source_text=source,
    193→            generated_source=source_code,
    194→            generated_tests=test_code,
-   195→            compiler_version="0.7.0",
+   195→            compiler_version="1.0.0",
    196→            target_language=self.target_language,
    197→        )
    198→

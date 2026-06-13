@@ -1,0 +1,711 @@
+======================================================================
+AICL COMPILATION PROVENANCE TRACE
+======================================================================
+
+Total decisions: 68
+  Pattern matches:    7
+  Sub-language:       0
+  Direct mappings:    0
+  Architecture tmpl:  1
+  Fallbacks:          3
+
+Average confidence:    0.95
+Fully deterministic:   65/68 (95%)
+
+----------------------------------------------------------------------
+ Architecture Template (1 decisions)
+----------------------------------------------------------------------
+
+  [1] Goal
+  Source:  "Create a complete banking system with account management, fund transfers, loan processing, fraud detection, multi-currency support, and regulatory compliance"
+  Path:    AICL Source → Goal: Create a complete banking system with account management, fund transfers, loan processing, fraud detection, multi-currency support, and regulatory compliance → ArchitectureTemplateMapper.match() → Template: event_driven → Structure: connect → listen → handle → respond → Generated Code
+  Template: event_driven
+  Confidence: 1.00
+  Code:    # Architecture template: event_driven (connect → listen → handle → respond)
+----------------------------------------------------------------------
+ Import Generation (1 decisions)
+----------------------------------------------------------------------
+
+  [1] Program Structure
+  Source:  "Required imports based on program features"
+  Path:    AICL Source → Program Analysis → Feature Detection (entities, security, parallel) → Import Resolution → Generated Code
+  Confidence: 1.00
+  Code:    import sys
+  Code:    import logging
+  Code:    import time
+  Code:    ... (5 more lines)
+----------------------------------------------------------------------
+ Entity Generation (9 decisions)
+----------------------------------------------------------------------
+
+  [1] Entity Customer
+  Source:  "customer_id: string, first_name: string, last_name: string, email: string, phone: string, date_of_birth: datetime, nationality: string, kyc_status: string, risk_rating: string, created_at: datetime"
+  Path:    AICL Source → Entity Customer → Fields: customer_id: string, first_name: string, last_name: string, email: string, phone: string, date_of_birth: datetime, nationality: string, kyc_status: string, risk_rating: string, created_at: datetime → Dataclass Generation → Generated Code
+  Params:  class_name=Customer, fields=10
+  Confidence: 1.00
+  Code:    @dataclass
+  Code:    class Customer:
+  Code:        """Entity: Customer"""
+  Code:    ... (10 more lines)
+
+  [2] Entity Account
+  Source:  "account_id: string, customer_id: string, account_type: string, currency: string, balance: float, available_balance: float, status: string, daily_limit: float, opened_at: datetime, last_activity: datetime"
+  Path:    AICL Source → Entity Account → Fields: account_id: string, customer_id: string, account_type: string, currency: string, balance: float, available_balance: float, status: string, daily_limit: float, opened_at: datetime, last_activity: datetime → Dataclass Generation → Generated Code
+  Params:  class_name=Account, fields=10
+  Confidence: 1.00
+  Code:    @dataclass
+  Code:    class Account:
+  Code:        """Entity: Account"""
+  Code:    ... (10 more lines)
+
+  [3] Entity Transaction
+  Source:  "transaction_id: string, account_id: string, transaction_type: string, amount: float, currency: string, description: string, reference: string, status: string, timestamp: datetime, counterparty_account: string, counterparty_bank: string"
+  Path:    AICL Source → Entity Transaction → Fields: transaction_id: string, account_id: string, transaction_type: string, amount: float, currency: string, description: string, reference: string, status: string, timestamp: datetime, counterparty_account: string, counterparty_bank: string → Dataclass Generation → Generated Code
+  Params:  class_name=Transaction, fields=11
+  Confidence: 1.00
+  Code:    @dataclass
+  Code:    class Transaction:
+  Code:        """Entity: Transaction"""
+  Code:    ... (11 more lines)
+
+  [4] Entity Card
+  Source:  "card_id: string, account_id: string, card_type: string, card_number_masked: string, expiry_date: datetime, cvv_hash: string, pin_hash: string, daily_withdrawal_limit: float, status: string"
+  Path:    AICL Source → Entity Card → Fields: card_id: string, account_id: string, card_type: string, card_number_masked: string, expiry_date: datetime, cvv_hash: string, pin_hash: string, daily_withdrawal_limit: float, status: string → Dataclass Generation → Generated Code
+  Params:  class_name=Card, fields=9
+  Confidence: 1.00
+  Code:    @dataclass
+  Code:    class Card:
+  Code:        """Entity: Card"""
+  Code:    ... (9 more lines)
+
+  [5] Entity Loan
+  Source:  "loan_id: string, customer_id: string, account_id: string, loan_type: string, principal: float, interest_rate: float, term_months: integer, remaining_balance: float, monthly_payment: float, next_payment_date: datetime, status: string, collateral: string"
+  Path:    AICL Source → Entity Loan → Fields: loan_id: string, customer_id: string, account_id: string, loan_type: string, principal: float, interest_rate: float, term_months: integer, remaining_balance: float, monthly_payment: float, next_payment_date: datetime, status: string, collateral: string → Dataclass Generation → Generated Code
+  Params:  class_name=Loan, fields=12
+  Confidence: 1.00
+  Code:    @dataclass
+  Code:    class Loan:
+  Code:        """Entity: Loan"""
+  Code:    ... (12 more lines)
+
+  [6] Entity Branch
+  Source:  "branch_id: string, name: string, address: string, city: string, country: string, manager: string, operating_hours: string"
+  Path:    AICL Source → Entity Branch → Fields: branch_id: string, name: string, address: string, city: string, country: string, manager: string, operating_hours: string → Dataclass Generation → Generated Code
+  Params:  class_name=Branch, fields=7
+  Confidence: 1.00
+  Code:    @dataclass
+  Code:    class Branch:
+  Code:        """Entity: Branch"""
+  Code:    ... (7 more lines)
+
+  [7] Entity CurrencyRate
+  Source:  "base_currency: string, target_currency: string, rate: float, timestamp: datetime"
+  Path:    AICL Source → Entity CurrencyRate → Fields: base_currency: string, target_currency: string, rate: float, timestamp: datetime → Dataclass Generation → Generated Code
+  Params:  class_name=Currencyrate, fields=4
+  Confidence: 1.00
+  Code:    @dataclass
+  Code:    class Currencyrate:
+  Code:        """Entity: CurrencyRate"""
+  Code:    ... (4 more lines)
+
+  [8] Entity FraudAlert
+  Source:  "alert_id: string, transaction_id: string, alert_type: string, severity: string, description: string, status: string, assigned_to: string, created_at: datetime, resolved_at: datetime"
+  Path:    AICL Source → Entity FraudAlert → Fields: alert_id: string, transaction_id: string, alert_type: string, severity: string, description: string, status: string, assigned_to: string, created_at: datetime, resolved_at: datetime → Dataclass Generation → Generated Code
+  Params:  class_name=Fraudalert, fields=9
+  Confidence: 1.00
+  Code:    @dataclass
+  Code:    class Fraudalert:
+  Code:        """Entity: FraudAlert"""
+  Code:    ... (9 more lines)
+
+  [9] Entity AuditEntry
+  Source:  "entry_id: string, actor: string, action: string, resource_type: string, resource_id: string, details: string, ip_address: string, timestamp: datetime"
+  Path:    AICL Source → Entity AuditEntry → Fields: entry_id: string, actor: string, action: string, resource_type: string, resource_id: string, details: string, ip_address: string, timestamp: datetime → Dataclass Generation → Generated Code
+  Params:  class_name=Auditentry, fields=8
+  Confidence: 1.00
+  Code:    @dataclass
+  Code:    class Auditentry:
+  Code:        """Entity: AuditEntry"""
+  Code:    ... (8 more lines)
+----------------------------------------------------------------------
+ Class Structure (2 decisions)
+----------------------------------------------------------------------
+
+  [1] Class CreateCompleteBankingSystemWithAccountManagement,FundTransfers,LoanProcessing,FraudDetection,MultiCurrencySupport,AndRegulatoryCompliance
+  Source:  "Layers: 8, Entities: 9, Risks: 8"
+  Path:    AICL Source → Goal: Create a complete banking system with account management, fund transfers, loan processing, fraud detection, multi-currency support, and regulatory compliance → Template: event_driven → Class Structure Generation → Layer Attributes, Entity Attributes, State Variables → Generated Code
+  Template: event_driven
+  Confidence: 1.00
+  Code:    class CreateCompleteBankingSystemWithAccountManagement,FundTransfers,LoanProcessing,FraudDetection,MultiCurrencySupport,AndRegulatoryCompliance:
+  Code:        """
+  Code:        Goal: Create a complete banking system with account management, fund transfers, loan processing, fraud detection, multi-currency support, and regulatory compliance
+  Code:    ... (48 more lines)
+
+  [2] Method __init__
+  Source:  "Initialize 8 layers, 9 entities"
+  Path:    AICL Source → Class CreateCompleteBankingSystemWithAccountManagement,FundTransfers,LoanProcessing,FraudDetection,MultiCurrencySupport,AndRegulatoryCompliance → Constructor Generation → Template: event_driven → Entity Init + Layer Init Calls → Generated Code
+  Template: event_driven
+  Confidence: 1.00
+  Code:    def __init__(self):
+  Code:            """Initialize the application and all layers."""
+  Code:            self._logger = logging.getLogger(self.__class__.__name__)
+  Code:    ... (43 more lines)
+----------------------------------------------------------------------
+ Layer Initialization (8 decisions)
+----------------------------------------------------------------------
+
+  [1] Layer Presentation
+  Source:  "Sublayers: Web banking portal, Mobile application, ATM interface, Branch teller terminal, Admin dashboard"
+  Path:    AICL Source → Layer Presentation → Sublayers: ['Web banking portal', 'Mobile application', 'ATM interface', 'Branch teller terminal', 'Admin dashboard'] → Component Dict Generation → Generated Code
+  Params:  layer_name=Presentation, sublayers=5
+  Confidence: 1.00
+  Code:    def _init_presentation(self) -> Any:
+  Code:            """Initialize the Presentation layer."""
+  Code:            self._logger.info("Initializing Presentation...")
+  Code:    ... (21 more lines)
+
+  [2] Layer API Gateway
+  Source:  "Sublayers: Authentication service, Rate limiter, Request router, API versioning, Load balancer"
+  Path:    AICL Source → Layer API Gateway → Sublayers: ['Authentication service', 'Rate limiter', 'Request router', 'API versioning', 'Load balancer'] → Component Dict Generation → Generated Code
+  Params:  layer_name=API Gateway, sublayers=5
+  Confidence: 1.00
+  Code:    def _init_api_gateway(self) -> Any:
+  Code:            """Initialize the API Gateway layer."""
+  Code:            self._logger.info("Initializing API Gateway...")
+  Code:    ... (34 more lines)
+
+  [3] Layer Core Banking
+  Source:  "Sublayers: Account management, Transaction engine, Transfer processor, Balance calculator, Statement generator"
+  Path:    AICL Source → Layer Core Banking → Sublayers: ['Account management', 'Transaction engine', 'Transfer processor', 'Balance calculator', 'Statement generator'] → Component Dict Generation → Generated Code
+  Params:  layer_name=Core Banking, sublayers=5
+  Confidence: 1.00
+  Code:    def _init_core_banking(self) -> Any:
+  Code:            """Initialize the Core Banking layer."""
+  Code:            self._logger.info("Initializing Core Banking...")
+  Code:    ... (21 more lines)
+
+  [4] Layer Lending
+  Source:  "Sublayers: Loan origination, Credit scoring, Payment scheduling, Collateral management"
+  Path:    AICL Source → Layer Lending → Sublayers: ['Loan origination', 'Credit scoring', 'Payment scheduling', 'Collateral management'] → Component Dict Generation → Generated Code
+  Params:  layer_name=Lending, sublayers=4
+  Confidence: 1.00
+  Code:    def _init_lending(self) -> Any:
+  Code:            """Initialize the Lending layer."""
+  Code:            self._logger.info("Initializing Lending...")
+  Code:    ... (19 more lines)
+
+  [5] Layer Fraud Detection
+  Source:  "Sublayers: Real-time monitoring, Pattern analysis, Alert management, Case investigation"
+  Path:    AICL Source → Layer Fraud Detection → Sublayers: ['Real-time monitoring', 'Pattern analysis', 'Alert management', 'Case investigation'] → Component Dict Generation → Generated Code
+  Params:  layer_name=Fraud Detection, sublayers=4
+  Confidence: 1.00
+  Code:    def _init_fraud_detection(self) -> Any:
+  Code:            """Initialize the Fraud Detection layer."""
+  Code:            self._logger.info("Initializing Fraud Detection...")
+  Code:    ... (19 more lines)
+
+  [6] Layer Integration
+  Source:  "Sublayers: Payment network SWIFT, Card network Visa Mastercard, Credit bureau API, Regulatory reporting, Interbank settlement"
+  Path:    AICL Source → Layer Integration → Sublayers: ['Payment network SWIFT', 'Card network Visa Mastercard', 'Credit bureau API', 'Regulatory reporting', 'Interbank settlement'] → Component Dict Generation → Generated Code
+  Params:  layer_name=Integration, sublayers=5
+  Confidence: 1.00
+  Code:    def _init_integration(self) -> Any:
+  Code:            """Initialize the Integration layer."""
+  Code:            self._logger.info("Initializing Integration...")
+  Code:    ... (21 more lines)
+
+  [7] Layer Reporting
+  Source:  "Sublayers: Regulatory reports, Financial statements, Customer statements, Audit trail"
+  Path:    AICL Source → Layer Reporting → Sublayers: ['Regulatory reports', 'Financial statements', 'Customer statements', 'Audit trail'] → Component Dict Generation → Generated Code
+  Params:  layer_name=Reporting, sublayers=4
+  Confidence: 1.00
+  Code:    def _init_reporting(self) -> Any:
+  Code:            """Initialize the Reporting layer."""
+  Code:            self._logger.info("Initializing Reporting...")
+  Code:    ... (19 more lines)
+
+  [8] Layer Data
+  Source:  "Sublayers: Account database, Transaction ledger, Customer registry, Document storage"
+  Path:    AICL Source → Layer Data → Sublayers: ['Account database', 'Transaction ledger', 'Customer registry', 'Document storage'] → Component Dict Generation → Generated Code
+  Params:  layer_name=Data, sublayers=4
+  Confidence: 1.00
+  Code:    def _init_data(self) -> Any:
+  Code:            """Initialize the Data layer."""
+  Code:            self._logger.info("Initializing Data...")
+  Code:    ... (26 more lines)
+----------------------------------------------------------------------
+ Run Method (1 decisions)
+----------------------------------------------------------------------
+
+  [1] Method run
+  Source:  "Template: event_driven, Behaviors: 10, Conditions: 8"
+  Path:    AICL Source → Goal → Template: event_driven → Structure: connect → listen → handle → respond → Run Method Generation → Generated Code
+  Template: event_driven
+  Confidence: 1.00
+  Code:    def run(self) -> None:
+  Code:            """Run the application with full error handling."""
+  Code:            self._logger.info("Starting application...")
+  Code:    ... (44 more lines)
+----------------------------------------------------------------------
+ Pattern Match (7 decisions)
+----------------------------------------------------------------------
+
+  [1] Behavior OpenAccount
+  Source:  "verify customer identity and create new account with zero balance"
+  Path:    AICL Source → Behavior OpenAccount → Action: verify customer identity and create new account with zero balance → PATTERN_CREATE → Template(creation) → Generated Code
+  Pattern: CREATE
+  Params:  entity_type=cls, init_args=
+  Confidence: 1.00
+  Code:    instance = cls()
+  Code:    self._logger.info(f"Created cls: {instance}")
+  Code:    return instance
+
+  [2] Behavior CloseAccount
+  Source:  "verify zero balance and deactivate account"
+  Path:    AICL Source → Behavior CloseAccount → Action: verify zero balance and deactivate account → PATTERN_VALIDATE → Template(validate) → Generated Code
+  Pattern: VALIDATE
+  Params:  condition=True, error_msg="Validation failed"
+  Confidence: 1.00
+  Code:    result = True
+  Code:    if not result:
+  Code:        self._logger.warning('Validation failed: "Validation failed"')
+  Code:    return result
+
+  [3] Behavior Deposit
+  Source:  "credit account with deposited amount and record transaction"
+  Path:    AICL Source → Behavior Deposit → Action: credit account with deposited amount and record transaction → PATTERN_STORE → Template(store) → Generated Code
+  Pattern: STORE
+  Params:  data=data, location='default'
+  Confidence: 1.00
+  Code:    self._storage["'default'"] = data
+  Code:    self._logger.info(f"Stored data at 'default'")
+
+  [4] Behavior Withdraw
+  Source:  "debit account with withdrawn amount and record transaction"
+  Path:    AICL Source → Behavior Withdraw → Action: debit account with withdrawn amount and record transaction → PATTERN_STORE → Template(store) → Generated Code
+  Pattern: STORE
+  Params:  data=data, location='default'
+  Confidence: 1.00
+  Code:    self._storage["'default'"] = data
+  Code:    self._logger.info(f"Stored data at 'default'")
+
+  [5] Behavior ProcessLoanApplication
+  Source:  "run credit check and calculate terms and approve or reject loan"
+  Path:    AICL Source → Behavior ProcessLoanApplication → Action: run credit check and calculate terms and approve or reject loan → PATTERN_VALIDATE → Template(validate) → Generated Code
+  Pattern: VALIDATE
+  Params:  condition=True, error_msg="Validation failed"
+  Confidence: 1.00
+  Code:    result = True
+  Code:    if not result:
+  Code:        self._logger.warning('Validation failed: "Validation failed"')
+  Code:    return result
+
+  [6] Behavior MakeLoanPayment
+  Source:  "apply payment to loan balance and update remaining term"
+  Path:    AICL Source → Behavior MakeLoanPayment → Action: apply payment to loan balance and update remaining term → PATTERN_UPDATE → Template(update) → Generated Code
+  Pattern: UPDATE
+  Params:  entity=self._entity, attr=y, value=value
+  Confidence: 1.00
+  Code:    loan.y = value
+  Code:    self._logger.info(f"Updated loan.y = {loan.y}")
+
+  [7] Behavior FreezeAccount
+  Source:  "set account status to frozen and log security event"
+  Path:    AICL Source → Behavior FreezeAccount → Action: set account status to frozen and log security event → PATTERN_UPDATE → Template(update) → Generated Code
+  Pattern: UPDATE
+  Params:  entity=self._entity, attr=y, value=value
+  Confidence: 1.00
+  Code:    account.y = value
+  Code:    self._logger.info(f"Updated account.y = {account.y}")
+----------------------------------------------------------------------
+ Fallback (3 decisions)
+----------------------------------------------------------------------
+
+  [1] Behavior Transfer
+  Source:  "debit source account and credit target account atomically"
+  Path:    AICL Source → Behavior Transfer → Action: debit source account and credit target account atomically → Structured Fallback → Generated Code
+  Confidence: 0.50
+  Code:    # Intent: debit source account and credit target account atomically
+  Code:    # Verb: debit, Object: source account and credit target account atomically
+  Code:    self._logger.info(f"Executing: debit source account and credit target account atomically")
+  Code:    ... (2 more lines)
+
+  [2] Behavior CurrencyExchange
+  Source:  "convert amount using current exchange rate and credit in target currency"
+  Path:    AICL Source → Behavior CurrencyExchange → Action: convert amount using current exchange rate and credit in target currency → Structured Fallback → Generated Code
+  Confidence: 0.50
+  Code:    # Intent: convert amount using current exchange rate and credit in target currency
+  Code:    # Verb: convert, Object: amount using current exchange rate and credit in target currency
+  Code:    self._logger.info(f"Executing: convert amount using current exchange rate and credit in target currency")
+  Code:    ... (2 more lines)
+
+  [3] Behavior GenerateStatement
+  Source:  "compile all transactions for account in date range"
+  Path:    AICL Source → Behavior GenerateStatement → Action: compile all transactions for account in date range → Structured Fallback → Generated Code
+  Confidence: 0.50
+  Code:    # Intent: compile all transactions for account in date range
+  Code:    # Verb: compile, Object: all transactions for account in date range
+  Code:    self._logger.info(f"Executing: compile all transactions for account in date range")
+  Code:    ... (2 more lines)
+----------------------------------------------------------------------
+ Condition Synthesis (8 decisions)
+----------------------------------------------------------------------
+
+  [1] Condition 1
+  Source:  "WHEN unknown condition THEN unknown action"
+  Path:    AICL Source → Condition 1 → WHEN unknown condition → THEN unknown action → Keyword Pattern Match → Generated Code
+  Confidence: 0.90
+  Code:    def _handle_condition_1(self) -> None:
+  Code:            """Condition: WHEN unknown condition THEN unknown action"""
+  Code:            # When: unknown condition
+  Code:    ... (8 more lines)
+
+  [2] Condition 2
+  Source:  "WHEN unknown condition THEN unknown action"
+  Path:    AICL Source → Condition 2 → WHEN unknown condition → THEN unknown action → Keyword Pattern Match → Generated Code
+  Confidence: 0.90
+  Code:    def _handle_condition_2(self) -> None:
+  Code:            """Condition: WHEN unknown condition THEN unknown action"""
+  Code:            # When: unknown condition
+  Code:    ... (8 more lines)
+
+  [3] Condition 3
+  Source:  "WHEN unknown condition THEN unknown action"
+  Path:    AICL Source → Condition 3 → WHEN unknown condition → THEN unknown action → Keyword Pattern Match → Generated Code
+  Confidence: 0.90
+  Code:    def _handle_condition_3(self) -> None:
+  Code:            """Condition: WHEN unknown condition THEN unknown action"""
+  Code:            # When: unknown condition
+  Code:    ... (8 more lines)
+
+  [4] Condition 4
+  Source:  "WHEN unknown condition THEN unknown action"
+  Path:    AICL Source → Condition 4 → WHEN unknown condition → THEN unknown action → Keyword Pattern Match → Generated Code
+  Confidence: 0.90
+  Code:    def _handle_condition_4(self) -> None:
+  Code:            """Condition: WHEN unknown condition THEN unknown action"""
+  Code:            # When: unknown condition
+  Code:    ... (8 more lines)
+
+  [5] Condition 5
+  Source:  "WHEN unknown condition THEN unknown action"
+  Path:    AICL Source → Condition 5 → WHEN unknown condition → THEN unknown action → Keyword Pattern Match → Generated Code
+  Confidence: 0.90
+  Code:    def _handle_condition_5(self) -> None:
+  Code:            """Condition: WHEN unknown condition THEN unknown action"""
+  Code:            # When: unknown condition
+  Code:    ... (8 more lines)
+
+  [6] Condition 6
+  Source:  "WHEN unknown condition THEN unknown action"
+  Path:    AICL Source → Condition 6 → WHEN unknown condition → THEN unknown action → Keyword Pattern Match → Generated Code
+  Confidence: 0.90
+  Code:    def _handle_condition_6(self) -> None:
+  Code:            """Condition: WHEN unknown condition THEN unknown action"""
+  Code:            # When: unknown condition
+  Code:    ... (8 more lines)
+
+  [7] Condition 7
+  Source:  "WHEN unknown condition THEN unknown action"
+  Path:    AICL Source → Condition 7 → WHEN unknown condition → THEN unknown action → Keyword Pattern Match → Generated Code
+  Confidence: 0.90
+  Code:    def _handle_condition_7(self) -> None:
+  Code:            """Condition: WHEN unknown condition THEN unknown action"""
+  Code:            # When: unknown condition
+  Code:    ... (8 more lines)
+
+  [8] Condition 8
+  Source:  "WHEN unknown condition THEN unknown action"
+  Path:    AICL Source → Condition 8 → WHEN unknown condition → THEN unknown action → Keyword Pattern Match → Generated Code
+  Confidence: 0.90
+  Code:    def _handle_condition_8(self) -> None:
+  Code:            """Condition: WHEN unknown condition THEN unknown action"""
+  Code:            # When: unknown condition
+  Code:    ... (8 more lines)
+----------------------------------------------------------------------
+ Event Synthesis (8 decisions)
+----------------------------------------------------------------------
+
+  [1] Event 1
+  Source:  "ON unknown event DO unknown action"
+  Path:    AICL Source → Event 1 → ON unknown event → DO unknown action → Keyword Pattern Match → Generated Code
+  Confidence: 0.90
+  Code:    def _handle_event_1(self, event_data: Any = None) -> None:
+  Code:            """Event: ON unknown event DO unknown action"""
+  Code:            # On: unknown event
+  Code:    ... (8 more lines)
+
+  [2] Event 2
+  Source:  "ON unknown event DO unknown action"
+  Path:    AICL Source → Event 2 → ON unknown event → DO unknown action → Keyword Pattern Match → Generated Code
+  Confidence: 0.90
+  Code:    def _handle_event_2(self, event_data: Any = None) -> None:
+  Code:            """Event: ON unknown event DO unknown action"""
+  Code:            # On: unknown event
+  Code:    ... (8 more lines)
+
+  [3] Event 3
+  Source:  "ON unknown event DO unknown action"
+  Path:    AICL Source → Event 3 → ON unknown event → DO unknown action → Keyword Pattern Match → Generated Code
+  Confidence: 0.90
+  Code:    def _handle_event_3(self, event_data: Any = None) -> None:
+  Code:            """Event: ON unknown event DO unknown action"""
+  Code:            # On: unknown event
+  Code:    ... (8 more lines)
+
+  [4] Event 4
+  Source:  "ON unknown event DO unknown action"
+  Path:    AICL Source → Event 4 → ON unknown event → DO unknown action → Keyword Pattern Match → Generated Code
+  Confidence: 0.90
+  Code:    def _handle_event_4(self, event_data: Any = None) -> None:
+  Code:            """Event: ON unknown event DO unknown action"""
+  Code:            # On: unknown event
+  Code:    ... (8 more lines)
+
+  [5] Event 5
+  Source:  "ON unknown event DO unknown action"
+  Path:    AICL Source → Event 5 → ON unknown event → DO unknown action → Keyword Pattern Match → Generated Code
+  Confidence: 0.90
+  Code:    def _handle_event_5(self, event_data: Any = None) -> None:
+  Code:            """Event: ON unknown event DO unknown action"""
+  Code:            # On: unknown event
+  Code:    ... (8 more lines)
+
+  [6] Event 6
+  Source:  "ON unknown event DO unknown action"
+  Path:    AICL Source → Event 6 → ON unknown event → DO unknown action → Keyword Pattern Match → Generated Code
+  Confidence: 0.90
+  Code:    def _handle_event_6(self, event_data: Any = None) -> None:
+  Code:            """Event: ON unknown event DO unknown action"""
+  Code:            # On: unknown event
+  Code:    ... (8 more lines)
+
+  [7] Event 7
+  Source:  "ON unknown event DO unknown action"
+  Path:    AICL Source → Event 7 → ON unknown event → DO unknown action → Keyword Pattern Match → Generated Code
+  Confidence: 0.90
+  Code:    def _handle_event_7(self, event_data: Any = None) -> None:
+  Code:            """Event: ON unknown event DO unknown action"""
+  Code:            # On: unknown event
+  Code:    ... (8 more lines)
+
+  [8] Event 8
+  Source:  "ON unknown event DO unknown action"
+  Path:    AICL Source → Event 8 → ON unknown event → DO unknown action → Keyword Pattern Match → Generated Code
+  Confidence: 0.90
+  Code:    def _handle_event_8(self, event_data: Any = None) -> None:
+  Code:            """Event: ON unknown event DO unknown action"""
+  Code:            # On: unknown event
+  Code:    ... (8 more lines)
+----------------------------------------------------------------------
+ Parallel Execution (1 decisions)
+----------------------------------------------------------------------
+
+  [1] Parallel Execution
+  Source:  "2 parallel groups"
+  Path:    AICL Source → Parallel Sections (2) → ThreadPoolExecutor Generation → Generated Code
+  Confidence: 1.00
+  Code:    def _run_parallel(self) -> None:
+  Code:            """Execute parallel layers concurrently."""
+  Code:            self._logger.info("Starting parallel execution...")
+  Code:    ... (20 more lines)
+----------------------------------------------------------------------
+ Validation Synthesis (14 decisions)
+----------------------------------------------------------------------
+
+  [1] Validation 1
+  Source:  "Customer can open and close accounts"
+  Path:    AICL Source → Validation 1 → Customer can open and close accounts → Keyword-Based Check Generation → Generated Code
+  Confidence: 1.00
+  Code:    def _validate_1(self) -> bool:
+  Code:            """Validation: Customer can open and close accounts"""
+  Code:            self._logger.info("Validating: Customer can open and close accounts")
+  Code:    ... (11 more lines)
+
+  [2] Validation 2
+  Source:  "Deposits and withdrawals process correctly with proper balance updates"
+  Path:    AICL Source → Validation 2 → Deposits and withdrawals process correctly with proper balance updates → Keyword-Based Check Generation → Generated Code
+  Confidence: 1.00
+  Code:    def _validate_2(self) -> bool:
+  Code:            """Validation: Deposits and withdrawals process correctly with proper balance updates"""
+  Code:            self._logger.info("Validating: Deposits and withdrawals process correctly with proper balance updates")
+  Code:    ... (11 more lines)
+
+  [3] Validation 3
+  Source:  "Transfers between accounts execute atomically"
+  Path:    AICL Source → Validation 3 → Transfers between accounts execute atomically → Keyword-Based Check Generation → Generated Code
+  Confidence: 1.00
+  Code:    def _validate_3(self) -> bool:
+  Code:            """Validation: Transfers between accounts execute atomically"""
+  Code:            self._logger.info("Validating: Transfers between accounts execute atomically")
+  Code:    ... (11 more lines)
+
+  [4] Validation 4
+  Source:  "Currency exchange applies correct rates"
+  Path:    AICL Source → Validation 4 → Currency exchange applies correct rates → Keyword-Based Check Generation → Generated Code
+  Confidence: 1.00
+  Code:    def _validate_4(self) -> bool:
+  Code:            """Validation: Currency exchange applies correct rates"""
+  Code:            self._logger.info("Validating: Currency exchange applies correct rates")
+  Code:    ... (11 more lines)
+
+  [5] Validation 5
+  Source:  "Loan origination and payment work end to end"
+  Path:    AICL Source → Validation 5 → Loan origination and payment work end to end → Keyword-Based Check Generation → Generated Code
+  Confidence: 1.00
+  Code:    def _validate_5(self) -> bool:
+  Code:            """Validation: Loan origination and payment work end to end"""
+  Code:            self._logger.info("Validating: Loan origination and payment work end to end")
+  Code:    ... (11 more lines)
+
+  [6] Validation 6
+  Source:  "Fraud detection flags suspicious transactions"
+  Path:    AICL Source → Validation 6 → Fraud detection flags suspicious transactions → Keyword-Based Check Generation → Generated Code
+  Confidence: 1.00
+  Code:    def _validate_6(self) -> bool:
+  Code:            """Validation: Fraud detection flags suspicious transactions"""
+  Code:            self._logger.info("Validating: Fraud detection flags suspicious transactions")
+  Code:    ... (11 more lines)
+
+  [7] Validation 7
+  Source:  "Frozen accounts reject all debit transactions"
+  Path:    AICL Source → Validation 7 → Frozen accounts reject all debit transactions → Keyword-Based Check Generation → Generated Code
+  Confidence: 1.00
+  Code:    def _validate_7(self) -> bool:
+  Code:            """Validation: Frozen accounts reject all debit transactions"""
+  Code:            self._logger.info("Validating: Frozen accounts reject all debit transactions")
+  Code:    ... (11 more lines)
+
+  [8] Validation 8
+  Source:  "Daily limits are enforced"
+  Path:    AICL Source → Validation 8 → Daily limits are enforced → Keyword-Based Check Generation → Generated Code
+  Confidence: 1.00
+  Code:    def _validate_8(self) -> bool:
+  Code:            """Validation: Daily limits are enforced"""
+  Code:            self._logger.info("Validating: Daily limits are enforced")
+  Code:    ... (11 more lines)
+
+  [9] Validation 9
+  Source:  "All transactions produce immutable audit entries"
+  Path:    AICL Source → Validation 9 → All transactions produce immutable audit entries → Keyword-Based Check Generation → Generated Code
+  Confidence: 1.00
+  Code:    def _validate_9(self) -> bool:
+  Code:            """Validation: All transactions produce immutable audit entries"""
+  Code:            self._logger.info("Validating: All transactions produce immutable audit entries")
+  Code:    ... (11 more lines)
+
+  [10] Validation 10
+  Source:  "System handles 10000 concurrent users without degradation"
+  Path:    AICL Source → Validation 10 → System handles 10000 concurrent users without degradation → Keyword-Based Check Generation → Generated Code
+  Confidence: 1.00
+  Code:    def _validate_10(self) -> bool:
+  Code:            """Validation: System handles 10000 concurrent users without degradation"""
+  Code:            self._logger.info("Validating: System handles 10000 concurrent users without degradation")
+  Code:    ... (11 more lines)
+
+  [11] Validation 11
+  Source:  "All encrypted data can only be read with proper authorization"
+  Path:    AICL Source → Validation 11 → All encrypted data can only be read with proper authorization → Keyword-Based Check Generation → Generated Code
+  Confidence: 1.00
+  Code:    def _validate_11(self) -> bool:
+  Code:            """Validation: All encrypted data can only be read with proper authorization"""
+  Code:            self._logger.info("Validating: All encrypted data can only be read with proper authorization")
+  Code:    ... (11 more lines)
+
+  [12] Validation 12
+  Source:  "Regulatory reports generate correctly"
+  Path:    AICL Source → Validation 12 → Regulatory reports generate correctly → Keyword-Based Check Generation → Generated Code
+  Confidence: 1.00
+  Code:    def _validate_12(self) -> bool:
+  Code:            """Validation: Regulatory reports generate correctly"""
+  Code:            self._logger.info("Validating: Regulatory reports generate correctly")
+  Code:    ... (11 more lines)
+
+  [13] Validation 13
+  Source:  "System recovers from database failure within 15 minutes"
+  Path:    AICL Source → Validation 13 → System recovers from database failure within 15 minutes → Keyword-Based Check Generation → Generated Code
+  Confidence: 1.00
+  Code:    def _validate_13(self) -> bool:
+  Code:            """Validation: System recovers from database failure within 15 minutes"""
+  Code:            self._logger.info("Validating: System recovers from database failure within 15 minutes")
+  Code:    ... (11 more lines)
+
+  [14] Validation 14
+  Source:  "Customer notifications are delivered within 5 seconds"
+  Path:    AICL Source → Validation 14 → Customer notifications are delivered within 5 seconds → Keyword-Based Check Generation → Generated Code
+  Confidence: 1.00
+  Code:    def _validate_14(self) -> bool:
+  Code:            """Validation: Customer notifications are delivered within 5 seconds"""
+  Code:            self._logger.info("Validating: Customer notifications are delivered within 5 seconds")
+  Code:    ... (11 more lines)
+----------------------------------------------------------------------
+ Security Method (1 decisions)
+----------------------------------------------------------------------
+
+  [1] Security Methods
+  Source:  "No actions"
+  Path:    AICL Source → Security Section (1 policies) → Security Action Compilation → Generated Code
+  Confidence: 1.00
+  Code:    def _apply_security(self) -> None:
+  Code:            """Apply security measures."""
+  Code:            pass  # No security actions defined
+----------------------------------------------------------------------
+ Recovery Synthesis (1 decisions)
+----------------------------------------------------------------------
+
+  [1] Risk Handler
+  Source:  "8 risk/recovery pairs"
+  Path:    AICL Source → Risks (8 defined) → Risk/Recovery Pairing (Stage 4) → Recovery Code Synthesis (Stage 5) → Generated Code
+  Confidence: 1.00
+  Code:    def _handle_risk(self, error: Exception) -> None:
+  Code:            """Handle errors based on defined risk/recovery pairs."""
+  Code:            error_msg = str(error)
+  Code:    ... (100 more lines)
+----------------------------------------------------------------------
+ Helper Method (1 decisions)
+----------------------------------------------------------------------
+
+  [1] Helper Methods
+  Source:  "Template: event_driven, Helpers: 17"
+  Path:    AICL Source → Architecture Template: event_driven → Helper Method Generation → Generated Code
+  Template: event_driven
+  Confidence: 1.00
+  Code:    # =========================================================================
+  Code:        # Helper Methods
+  Code:        # =========================================================================
+  Code:    ... (87 more lines)
+----------------------------------------------------------------------
+ Entry Point (1 decisions)
+----------------------------------------------------------------------
+
+  [1] Entry Point
+  Source:  "Class: CreateCompleteBankingSystemWithAccountManagement,FundTransfers,LoanProcessing,FraudDetection,MultiCurrencySupport,AndRegulatoryCompliance"
+  Path:    AICL Source → Class CreateCompleteBankingSystemWithAccountManagement,FundTransfers,LoanProcessing,FraudDetection,MultiCurrencySupport,AndRegulatoryCompliance → Entry Point Generation → Generated Code
+  Confidence: 1.00
+  Code:    def main():
+  Code:        """Main entry point for the AICL-generated application."""
+  Code:        logging.basicConfig(
+  Code:    ... (10 more lines)
+----------------------------------------------------------------------
+ Test Generation (1 decisions)
+----------------------------------------------------------------------
+
+  [1] Test Suite
+  Source:  "Validations: 14, Risks: 8, Entities: 9, Behaviors: 10"
+  Path:    AICL Source → Validation Sections → Risk Sections → Entity Sections → Behavior Sections → Test Function Generation → Generated Code
+  Confidence: 1.00
+  Code:    """
+  Code:    AICL Generated Test Suite
+  Code:    Goal: Create a complete banking system with account management, fund transfers, loan processing, fraud detection, multi-currency support, and regulatory compliance
+  Code:    ... (267 more lines)
+
+======================================================================
+END OF PROVENANCE TRACE
+======================================================================
+
+Compilation: SUCCESS
+TODOs remaining: 0
+Patterns used: UPDATE, STORE, VALIDATE, CREATE
+Provenance records: 68
+Audit coverage: 100.0% (125/125 artifacts)
+Explicability coverage: 98.9% (1131/1144 lines)
