@@ -129,12 +129,8 @@ export default function AICLEditor() {
     { id: 'untitled-1', name: 'untitled-1.aicl', content: DEFAULT_FILE, modified: false }
   ]);
   const [activeFileId, setActiveFileId] = useState('untitled-1');
-  const [output, setOutput] = useState<OutputEntry[]>([
-    { type: 'system', message: 'AICL Web Editor v1.0.0 — Ready', timestamp: Date.now() }
-  ]);
-  const [replHistory, setReplHistory] = useState<OutputEntry[]>([
-    { type: 'system', message: 'AICL Interactive Shell — Type AICL statements or commands', timestamp: Date.now() }
-  ]);
+  const [output, setOutput] = useState<OutputEntry[]>([]);
+  const [replHistory, setReplHistory] = useState<OutputEntry[]>([]);
   const [replInput, setReplInput] = useState('');
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
   const [isRunning, setIsRunning] = useState(false);
@@ -161,6 +157,13 @@ export default function AICLEditor() {
   const findInputRef = useRef<HTMLInputElement>(null);
 
   const activeFile = files.find(f => f.id === activeFileId) || files[0];
+
+  // --- Initialize client-only state (avoids hydration mismatch) ---
+  useEffect(() => {
+    const now = Date.now();
+    setOutput([{ type: 'system', message: 'AICL Web Editor v1.0.0 — Ready', timestamp: now }]);
+    setReplHistory([{ type: 'system', message: 'AICL Interactive Shell — Type AICL statements or commands', timestamp: now }]);
+  }, []);
 
   // --- Load examples and exercises on mount ---
   useEffect(() => {
@@ -1141,8 +1144,8 @@ export default function AICLEditor() {
                           entry.type === 'system' ? 'text-[#808080]' :
                           'text-[#d4d4d4]'
                         }`}>
-                          <span className="text-[#4f4f4f] mr-2">
-                            {new Date(entry.timestamp).toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                          <span className="text-[#4f4f4f] mr-2" suppressHydrationWarning>
+                            {entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '--:--:--'}
                           </span>
                           {entry.type === 'success' && <CheckCircle className="h-3 w-3 inline mr-1" />}
                           {entry.type === 'error' && <XCircle className="h-3 w-3 inline mr-1" />}
@@ -1234,8 +1237,8 @@ export default function AICLEditor() {
                       entry.type === 'system' ? 'text-[#808080]' :
                       'text-[#d4d4d4]'
                     }`}>
-                      <span className="text-[#4f4f4f] mr-2">
-                        {new Date(entry.timestamp).toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      <span className="text-[#4f4f4f] mr-2" suppressHydrationWarning>
+                        {entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '--:--:--'}
                       </span>
                       {entry.message}
                     </div>
