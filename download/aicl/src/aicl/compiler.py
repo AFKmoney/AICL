@@ -1,5 +1,5 @@
 """
-AICL Compiler - Multi-Stage Compilation Pipeline v0.6
+AICL Compiler - Multi-Stage Compilation Pipeline v0.7
 
 Architecture Compilation with Auditable Provenance.
 
@@ -9,6 +9,15 @@ generate it. This principle is enforced through the provenance system
 which records every compilation decision, the audit system which
 verifies that every generated artifact is traceable to its source,
 and the Proof of Origin which materializes this as a first-class artifact.
+
+v0.7 Changes:
+  - Proof of Origin format v2.0: fully self-contained proof files
+  - Proof now embeds generated source, test code, and AICL source text
+  - Independent verification: verify_proof.py (~200 lines, zero AICL deps)
+  - Third parties can verify .aicl-proof without compiler, parser, or project
+  - This eliminates the "Trust me bro" problem: AICL says AICL is correct
+  - verify() now checks 8 properties including source hash binding
+  - Artifact consistency check: orphan status must match provenance linkage
 
 v0.6 Changes:
   - Proof of Origin: .aicl-proof file is a first-class compilation artifact
@@ -183,7 +192,7 @@ class Compiler:
             source_text=source,
             generated_source=source_code,
             generated_tests=test_code,
-            compiler_version="0.6.0",
+            compiler_version="0.7.0",
             target_language=self.target_language,
         )
 

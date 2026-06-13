@@ -1308,8 +1308,8 @@ MovePlayer
         result = compiler.compile(source)
         assert result.success
         assert result.proof is not None
-        assert result.proof.format_version == "1.0"
-        assert result.proof.compiler_version == "0.6.0"
+        assert result.proof.format_version == "2.0"
+        assert result.proof.compiler_version == "0.7.0"
         assert result.proof.timestamp != ""
         assert result.proof.program_hash != ""
         assert result.proof.source_hash != ""
@@ -1641,7 +1641,7 @@ Start
             # Verify the proof file can be loaded
             from aicl.provenance import ProofOfOrigin
             loaded = ProofOfOrigin.from_file(proof_path)
-            assert loaded.format_version == "1.0"
+            assert loaded.format_version == "2.0"
             assert len(loaded.records) > 0
             assert len(loaded.artifacts) > 0
 
@@ -1721,6 +1721,182 @@ Run
         assert 'explicability_summary' in po
         assert 'records' in po
         assert 'artifacts' in po
+        # v2.0: proof is self-contained — includes code
+        assert 'source_text' in po
+        assert 'generated_source' in po
+        assert 'generated_tests' in po
+        assert po['source_text'] != ""
+        assert po['generated_source'] != ""
+
+    def test_proof_v2_self_contained(self):
+        """Test that v2.0 proof is fully self-contained for independent verification."""
+        from aicl.compiler import Compiler
+
+        source = """Goal:
+Build a game
+
+Layer:
+Core
+
+Behavior:
+Run
+    Action: run
+"""
+        compiler = Compiler()
+        result = compiler.compile(source)
+        proof = result.proof
+
+        # v2.0 proof must contain the generated code
+        assert proof.generated_source != ""
+        assert proof.generated_tests != ""
+        assert proof.source_text != ""
+
+        # Verify() should work WITHOUT external code (self-contained)
+        verification = proof.verify()
+        assert verification['valid']
+
+        # All hash checks should pass using embedded code
+        hash_checks = [c for c in verification['checks'] if 'hash' in c['name']]
+        for check in hash_checks:
+            assert check['passed'], f"{check['name']}: {check.get('detail', '')}"
+
+    def test_proof_v2_independent_verifier(self):
+        """Test that the independent verifier (verify_proof.py) validates the proof."""
+        import subprocess
+        import tempfile
+        import os
+        from aicl.compiler import Compiler
+
+        source = """Goal:
+Build a game
+
+Layer:
+Core
+
+Behavior:
+Run
+    Action: run
+"""
+        compiler = Compiler()
+        result = compiler.compile(source)
+        assert result.success
+
+        # Write proof to a temp file
+        with tempfile.NamedTemporaryFile(suffix='.aicl-proof', delete=False, mode='w') as f:
+            proof_path = f.name
+            result.proof.to_file(proof_path)
+
+        try:
+            # Run the independent verifier
+            verifier_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                'tools', 'verify_proof.py'
+            )
+            proc = subprocess.run(
+                [sys.executable, verifier_path, proof_path],
+                capture_output=True, text=True, timeout=30
+            )
+            # Exit code 0 = VALID
+            assert proc.returncode == 0, f"Verifier failed:\n{proc.stdout}\n{proc.stderr}"
+            assert "VALID" in proc.stdout
+        finally:
+            os.unlink(proof_path)
+
+    def test_proof_v2_source_hash_binding(self):
+        """Test that v2.0 proof verifies source text hash binding."""
+        from aicl.compiler import Compiler
+        import hashlib
+
+        source = """Goal:
+Build a game
+
+Layer:
+Core
+
+Behavior:
+Run
+    Action: run
+"""
+        compiler = Compiler()
+        result = compiler.compile(source)
+        proof = result.proof
+
+        # Source hash should match
+        expected_hash = hashlib.sha256(source.encode('utf-8')).hexdigest()
+        assert proof.source_hash == expected_hash
+
+        # Verify should pass the source hash check
+        verification = proof.verify()
+        source_check = [c for c in verification['checks'] if c['name'] == 'source_hash_binding'][0]
+        assert source_check['passed']
+
+    def test_proof_v2_artifact_consistency_check(self):
+        """Test that the new artifact consistency check works."""
+        from aicl.compiler import Compiler
+
+        source = """Goal:
+Build a game
+
+Layer:
+Core
+
+Behavior:
+Run
+    Action: run
+"""
+        compiler = Compiler()
+        result = compiler.compile(source)
+        proof = result.proof
+
+        # Verify should pass consistency check
+        verification = proof.verify()
+        consistency_check = [c for c in verification['checks'] if c['name'] == 'artifact_consistency'][0]
+        assert consistency_check['passed']
+
+    def test_proof_v2_all_four_examples_independently_verifiable(self):
+        """Test that all 4 example programs produce independently verifiable proofs."""
+        import subprocess
+        import tempfile
+        import os
+        from aicl.compiler import Compiler
+
+        examples_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            'examples'
+        )
+        verifier_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            'tools', 'verify_proof.py'
+        )
+
+        for example_file in sorted(os.listdir(examples_dir)):
+            if not example_file.endswith('.aicl'):
+                continue
+            example_path = os.path.join(examples_dir, example_file)
+            with open(example_path, 'r') as f:
+                source = f.read()
+
+            compiler = Compiler()
+            result = compiler.compile(source)
+            assert result.success, f"Compilation of {example_file} failed"
+
+            # Write proof to temp file
+            with tempfile.NamedTemporaryFile(suffix='.aicl-proof', delete=False, mode='w') as f:
+                proof_path = f.name
+                result.proof.to_file(proof_path)
+
+            try:
+                proc = subprocess.run(
+                    [sys.executable, verifier_path, proof_path],
+                    capture_output=True, text=True, timeout=30
+                )
+                assert proc.returncode == 0, (
+                    f"Independent verification of {example_file} failed:\n"
+                    f"{proc.stdout}\n{proc.stderr}"
+                )
+                assert "VALID" in proc.stdout
+            finally:
+                os.unlink(proof_path)
 
 
 # =============================================================================

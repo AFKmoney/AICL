@@ -802,7 +802,7 @@ class ProofOfOrigin:
             SHA-256(proof) is bound to SHA-256(generated code).
     """
 
-    PROOF_FORMAT_VERSION = "1.0"
+    PROOF_FORMAT_VERSION = "2.0"
 
     def __init__(self):
         # Metadata
@@ -931,7 +931,19 @@ class ProofOfOrigin:
         return proof
 
     def to_dict(self) -> Dict[str, Any]:
-        """Serialize the proof to a dictionary (ready for JSON)."""
+        """
+        Serialize the proof to a dictionary (ready for JSON).
+
+        Format v2.0: The proof is fully self-contained. It includes:
+            - The original AICL source text
+            - The generated program code
+            - The generated test code
+        This allows an independent verifier to:
+            1. Recompute SHA-256 hashes and compare to stored hashes
+            2. Verify that the proof is bound to specific code artifacts
+            3. Reconstruct explain() and audit() entirely from the proof
+        WITHOUT needing the AICL compiler, parser, or any project dependency.
+        """
         return {
             "proof_of_origin": {
                 "format_version": self.format_version,
@@ -942,6 +954,9 @@ class ProofOfOrigin:
                 "source_hash": self.source_hash,
                 "program_hash": self.program_hash,
                 "test_hash": self.test_hash,
+                "source_text": self.source_text,
+                "generated_source": self.generated_source,
+                "generated_tests": self.generated_tests,
                 "formal_properties": self.formal_properties,
                 "audit_summary": {
                     "total_artifacts": self.audit_coverage.get('total_artifacts', 0),
@@ -1039,26 +1054,57 @@ class ProofOfOrigin:
 
         Checks:
             1. Format version is supported
-            2. Hash binding: proof hashes match the provided code
-            3. No Orphan Property: every artifact has provenance
-            4. Complete Coverage Property: audit coverage = 1.0
-            5. Record-artifact linkage integrity
+            2. Source hash binding: SHA-256(source_text) matches source_hash
+            3. Program hash binding: SHA-256(generated code) matches program_hash
+            4. Test hash binding: SHA-256(test code) matches test_hash
+            5. No Orphan Property: every artifact has provenance
+            6. Complete Coverage Property: audit coverage = 1.0
+            7. Record-artifact linkage integrity
+            8. Artifact-artifact consistency (no duplicate artifact names with conflicting data)
+
+        In format v2.0, the proof contains the generated code and source text
+        internally. When no external code is provided, verification uses the
+        embedded code — making the proof fully self-verifiable by an independent
+        third party without any AICL dependency.
 
         Returns:
             Dict with 'valid' (bool) and 'checks' (list of check results).
         """
         checks = []
 
+        # Use embedded code if no external code is provided (v2.0 self-contained)
+        source_to_check = generated_source or self.generated_source
+        tests_to_check = generated_tests or self.generated_tests
+
         # Check 1: Format version
         checks.append({
             "name": "format_version",
             "description": "Proof format version is supported",
-            "passed": self.format_version == self.PROOF_FORMAT_VERSION,
+            "passed": self.format_version in ("1.0", "2.0"),
         })
 
-        # Check 2: Hash binding — verify generated code matches proof
-        if generated_source:
-            actual_hash = hashlib.sha256(generated_source.encode('utf-8')).hexdigest()
+        # Check 2: Source hash binding
+        if self.source_text:
+            actual_hash = hashlib.sha256(self.source_text.encode('utf-8')).hexdigest()
+            hash_match = actual_hash == self.source_hash
+            checks.append({
+                "name": "source_hash_binding",
+                "description": "AICL source text SHA-256 matches proof",
+                "passed": hash_match,
+                "expected": self.source_hash,
+                "actual": actual_hash,
+            })
+        else:
+            checks.append({
+                "name": "source_hash_binding",
+                "description": "No source text embedded in proof",
+                "passed": True,
+                "note": "Source hash not verified (no embedded source text)",
+            })
+
+        # Check 3: Program hash binding
+        if source_to_check:
+            actual_hash = hashlib.sha256(source_to_check.encode('utf-8')).hexdigest()
             hash_match = actual_hash == self.program_hash
             checks.append({
                 "name": "program_hash_binding",
@@ -1070,28 +1116,31 @@ class ProofOfOrigin:
         else:
             checks.append({
                 "name": "program_hash_binding",
-                "description": "No generated source provided for hash verification",
-                "passed": True,  # Can't verify, assume ok
-                "note": "Hash not checked (no source provided)",
+                "description": "No generated source provided or embedded for hash verification",
+                "passed": False,
+                "note": "Cannot verify hash binding — proof is not self-contained",
             })
 
-        if generated_tests:
-            actual_hash = hashlib.sha256(generated_tests.encode('utf-8')).hexdigest()
+        # Check 4: Test hash binding
+        if tests_to_check:
+            actual_hash = hashlib.sha256(tests_to_check.encode('utf-8')).hexdigest()
             hash_match = actual_hash == self.test_hash
             checks.append({
                 "name": "test_hash_binding",
                 "description": "Generated tests SHA-256 matches proof",
                 "passed": hash_match,
+                "expected": self.test_hash,
+                "actual": actual_hash,
             })
         else:
             checks.append({
                 "name": "test_hash_binding",
-                "description": "No test code provided for hash verification",
-                "passed": True,
-                "note": "Hash not checked (no tests provided)",
+                "description": "No test code provided or embedded for hash verification",
+                "passed": False,
+                "note": "Cannot verify hash binding — proof is not self-contained",
             })
 
-        # Check 3: No Orphan Property
+        # Check 5: No Orphan Property
         no_orphan = self.formal_properties.get('no_orphan_artifact_property', {})
         orphan_count = no_orphan.get('orphan_count',
             len(self.audit_coverage.get('orphan_artifacts', [])))
@@ -1102,7 +1151,7 @@ class ProofOfOrigin:
             "orphan_count": orphan_count,
         })
 
-        # Check 4: Complete Coverage Property
+        # Check 6: Complete Coverage Property
         complete_cov = self.formal_properties.get('complete_coverage_property', {})
         coverage = complete_cov.get('coverage',
             self.audit_coverage.get('audit_coverage', 0))
@@ -1113,7 +1162,7 @@ class ProofOfOrigin:
             "coverage": coverage,
         })
 
-        # Check 5: Record-artifact linkage integrity
+        # Check 7: Record-artifact linkage integrity
         linkage_valid = True
         for artifact_data in self.artifacts:
             if not artifact_data.get('is_orphan', True):
@@ -1131,6 +1180,24 @@ class ProofOfOrigin:
             "name": "record_artifact_linkage",
             "description": "All provenance indices reference valid records",
             "passed": linkage_valid,
+        })
+
+        # Check 8: Artifact-artifact consistency
+        # Verify that artifact is_orphan field is consistent with provenance_indices
+        consistency_valid = True
+        for artifact_data in self.artifacts:
+            has_indices = bool(artifact_data.get('provenance_indices', []))
+            claims_orphan = artifact_data.get('is_orphan', not has_indices)
+            if has_indices and claims_orphan:
+                consistency_valid = False
+                break
+            if not has_indices and not claims_orphan:
+                consistency_valid = False
+                break
+        checks.append({
+            "name": "artifact_consistency",
+            "description": "Artifact orphan status is consistent with provenance linkage",
+            "passed": consistency_valid,
         })
 
         all_passed = all(c['passed'] for c in checks)

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aicl"
-version = "0.6.0"
+version = "0.7.0"
 description = "AICL — Architecture Compilation Language: Auditable compilation with Proof of Origin. Every artifact has provenance, every proof is verifiable, every compilation is auditable."
 readme = "README.md"
 license = {text = "MIT"}
