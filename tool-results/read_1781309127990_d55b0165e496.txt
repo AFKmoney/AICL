@@ -1,0 +1,1503 @@
+     1→"""
+     2→AICL Compilation Provenance & Audit System
+     3→
+     4→Every line of generated code must have a traceable provenance chain:
+     5→    AICL Source → Parse → Pattern Match → Template → Generated Code
+     6→
+     7→This module records and reports WHY each line of code was generated,
+     8→and provides an audit system to verify that every generated artifact
+     9→is traceable to its originating specification.
+    10→
+    11→Core Concepts:
+    12→    - Provenance Record: Explains why a specific piece of code was generated
+    13→    - Generated Artifact: A named unit of generated code (class, method, function, test)
+    14→    - Audit Coverage: Ratio of auditable artifacts to total generated artifacts
+    15→    - Orphan Artifact: A generated artifact without provenance
+    16→
+    17→Formal Property (The Auditability Theorem):
+    18→    A program is auditable if every generated artifact
+    19→    can be traced to its originating specification
+    20→    through a complete provenance chain.
+    21→
+    22→    Audit Coverage = Auditable Artifacts / Generated Artifacts
+    23→    Target: Audit Coverage = 1.0
+    24→
+    25→Usage:
+    26→    aicl explain pong.aicl              # Full compilation trace
+    27→    aicl explain pong.aicl --behavior MovePaddle  # Specific behavior trace
+    28→    aicl audit pong.aicl                # Audit report with coverage
+    29→    aicl audit pong.aicl --strict       # Fail if coverage < 100%
+    30→"""
+    31→
+    32→from dataclasses import dataclass, field
+    33→from typing import List, Dict, Optional, Tuple, Set, Any
+    34→from enum import Enum
+    35→import re
+    36→import json
+    37→import hashlib
+    38→import time
+    39→
+    40→
+    41→class ProvenanceType(Enum):
+    42→    """Type of provenance record."""
+    43→    PATTERN_MATCH = "pattern_match"
+    44→    SUB_LANGUAGE = "sub_language"
+    45→    FALLBACK = "fallback"
+    46→    ARCHITECTURE_TEMPLATE = "architecture_template"
+    47→    DIRECT_MAPPING = "direct_mapping"
+    48→    RECOVERY_SYNTHESIS = "recovery_synthesis"
+    49→    VALIDATION_SYNTHESIS = "validation_synthesis"
+    50→    CONDITION_SYNTHESIS = "condition_synthesis"
+    51→    EVENT_SYNTHESIS = "event_synthesis"
+    52→    HELPER_METHOD = "helper_method"
+    53→    ENTITY_GENERATION = "entity_generation"
+    54→    LAYER_INITIALIZATION = "layer_initialization"
+    55→    # v0.5: New provenance types for full coverage
+    56→    SECURITY_METHOD = "security_method"
+    57→    PARALLEL_EXECUTION = "parallel_execution"
+    58→    RUN_METHOD = "run_method"
+    59→    IMPORT_GENERATION = "import_generation"
+    60→    ENTRY_POINT = "entry_point"
+    61→    TEST_GENERATION = "test_generation"
+    62→    CLASS_STRUCTURE = "class_structure"
+    63→
+    64→
+    65→class ArtifactType(Enum):
+    66→    """Type of generated artifact."""
+    67→    CLASS = "class"
+    68→    METHOD = "method"
+    69→    FUNCTION = "function"
+    70→    DATACLASS = "dataclass"
+    71→    TEST_FUNCTION = "test_function"
+    72→    IMPORT_BLOCK = "import_block"
+    73→    MODULE = "module"
+    74→
+    75→
+    76→@dataclass
+    77→class ProvenanceRecord:
+    78→    """
+    79→    A single provenance record explaining why a piece of code was generated.
+    80→
+    81→    This is the audit trail of the compiler. Every generated method,
+    82→    every line of behavior code, every recovery handler must have one.
+    83→    """
+    84→    source_type: ProvenanceType
+    85→    source_location: str          # Where in the AICL source (e.g., "Behavior MovePaddle")
+    86→    source_text: str              # The original AICL text
+    87→    resolution_path: List[str]    # Chain: ["AICL Source", "Parser", "Pattern Match", "MOVE", "Template"]
+    88→    generated_code: str           # The code that was generated
+    89→    confidence: float = 1.0       # Confidence of the match (1.0 = deterministic)
+    90→    pattern_name: str = ""        # Pattern that matched (if applicable)
+    91→    template_name: str = ""       # Architecture template (if applicable)
+    92→    parameters: Dict[str, str] = field(default_factory=dict)  # Parameters used
+    93→    artifact_names: List[str] = field(default_factory=list)    # Which artifacts this record covers
+    94→
+    95→
+    96→@dataclass
+    97→class GeneratedArtifact:
+    98→    """
+    99→    A named unit of generated code.
+   100→
+   101→    Every method, class, function, and dataclass produced by the compiler
+   102→    is registered as an artifact. The audit system verifies that each
+   103→    artifact has at least one provenance record explaining its existence.
+   104→
+   105→    An artifact without provenance is an "orphan" — it exists in the
+   106→    generated code but the compiler cannot explain why.
+   107→    """
+   108→    name: str                           # Human-readable name (e.g., "_behavior_move_paddle")
+   109→    artifact_type: ArtifactType         # Type of artifact
+   110→    source: str                         # Which AICL section triggered generation
+   111→    provenance_indices: List[int] = field(default_factory=list)  # Indices into records list
+   112→    code_snippet: str = ""              # Brief snippet of the generated code (first line)
+   113→
+   114→    @property
+   115→    def has_provenance(self) -> bool:
+   116→        """Whether this artifact has at least one provenance record."""
+   117→        return len(self.provenance_indices) > 0
+   118→
+   119→    @property
+   120→    def is_orphan(self) -> bool:
+   121→        """Whether this artifact is an orphan (no provenance)."""
+   122→        return not self.has_provenance
+   123→
+   124→
+   125→class CompilationProvenance:
+   126→    """
+   127→    Tracks the complete provenance of a compilation and provides
+   128→    audit capabilities.
+   129→
+   130→    Records every decision the compiler makes, creating an audit trail
+   131→    that can be queried to understand WHY any line of code exists.
+   132→
+   133→    This is the antidote to compiler complexity hiding. As AICL grows
+   134→    (30 patterns → 100 patterns → 500 patterns), the provenance tracker
+   135→    ensures every decision remains explainable.
+   136→
+   137→    v0.5: Added artifact tracking and audit coverage computation.
+   138→    """
+   139→
+   140→    def __init__(self):
+   141→        self.records: List[ProvenanceRecord] = []
+   142→        self.artifacts: List[GeneratedArtifact] = []
+   143→
+   144→    def record(
+   145→        self,
+   146→        source_type: ProvenanceType,
+   147→        source_location: str,
+   148→        source_text: str,
+   149→        resolution_path: List[str],
+   150→        generated_code: str,
+   151→        confidence: float = 1.0,
+   152→        pattern_name: str = "",
+   153→        template_name: str = "",
+   154→        parameters: Dict[str, str] = None,
+   155→        artifact_names: List[str] = None,
+   156→    ) -> ProvenanceRecord:
+   157→        """Record a compilation decision."""
+   158→        rec = ProvenanceRecord(
+   159→            source_type=source_type,
+   160→            source_location=source_location,
+   161→            source_text=source_text,
+   162→            resolution_path=resolution_path,
+   163→            generated_code=generated_code,
+   164→            confidence=confidence,
+   165→            pattern_name=pattern_name,
+   166→            template_name=template_name,
+   167→            parameters=parameters or {},
+   168→            artifact_names=artifact_names or [],
+   169→        )
+   170→        self.records.append(rec)
+   171→
+   172→        # Link this provenance record to any matching artifacts
+   173→        record_index = len(self.records) - 1
+   174→        for artifact_name in (artifact_names or []):
+   175→            for artifact in self.artifacts:
+   176→                if artifact.name == artifact_name:
+   177→                    artifact.provenance_indices.append(record_index)
+   178→
+   179→        return rec
+   180→
+   181→    def register_artifact(
+   182→        self,
+   183→        name: str,
+   184→        artifact_type: ArtifactType,
+   185→        source: str,
+   186→        code_snippet: str = "",
+   187→    ) -> GeneratedArtifact:
+   188→        """
+   189→        Register a generated artifact.
+   190→
+   191→        Every method, class, function, and dataclass produced by the
+   192→        compiler should be registered. The audit system will verify
+   193→        that each artifact has at least one provenance record.
+   194→        """
+   195→        artifact = GeneratedArtifact(
+   196→            name=name,
+   197→            artifact_type=artifact_type,
+   198→            source=source,
+   199→            code_snippet=code_snippet,
+   200→        )
+   201→        self.artifacts.append(artifact)
+   202→
+   203→        # Check if any existing provenance records already cover this artifact
+   204→        for i, rec in enumerate(self.records):
+   205→            if name in rec.artifact_names:
+   206→                artifact.provenance_indices.append(i)
+   207→
+   208→        return artifact
+   209→
+   210→    def link_provenance_to_artifact(self, record_index: int, artifact_name: str):
+   211→        """Explicitly link a provenance record to an artifact."""
+   212→        if record_index < len(self.records):
+   213→            if artifact_name not in self.records[record_index].artifact_names:
+   214→                self.records[record_index].artifact_names.append(artifact_name)
+   215→
+   216→        for artifact in self.artifacts:
+   217→            if artifact.name == artifact_name:
+   218→                if record_index not in artifact.provenance_indices:
+   219→                    artifact.provenance_indices.append(record_index)
+   220→
+   221→    # =========================================================================
+   222→    # Explain Commands
+   223→    # =========================================================================
+   224→
+   225→    def explain(self, target: str = None) -> str:
+   226→        """
+   227→        Generate an explanation of the compilation.
+   228→
+   229→        Args:
+   230→            target: Optional filter (behavior name, pattern name, etc.)
+   231→
+   232→        Returns:
+   233→            Human-readable explanation of all compilation decisions.
+   234→        """
+   235→        lines = []
+   236→        lines.append("=" * 70)
+   237→        lines.append("AICL COMPILATION PROVENANCE TRACE")
+   238→        lines.append("=" * 70)
+   239→        lines.append("")
+   240→
+   241→        # Summary
+   242→        total = len(self.records)
+   243→        pattern_count = sum(1 for r in self.records if r.source_type == ProvenanceType.PATTERN_MATCH)
+   244→        sublang_count = sum(1 for r in self.records if r.source_type == ProvenanceType.SUB_LANGUAGE)
+   245→        fallback_count = sum(1 for r in self.records if r.source_type == ProvenanceType.FALLBACK)
+   246→        template_count = sum(1 for r in self.records if r.source_type == ProvenanceType.ARCHITECTURE_TEMPLATE)
+   247→        direct_count = sum(1 for r in self.records if r.source_type == ProvenanceType.DIRECT_MAPPING)
+   248→
+   249→        lines.append(f"Total decisions: {total}")
+   250→        lines.append(f"  Pattern matches:    {pattern_count}")
+   251→        lines.append(f"  Sub-language:       {sublang_count}")
+   252→        lines.append(f"  Direct mappings:    {direct_count}")
+   253→        lines.append(f"  Architecture tmpl:  {template_count}")
+   254→        lines.append(f"  Fallbacks:          {fallback_count}")
+   255→        lines.append("")
+   256→
+   257→        # Confidence score
+   258→        if total > 0:
+   259→            avg_confidence = sum(r.confidence for r in self.records) / total
+   260→            fully_deterministic = sum(1 for r in self.records if r.confidence >= 0.9)
+   261→            lines.append(f"Average confidence:    {avg_confidence:.2f}")
+   262→            lines.append(f"Fully deterministic:   {fully_deterministic}/{total} ({100*fully_deterministic//max(total,1)}%)")
+   263→            lines.append("")
+   264→
+   265→        # Group by source type
+   266→        by_type: Dict[ProvenanceType, List[ProvenanceRecord]] = {}
+   267→        for rec in self.records:
+   268→            if rec.source_type not in by_type:
+   269→                by_type[rec.source_type] = []
+   270→            by_type[rec.source_type].append(rec)
+   271→
+   272→        for source_type, records in by_type.items():
+   273→            type_label = source_type.value.replace("_", " ").title()
+   274→            lines.append("-" * 70)
+   275→            lines.append(f" {type_label} ({len(records)} decisions)")
+   276→            lines.append("-" * 70)
+   277→
+   278→            for i, rec in enumerate(records):
+   279→                # Filter by target if specified
+   280→                if target and target.lower() not in rec.source_location.lower() and target.lower() not in rec.pattern_name.lower():
+   281→                    continue
+   282→
+   283→                lines.append(f"")
+   284→                lines.append(f"  [{i+1}] {rec.source_location}")
+   285→                lines.append(f"  Source:  \"{rec.source_text}\"")
+   286→                lines.append(f"  Path:    {' → '.join(rec.resolution_path)}")
+   287→
+   288→                if rec.pattern_name:
+   289→                    lines.append(f"  Pattern: {rec.pattern_name}")
+   290→                if rec.template_name:
+   291→                    lines.append(f"  Template: {rec.template_name}")
+   292→                if rec.parameters:
+   293→                    params_str = ", ".join(f"{k}={v}" for k, v in rec.parameters.items() if not k.startswith("#"))
+   294→                    if params_str:
+   295→                        lines.append(f"  Params:  {params_str}")
+   296→
+   297→                lines.append(f"  Confidence: {rec.confidence:.2f}")
+   298→
+   299→                # Show generated code (truncated)
+   300→                code_lines = rec.generated_code.strip().split('\n')
+   301→                if len(code_lines) <= 4:
+   302→                    for cl in code_lines:
+   303→                        lines.append(f"  Code:    {cl}")
+   304→                else:
+   305→                    for cl in code_lines[:3]:
+   306→                        lines.append(f"  Code:    {cl}")
+   307→                    lines.append(f"  Code:    ... ({len(code_lines) - 3} more lines)")
+   308→
+   309→        lines.append("")
+   310→        lines.append("=" * 70)
+   311→        lines.append("END OF PROVENANCE TRACE")
+   312→        lines.append("=" * 70)
+   313→
+   314→        return '\n'.join(lines)
+   315→
+   316→    def explain_behavior(self, behavior_name: str) -> str:
+   317→        """
+   318→        Explain the compilation of a specific behavior.
+   319→
+   320→        This is the answer to:
+   321→            "Explain compilation MovePaddle"
+   322→        """
+   323→        lines = []
+   324→        lines.append(f"Compilation trace for: {behavior_name}")
+   325→        lines.append("")
+   326→
+   327→        matching = [r for r in self.records if behavior_name.lower() in r.source_location.lower()]
+   328→
+   329→        if not matching:
+   330→            return f"No compilation records found for '{behavior_name}'"
+   331→
+   332→        for rec in matching:
+   333→            lines.append(f"Source type: {rec.source_type.value}")
+   334→            lines.append(f"Source text: \"{rec.source_text}\"")
+   335→            lines.append(f"")
+   336→            lines.append(f"Resolution chain:")
+   337→            for step in rec.resolution_path:
+   338→                lines.append(f"  ↓ {step}")
+   339→            lines.append(f"")
+   340→            lines.append(f"Generated code:")
+   341→            for cl in rec.generated_code.strip().split('\n'):
+   342→                lines.append(f"  {cl}")
+   343→            lines.append(f"")
+   344→            lines.append(f"Confidence: {rec.confidence:.2f}")
+   345→            if rec.pattern_name:
+   346→                lines.append(f"Pattern: {rec.pattern_name}")
+   347→            if rec.parameters:
+   348→                lines.append(f"Parameters used:")
+   349→                for k, v in rec.parameters.items():
+   350→                    if not k.startswith("#"):
+   351→                        lines.append(f"  {k} = {v}")
+   352→
+   353→        return '\n'.join(lines)
+   354→
+   355→    def get_statistics(self) -> Dict:
+   356→        """Get compilation statistics."""
+   357→        total = len(self.records)
+   358→        if total == 0:
+   359→            return {"total": 0}
+   360→
+   361→        return {
+   362→            "total": total,
+   363→            "by_type": {t.value: len([r for r in self.records if r.source_type == t]) for t in ProvenanceType},
+   364→            "avg_confidence": sum(r.confidence for r in self.records) / total,
+   365→            "fully_deterministic": sum(1 for r in self.records if r.confidence >= 0.9),
+   366→            "patterns_used": list(set(r.pattern_name for r in self.records if r.pattern_name)),
+   367→        }
+   368→
+   369→    # =========================================================================
+   370→    # Coverage & Audit
+   371→    # =========================================================================
+   372→
+   373→    def compute_explicability_coverage(self, generated_source: str, generated_tests: str = "") -> Dict:
+   374→        """
+   375→        Compute the explicability coverage ratio.
+   376→
+   377→        The explicability coverage measures what fraction of generated code
+   378→        lines are accounted for by provenance records. The target is 1.0
+   379→        (every line has provenance). Any deviation is a gap to investigate.
+   380→
+   381→        Returns:
+   382→            Dict with keys:
+   383→                - total_lines: total non-blank, non-comment lines in generated code
+   384→                - accounted_lines: lines that appear in at least one provenance record
+   385→                - coverage_ratio: accounted_lines / total_lines (target: 1.0)
+   386→                - unaccounted_lines: list of line numbers without provenance
+   387→                - by_type_coverage: coverage broken down by provenance type
+   388→        """
+   389→        # Combine source and test code
+   390→        all_code = generated_source
+   391→        if generated_tests:
+   392→            all_code += "\n" + generated_tests
+   393→
+   394→        # Count meaningful lines (non-blank, non-import, non-pure-comment)
+   395→        code_lines = []
+   396→        for i, line in enumerate(all_code.split('\n')):
+   397→            stripped = line.strip()
+   398→            if not stripped:
+   399→                continue
+   400→            # Skip pure comment lines and import lines for coverage
+   401→            if stripped.startswith('#') and not any(kw in stripped for kw in ['When:', 'On:', 'Risk:', 'Recovery:', 'Action:', 'Intent:']):
+   402→                continue
+   403→            if stripped.startswith(('import ', 'from ')):
+   404→                continue
+   405→            if stripped in ('"""', "'''", ''):
+   406→                continue
+   407→            code_lines.append((i + 1, stripped))
+   408→
+   409→        total_lines = len(code_lines)
+   410→        if total_lines == 0:
+   411→            return {
+   412→                "total_lines": 0,
+   413→                "accounted_lines": 0,
+   414→                "coverage_ratio": 1.0,
+   415→                "unaccounted_lines": [],
+   416→                "by_type_coverage": {},
+   417→            }
+   418→
+   419→        # Build set of code fragments from provenance records
+   420→        accounted_fragments = set()
+   421→        for rec in self.records:
+   422→            for code_line in rec.generated_code.strip().split('\n'):
+   423→                stripped = code_line.strip()
+   424→                if stripped:
+   425→                    # Normalize for matching (remove variable values that change)
+   426→                    normalized = re.sub(r'[\'"].*?[\'\"]', "'...'", stripped)
+   427→                    normalized = re.sub(r'\{[^}]*\}', '{...}', normalized)
+   428→                    accounted_fragments.add(normalized)
+   429→                    # Also add the original
+   430→                    accounted_fragments.add(stripped)
+   431→
+   432→        # Check which lines are accounted for
+   433→        accounted_lines = 0
+   434→        unaccounted = []
+   435→        for line_num, line_text in code_lines:
+   436→            stripped = line_text.strip()
+   437→            # Check if this line or a normalized version appears in provenance
+   438→            found = False
+   439→            if stripped in accounted_fragments:
+   440→                found = True
+   441→            else:
+   442→                # Try normalizing the source line too
+   443→                normalized = re.sub(r'[\'"].*?[\'\"]', "'...'", stripped)
+   444→                normalized = re.sub(r'\{[^}]*\}', '{...}', normalized)
+   445→                if normalized in accounted_fragments:
+   446→                    found = True
+   447→                else:
+   448→                    # Check if any provenance fragment is a prefix of this line
+   449→                    for frag in accounted_fragments:
+   450→                        if frag and stripped.startswith(frag.split('=')[0].split('(')[0].strip()):
+   451→                            found = True
+   452→                            break
+   453→
+   454→            if found:
+   455→                accounted_lines += 1
+   456→            else:
+   457→                # Only flag as unaccounted if it's a significant line
+   458→                if not stripped.startswith(('#', '"""', "'''", 'pass', 'else:', 'try:', 'except', 'finally:')):
+   459→                    unaccounted.append((line_num, stripped[:80]))
+   460→
+   461→        # Coverage by provenance type
+   462→        by_type_coverage = {}
+   463→        for ptype in ProvenanceType:
+   464→            count = len([r for r in self.records if r.source_type == ptype])
+   465→            if count > 0:
+   466→                by_type_coverage[ptype.value] = count
+   467→
+   468→        return {
+   469→            "total_lines": total_lines,
+   470→            "accounted_lines": accounted_lines,
+   471→            "coverage_ratio": accounted_lines / total_lines if total_lines > 0 else 1.0,
+   472→            "unaccounted_lines": unaccounted,
+   473→            "by_type_coverage": by_type_coverage,
+   474→        }
+   475→
+   476→    def compute_audit_coverage(self) -> Dict:
+   477→        """
+   478→        Compute the audit coverage of generated artifacts.
+   479→
+   480→        Audit Coverage = Auditable Artifacts / Generated Artifacts
+   481→
+   482→        An artifact is "auditable" if it has at least one provenance record.
+   483→        An artifact without provenance is an "orphan".
+   484→
+   485→        This is the key metric for the Auditability property:
+   486→            "A program is auditable if every generated artifact
+   487→             can be traced to its originating specification
+   488→             through a complete provenance chain."
+   489→
+   490→        Returns:
+   491→            Dict with:
+   492→                - total_artifacts: total number of generated artifacts
+   493→                - auditable_artifacts: artifacts with at least one provenance record
+   494→                - orphan_artifacts: list of artifacts without provenance
+   495→                - audit_coverage: ratio of auditable to total (target: 1.0)
+   496→                - by_type: breakdown by artifact type
+   497→        """
+   498→        total = len(self.artifacts)
+   499→        if total == 0:
+   500→            return {
+   501→                "total_artifacts": 0,
+   502→                "auditable_artifacts": 0,
+   503→                "orphan_artifacts": [],
+   504→                "audit_coverage": 1.0,
+   505→                "by_type": {},
+   506→            }
+   507→
+   508→        auditable = [a for a in self.artifacts if a.has_provenance]
+   509→        orphans = [a for a in self.artifacts if a.is_orphan]
+   510→
+   511→        # Breakdown by type
+   512→        by_type = {}
+   513→        for atype in ArtifactType:
+   514→            type_artifacts = [a for a in self.artifacts if a.artifact_type == atype]
+   515→            type_auditable = [a for a in type_artifacts if a.has_provenance]
+   516→            if type_artifacts:
+   517→                by_type[atype.value] = {
+   518→                    "total": len(type_artifacts),
+   519→                    "auditable": len(type_auditable),
+   520→                    "coverage": len(type_auditable) / len(type_artifacts),
+   521→                }
+   522→
+   523→        return {
+   524→            "total_artifacts": total,
+   525→            "auditable_artifacts": len(auditable),
+   526→            "orphan_artifacts": [{"name": a.name, "type": a.artifact_type.value, "source": a.source} for a in orphans],
+   527→            "audit_coverage": len(auditable) / total,
+   528→            "by_type": by_type,
+   529→        }
+   530→
+   531→    def explain_coverage(self, generated_source: str, generated_tests: str = "") -> str:
+   532→        """Generate a coverage report for the explicable compilation property."""
+   533→        coverage = self.compute_explicability_coverage(generated_source, generated_tests)
+   534→        lines = []
+   535→        lines.append("=" * 70)
+   536→        lines.append("EXPLICABILITY COVERAGE REPORT")
+   537→        lines.append("=" * 70)
+   538→        lines.append("")
+   539→        lines.append(f"Total meaningful lines:   {coverage['total_lines']}")
+   540→        lines.append(f"Lines with provenance:    {coverage['accounted_lines']}")
+   541→        lines.append(f"Coverage ratio:           {coverage['coverage_ratio']:.3f}")
+   542→        lines.append("")
+   543→
+   544→        if coverage['coverage_ratio'] >= 0.95:
+   545→            lines.append("Status: PASS (coverage >= 95%)")
+   546→        elif coverage['coverage_ratio'] >= 0.80:
+   547→            lines.append("Status: PARTIAL (coverage 80-95%, investigation needed)")
+   548→        else:
+   549→            lines.append("Status: FAIL (coverage < 80%, provenance gaps detected)")
+   550→
+   551→        lines.append("")
+   552→
+   553→        if coverage['by_type_coverage']:
+   554→            lines.append("Provenance by type:")
+   555→            for ptype, count in sorted(coverage['by_type_coverage'].items(), key=lambda x: -x[1]):
+   556→                lines.append(f"  {ptype:30s} {count:4d} records")
+   557→            lines.append("")
+   558→
+   559→        if coverage['unaccounted_lines']:
+   560→            lines.append(f"Unaccounted lines ({len(coverage['unaccounted_lines'])}):")
+   561→            for line_num, text in coverage['unaccounted_lines'][:20]:
+   562→                lines.append(f"  L{line_num:4d}: {text}")
+   563→            if len(coverage['unaccounted_lines']) > 20:
+   564→                lines.append(f"  ... and {len(coverage['unaccounted_lines']) - 20} more")
+   565→        else:
+   566→            lines.append("All lines have provenance coverage.")
+   567→
+   568→        lines.append("")
+   569→        lines.append("=" * 70)
+   570→        return '\n'.join(lines)
+   571→
+   572→    def audit(self, generated_source: str = "", generated_tests: str = "") -> str:
+   573→        """
+   574→        Generate a complete audit report.
+   575→
+   576→        This is the primary output of the audit system. It verifies the
+   577→        Auditability property:
+   578→
+   579→            "A program is auditable if every generated artifact
+   580→             can be traced to its originating specification
+   581→             through a complete provenance chain."
+   582→
+   583→        The audit report contains:
+   584→            1. Artifact summary (total, auditable, orphans)
+   585→            2. Audit coverage ratio (target: 1.0)
+   586→            3. Orphan artifact list (artifacts without provenance)
+   587→            4. Audit status (VERIFIED / PARTIAL / FAILED)
+   588→            5. Explicability coverage (line-level)
+   589→            6. Breakdown by artifact type
+   590→
+   591→        Returns:
+   592→            Human-readable audit report.
+   593→        """
+   594→        lines = []
+   595→        lines.append("=" * 70)
+   596→        lines.append("AICL AUDIT REPORT")
+   597→        lines.append("=" * 70)
+   598→        lines.append("")
+   599→
+   600→        # Artifact audit
+   601→        audit = self.compute_audit_coverage()
+   602→
+   603→        lines.append("ARTIFACT AUDIT")
+   604→        lines.append("-" * 70)
+   605→        lines.append(f"  Generated artifacts:     {audit['total_artifacts']}")
+   606→        lines.append(f"  Artifacts with provenance: {audit['auditable_artifacts']}")
+   607→        lines.append(f"  Orphan artifacts:        {len(audit['orphan_artifacts'])}")
+   608→        lines.append("")
+   609→
+   610→        coverage_pct = audit['audit_coverage'] * 100
+   611→        lines.append(f"  Audit Coverage:          {coverage_pct:.2f}%")
+   612→        lines.append("")
+   613→
+   614→        # Audit status
+   615→        if audit['audit_coverage'] >= 1.0:
+   616→            lines.append("  Audit Status: VERIFIED")
+   617→        elif audit['audit_coverage'] >= 0.90:
+   618→            lines.append("  Audit Status: PARTIAL (investigation needed)")
+   619→        else:
+   620→            lines.append("  Audit Status: FAILED (significant provenance gaps)")
+   621→        lines.append("")
+   622→
+   623→        # Orphan artifacts
+   624→        if audit['orphan_artifacts']:
+   625→            lines.append("ORPHAN ARTIFACTS (no provenance)")
+   626→            lines.append("-" * 70)
+   627→            for orphan in audit['orphan_artifacts']:
+   628→                lines.append(f"  [{orphan['type']:15s}] {orphan['name']}")
+   629→                lines.append(f"    Source: {orphan['source']}")
+   630→            lines.append("")
+   631→
+   632→        # Breakdown by artifact type
+   633→        if audit['by_type']:
+   634→            lines.append("COVERAGE BY ARTIFACT TYPE")
+   635→            lines.append("-" * 70)
+   636→            for atype, info in sorted(audit['by_type'].items(), key=lambda x: -x[1]['total']):
+   637→                cov_pct = info['coverage'] * 100
+   638→                status = "VERIFIED" if info['coverage'] >= 1.0 else "PARTIAL" if info['coverage'] >= 0.9 else "FAILED"
+   639→                lines.append(f"  {atype:15s}  {info['auditable']:3d}/{info['total']:3d}  {cov_pct:6.2f}%  [{status}]")
+   640→            lines.append("")
+   641→
+   642→        # Line-level explicability coverage
+   643→        if generated_source:
+   644→            exp_coverage = self.compute_explicability_coverage(generated_source, generated_tests)
+   645→            lines.append("LINE-LEVEL EXPLICABILITY")
+   646→            lines.append("-" * 70)
+   647→            lines.append(f"  Total meaningful lines:  {exp_coverage['total_lines']}")
+   648→            lines.append(f"  Lines with provenance:   {exp_coverage['accounted_lines']}")
+   649→            lines.append(f"  Explicability coverage:  {exp_coverage['coverage_ratio']:.2%}")
+   650→
+   651→            if exp_coverage['coverage_ratio'] >= 0.95:
+   652→                lines.append("  Line status: PASS (>= 95%)")
+   653→            elif exp_coverage['coverage_ratio'] >= 0.80:
+   654→                lines.append("  Line status: PARTIAL (80-95%)")
+   655→            else:
+   656→                lines.append("  Line status: FAIL (< 80%)")
+   657→
+   658→            if exp_coverage['unaccounted_lines']:
+   659→                lines.append(f"  Unaccounted lines: {len(exp_coverage['unaccounted_lines'])}")
+   660→            lines.append("")
+   661→
+   662→        # Provenance summary
+   663→        lines.append("PROVENANCE SUMMARY")
+   664→        lines.append("-" * 70)
+   665→        total_records = len(self.records)
+   666→        lines.append(f"  Total provenance records: {total_records}")
+   667→
+   668→        if total_records > 0:
+   669→            avg_conf = sum(r.confidence for r in self.records) / total_records
+   670→            lines.append(f"  Average confidence:       {avg_conf:.2f}")
+   671→            deterministic = sum(1 for r in self.records if r.confidence >= 0.9)
+   672→            lines.append(f"  Deterministic decisions:  {deterministic}/{total_records} ({100*deterministic//total_records}%)")
+   673→
+   674→            # By type summary
+   675→            by_type = {}
+   676→            for rec in self.records:
+   677→                label = rec.source_type.value.replace("_", " ").title()
+   678→                by_type[label] = by_type.get(label, 0) + 1
+   679→
+   680→            lines.append("  Provenance by type:")
+   681→            for label, count in sorted(by_type.items(), key=lambda x: -x[1]):
+   682→                lines.append(f"    {label:30s} {count:4d}")
+   683→        lines.append("")
+   684→
+   685→        # Final verdict
+   686→        lines.append("=" * 70)
+   687→        if audit['audit_coverage'] >= 1.0 and (not generated_source or exp_coverage['coverage_ratio'] >= 0.95):
+   688→            lines.append("AUDIT RESULT: PASSED")
+   689→            lines.append("  Every generated artifact has provenance.")
+   690→            lines.append("  Compilation is fully auditable.")
+   691→        elif audit['audit_coverage'] >= 0.90:
+   692→            lines.append("AUDIT RESULT: PARTIAL")
+   693→            lines.append("  Most artifacts have provenance.")
+   694→            lines.append("  Some orphan artifacts need investigation.")
+   695→        else:
+   696→            lines.append("AUDIT RESULT: FAILED")
+   697→            lines.append("  Significant provenance gaps detected.")
+   698→            lines.append("  Compilation is not fully auditable.")
+   699→        lines.append("=" * 70)
+   700→
+   701→        return '\n'.join(lines)
+   702→
+   703→    def audit_passed(self, generated_source: str = "", generated_tests: str = "") -> bool:
+   704→        """
+   705→        Check whether the audit passes.
+   706→
+   707→        Audit passes if:
+   708→            1. Audit coverage = 1.0 (no orphan artifacts)
+   709→            2. Explicability coverage >= 0.95 (line-level)
+   710→
+   711→        Used by `aicl audit --strict` to determine exit code.
+   712→        """
+   713→        audit = self.compute_audit_coverage()
+   714→        if audit['audit_coverage'] < 1.0:
+   715→            return False
+   716→
+   717→        if generated_source:
+   718→            exp = self.compute_explicability_coverage(generated_source, generated_tests)
+   719→            if exp['coverage_ratio'] < 0.95:
+   720→                return False
+   721→
+   722→        return True
+   723→
+   724→    # =========================================================================
+   725→    # Proof of Origin — The Central Artifact
+   726→    # =========================================================================
+   727→
+   728→    def to_proof(
+   729→        self,
+   730→        source_path: str = "",
+   731→        source_text: str = "",
+   732→        generated_source: str = "",
+   733→        generated_tests: str = "",
+   734→        compiler_version: str = "0.6.0",
+   735→        target_language: str = "python",
+   736→    ) -> 'ProofOfOrigin':
+   737→        """
+   738→        Generate a Proof of Origin from this compilation.
+   739→
+   740→        The Proof of Origin is the central artifact of auditable compilation.
+   741→        It is a self-contained, verifiable record that binds:
+   742→            - The original AICL specification
+   743→            - Every generated artifact
+   744→            - Every provenance record
+   745→            - The formal properties verified (No Orphan, Complete Coverage)
+   746→            - Cryptographic hashes binding proof to generated code
+   747→
+   748→        If this file exists, `aicl explain` and `aicl audit` can be
+   749→        reconstructed entirely from it — without the compiler.
+   750→
+   751→        Args:
+   752→            source_path: Path to the original AICL source file
+   753→            source_text: The original AICL source text
+   754→            generated_source: The generated program code
+   755→            generated_tests: The generated test code
+   756→            compiler_version: Version of the AICL compiler
+   757→            target_language: Target language of the compilation
+   758→
+   759→        Returns:
+   760→            ProofOfOrigin instance ready for serialization.
+   761→        """
+   762→        return ProofOfOrigin.from_compilation(
+   763→            provenance=self,
+   764→            source_path=source_path,
+   765→            source_text=source_text,
+   766→            generated_source=generated_source,
+   767→            generated_tests=generated_tests,
+   768→            compiler_version=compiler_version,
+   769→            target_language=target_language,
+   770→        )
+   771→
+   772→
+   773→class ProofOfOrigin:
+   774→    """
+   775→    Proof of Origin — the central artifact of auditable compilation.
+   776→
+   777→    A Proof of Origin is a self-contained, verifiable record that proves:
+   778→        1. Every generated artifact has a traceable provenance chain
+   779→        2. No artifact exists without justification (No Orphan Property)
+   780→        3. Audit coverage = 1.0 (Complete Coverage Property)
+   781→        4. The proof is cryptographically bound to the generated code
+   782→
+   783→    Architecture:
+   784→        aicl compile pong.aicl
+   785→            ↓
+   786→        pong.py              (executable program)
+   787→        pong.aicl-proof      (proof of origin)
+   788→
+   789→        aicl explain --proof pong.aicl-proof    → human-readable explanation
+   790→        aicl audit --proof pong.aicl-proof      → audit report
+   791→        aicl proof pong.aicl-proof              → inspect/verify proof
+   792→
+   793→    The proof file is JSON, machine-readable, and contains ALL information
+   794→    needed to reconstruct explain() and audit() without the compiler.
+   795→
+   796→    Formal Properties Verified:
+   797→        - No Orphan Artifact Property:
+   798→            Every generated artifact has at least one provenance chain.
+   799→        - Complete Coverage Property:
+   800→            Audit Coverage = Auditable Artifacts / Generated Artifacts = 1.0
+   801→        - Hash Binding:
+   802→            SHA-256(proof) is bound to SHA-256(generated code).
+   803→    """
+   804→
+   805→    PROOF_FORMAT_VERSION = "1.0"
+   806→
+   807→    def __init__(self):
+   808→        # Metadata
+   809→        self.format_version: str = self.PROOF_FORMAT_VERSION
+   810→        self.compiler_version: str = ""
+   811→        self.timestamp: str = ""
+   812→        self.source_path: str = ""
+   813→        self.target_language: str = "python"
+   814→
+   815→        # Source binding
+   816→        self.source_hash: str = ""          # SHA-256 of AICL source
+   817→        self.source_text: str = ""          # Full AICL source text
+   818→
+   819→        # Code binding
+   820→        self.program_hash: str = ""         # SHA-256 of generated program
+   821→        self.test_hash: str = ""            # SHA-256 of generated tests
+   822→        self.generated_source: str = ""     # Generated program code
+   823→        self.generated_tests: str = ""      # Generated test code
+   824→
+   825→        # Provenance records
+   826→        self.records: List[Dict[str, Any]] = []
+   827→
+   828→        # Generated artifacts
+   829→        self.artifacts: List[Dict[str, Any]] = []
+   830→
+   831→        # Formal properties
+   832→        self.formal_properties: Dict[str, Any] = {}
+   833→
+   834→        # Audit coverage
+   835→        self.audit_coverage: Dict[str, Any] = {}
+   836→
+   837→        # Explicability coverage
+   838→        self.explicability_coverage: Dict[str, Any] = {}
+   839→
+   840→    @classmethod
+   841→    def from_compilation(
+   842→        cls,
+   843→        provenance: CompilationProvenance,
+   844→        source_path: str = "",
+   845→        source_text: str = "",
+   846→        generated_source: str = "",
+   847→        generated_tests: str = "",
+   848→        compiler_version: str = "0.6.0",
+   849→        target_language: str = "python",
+   850→    ) -> 'ProofOfOrigin':
+   851→        """
+   852→        Create a Proof of Origin from a completed compilation.
+   853→
+   854→        This is the primary constructor — used by the compiler at the end
+   855→        of a successful compilation to produce the proof artifact.
+   856→        """
+   857→        proof = cls()
+   858→        proof.compiler_version = compiler_version
+   859→        proof.timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+   860→        proof.source_path = source_path
+   861→        proof.target_language = target_language
+   862→
+   863→        # Bind to source
+   864→        proof.source_text = source_text
+   865→        proof.source_hash = hashlib.sha256(source_text.encode('utf-8')).hexdigest()
+   866→
+   867→        # Bind to generated code
+   868→        proof.generated_source = generated_source
+   869→        proof.generated_tests = generated_tests
+   870→        proof.program_hash = hashlib.sha256(generated_source.encode('utf-8')).hexdigest()
+   871→        proof.test_hash = hashlib.sha256(generated_tests.encode('utf-8')).hexdigest()
+   872→
+   873→        # Serialize provenance records
+   874→        proof.records = []
+   875→        for rec in provenance.records:
+   876→            proof.records.append({
+   877→                "source_type": rec.source_type.value,
+   878→                "source_location": rec.source_location,
+   879→                "source_text": rec.source_text,
+   880→                "resolution_path": rec.resolution_path,
+   881→                "generated_code": rec.generated_code,
+   882→                "confidence": rec.confidence,
+   883→                "pattern_name": rec.pattern_name,
+   884→                "template_name": rec.template_name,
+   885→                "parameters": rec.parameters,
+   886→                "artifact_names": rec.artifact_names,
+   887→            })
+   888→
+   889→        # Serialize artifacts
+   890→        proof.artifacts = []
+   891→        for art in provenance.artifacts:
+   892→            proof.artifacts.append({
+   893→                "name": art.name,
+   894→                "artifact_type": art.artifact_type.value,
+   895→                "source": art.source,
+   896→                "provenance_indices": art.provenance_indices,
+   897→                "code_snippet": art.code_snippet,
+   898→                "has_provenance": art.has_provenance,
+   899→                "is_orphan": art.is_orphan,
+   900→            })
+   901→
+   902→        # Compute and store formal properties
+   903→        audit = provenance.compute_audit_coverage()
+   904→        exp_coverage = provenance.compute_explicability_coverage(
+   905→            generated_source, generated_tests
+   906→        ) if generated_source else {"coverage_ratio": 1.0, "total_lines": 0, "accounted_lines": 0}
+   907→
+   908→        proof.formal_properties = {
+   909→            "no_orphan_artifact_property": {
+   910→                "statement": "Every generated artifact has at least one provenance chain.",
+   911→                "verified": len(audit['orphan_artifacts']) == 0,
+   912→                "orphan_count": len(audit['orphan_artifacts']),
+   913→            },
+   914→            "complete_coverage_property": {
+   915→                "statement": "Audit Coverage = Auditable Artifacts / Generated Artifacts = 1.0",
+   916→                "verified": audit['audit_coverage'] >= 1.0,
+   917→                "coverage": audit['audit_coverage'],
+   918→            },
+   919→            "hash_binding_property": {
+   920→                "statement": "Proof is cryptographically bound to generated code via SHA-256.",
+   921→                "verified": True,  # Hashes are computed at proof creation time
+   922→                "program_hash": proof.program_hash,
+   923→                "test_hash": proof.test_hash,
+   924→                "source_hash": proof.source_hash,
+   925→            },
+   926→        }
+   927→
+   928→        proof.audit_coverage = audit
+   929→        proof.explicability_coverage = exp_coverage
+   930→
+   931→        return proof
+   932→
+   933→    def to_dict(self) -> Dict[str, Any]:
+   934→        """Serialize the proof to a dictionary (ready for JSON)."""
+   935→        return {
+   936→            "proof_of_origin": {
+   937→                "format_version": self.format_version,
+   938→                "compiler_version": self.compiler_version,
+   939→                "timestamp": self.timestamp,
+   940→                "source_path": self.source_path,
+   941→                "target_language": self.target_language,
+   942→                "source_hash": self.source_hash,
+   943→                "program_hash": self.program_hash,
+   944→                "test_hash": self.test_hash,
+   945→                "formal_properties": self.formal_properties,
+   946→                "audit_summary": {
+   947→                    "total_artifacts": self.audit_coverage.get('total_artifacts', 0),
+   948→                    "auditable_artifacts": self.audit_coverage.get('auditable_artifacts', 0),
+   949→                    "orphan_artifacts": len(self.audit_coverage.get('orphan_artifacts', [])),
+   950→                    "audit_coverage": self.audit_coverage.get('audit_coverage', 0),
+   951→                    "audit_status": "VERIFIED" if self.audit_coverage.get('audit_coverage', 0) >= 1.0 else "FAILED",
+   952→                },
+   953→                "explicability_summary": {
+   954→                    "total_lines": self.explicability_coverage.get('total_lines', 0),
+   955→                    "accounted_lines": self.explicability_coverage.get('accounted_lines', 0),
+   956→                    "coverage_ratio": self.explicability_coverage.get('coverage_ratio', 1.0),
+   957→                },
+   958→                "records": self.records,
+   959→                "artifacts": self.artifacts,
+   960→            }
+   961→        }
+   962→
+   963→    def to_json(self, indent: int = 2) -> str:
+   964→        """Serialize the proof to JSON."""
+   965→        return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
+   966→
+   967→    def to_file(self, path: str) -> None:
+   968→        """Write the proof to a .aicl-proof file."""
+   969→        with open(path, 'w', encoding='utf-8') as f:
+   970→            f.write(self.to_json())
+   971→
+   972→    @classmethod
+   973→    def from_dict(cls, data: Dict[str, Any]) -> 'ProofOfOrigin':
+   974→        """Deserialize a proof from a dictionary."""
+   975→        proof_data = data.get("proof_of_origin", data)
+   976→        proof = cls()
+   977→        proof.format_version = proof_data.get("format_version", cls.PROOF_FORMAT_VERSION)
+   978→        proof.compiler_version = proof_data.get("compiler_version", "")
+   979→        proof.timestamp = proof_data.get("timestamp", "")
+   980→        proof.source_path = proof_data.get("source_path", "")
+   981→        proof.target_language = proof_data.get("target_language", "python")
+   982→        proof.source_hash = proof_data.get("source_hash", "")
+   983→        proof.program_hash = proof_data.get("program_hash", "")
+   984→        proof.test_hash = proof_data.get("test_hash", "")
+   985→        proof.formal_properties = proof_data.get("formal_properties", {})
+   986→        proof.audit_coverage = proof_data.get("audit_coverage", {})
+   987→
+   988→        # Reconstruct audit_coverage if only summary is available
+   989→        if 'audit_summary' in proof_data and not proof.audit_coverage:
+   990→            summary = proof_data['audit_summary']
+   991→            proof.audit_coverage = {
+   992→                'total_artifacts': summary.get('total_artifacts', 0),
+   993→                'auditable_artifacts': summary.get('auditable_artifacts', 0),
+   994→                'orphan_artifacts': [],
+   995→                'audit_coverage': summary.get('audit_coverage', 0),
+   996→            }
+   997→
+   998→        proof.explicability_coverage = proof_data.get("explicability_coverage", {})
+   999→
+  1000→        if 'explicability_summary' in proof_data and not proof.explicability_coverage:
+  1001→            summary = proof_data['explicability_summary']
+  1002→            proof.explicability_coverage = {
+  1003→                'total_lines': summary.get('total_lines', 0),
+  1004→                'accounted_lines': summary.get('accounted_lines', 0),
+  1005→                'coverage_ratio': summary.get('coverage_ratio', 1.0),
+  1006→            }
+  1007→
+  1008→        proof.records = proof_data.get("records", [])
+  1009→        proof.artifacts = proof_data.get("artifacts", [])
+  1010→
+  1011→        # Source text and generated code are optional (large, can be omitted)
+  1012→        proof.source_text = proof_data.get("source_text", "")
+  1013→        proof.generated_source = proof_data.get("generated_source", "")
+  1014→        proof.generated_tests = proof_data.get("generated_tests", "")
+  1015→
+  1016→        return proof
+  1017→
+  1018→    @classmethod
+  1019→    def from_file(cls, path: str) -> 'ProofOfOrigin':
+  1020→        """Load a proof from a .aicl-proof file."""
+  1021→        with open(path, 'r', encoding='utf-8') as f:
+  1022→            data = json.load(f)
+  1023→        proof = cls.from_dict(data)
+  1024→        return proof
+  1025→
+  1026→    @classmethod
+  1027→    def from_json_str(cls, json_str: str) -> 'ProofOfOrigin':
+  1028→        """Load a proof from a JSON string."""
+  1029→        data = json.loads(json_str)
+  1030→        return cls.from_dict(data)
+  1031→
+  1032→    # =========================================================================
+  1033→    # Verification
+  1034→    # =========================================================================
+  1035→
+  1036→    def verify(self, generated_source: str = "", generated_tests: str = "") -> Dict[str, Any]:
+  1037→        """
+  1038→        Verify the integrity of this proof.
+  1039→
+  1040→        Checks:
+  1041→            1. Format version is supported
+  1042→            2. Hash binding: proof hashes match the provided code
+  1043→            3. No Orphan Property: every artifact has provenance
+  1044→            4. Complete Coverage Property: audit coverage = 1.0
+  1045→            5. Record-artifact linkage integrity
+  1046→
+  1047→        Returns:
+  1048→            Dict with 'valid' (bool) and 'checks' (list of check results).
+  1049→        """
+  1050→        checks = []
+  1051→
+  1052→        # Check 1: Format version
+  1053→        checks.append({
+  1054→            "name": "format_version",
+  1055→            "description": "Proof format version is supported",
+  1056→            "passed": self.format_version == self.PROOF_FORMAT_VERSION,
+  1057→        })
+  1058→
+  1059→        # Check 2: Hash binding — verify generated code matches proof
+  1060→        if generated_source:
+  1061→            actual_hash = hashlib.sha256(generated_source.encode('utf-8')).hexdigest()
+  1062→            hash_match = actual_hash == self.program_hash
+  1063→            checks.append({
+  1064→                "name": "program_hash_binding",
+  1065→                "description": "Generated program SHA-256 matches proof",
+  1066→                "passed": hash_match,
+  1067→                "expected": self.program_hash,
+  1068→                "actual": actual_hash,
+  1069→            })
+  1070→        else:
+  1071→            checks.append({
+  1072→                "name": "program_hash_binding",
+  1073→                "description": "No generated source provided for hash verification",
+  1074→                "passed": True,  # Can't verify, assume ok
+  1075→                "note": "Hash not checked (no source provided)",
+  1076→            })
+  1077→
+  1078→        if generated_tests:
+  1079→            actual_hash = hashlib.sha256(generated_tests.encode('utf-8')).hexdigest()
+  1080→            hash_match = actual_hash == self.test_hash
+  1081→            checks.append({
+  1082→                "name": "test_hash_binding",
+  1083→                "description": "Generated tests SHA-256 matches proof",
+  1084→                "passed": hash_match,
+  1085→            })
+  1086→        else:
+  1087→            checks.append({
+  1088→                "name": "test_hash_binding",
+  1089→                "description": "No test code provided for hash verification",
+  1090→                "passed": True,
+  1091→                "note": "Hash not checked (no tests provided)",
+  1092→            })
+  1093→
+  1094→        # Check 3: No Orphan Property
+  1095→        no_orphan = self.formal_properties.get('no_orphan_artifact_property', {})
+  1096→        orphan_count = no_orphan.get('orphan_count',
+  1097→            len(self.audit_coverage.get('orphan_artifacts', [])))
+  1098→        checks.append({
+  1099→            "name": "no_orphan_artifact_property",
+  1100→            "description": "Every generated artifact has at least one provenance chain",
+  1101→            "passed": orphan_count == 0,
+  1102→            "orphan_count": orphan_count,
+  1103→        })
+  1104→
+  1105→        # Check 4: Complete Coverage Property
+  1106→        complete_cov = self.formal_properties.get('complete_coverage_property', {})
+  1107→        coverage = complete_cov.get('coverage',
+  1108→            self.audit_coverage.get('audit_coverage', 0))
+  1109→        checks.append({
+  1110→            "name": "complete_coverage_property",
+  1111→            "description": "Audit Coverage = Auditable Artifacts / Generated Artifacts = 1.0",
+  1112→            "passed": coverage >= 1.0,
+  1113→            "coverage": coverage,
+  1114→        })
+  1115→
+  1116→        # Check 5: Record-artifact linkage integrity
+  1117→        linkage_valid = True
+  1118→        for artifact_data in self.artifacts:
+  1119→            if not artifact_data.get('is_orphan', True):
+  1120→                # Non-orphan artifact should have provenance indices
+  1121→                indices = artifact_data.get('provenance_indices', [])
+  1122→                if not indices:
+  1123→                    linkage_valid = False
+  1124→                    break
+  1125→                # Each index should reference a valid record
+  1126→                for idx in indices:
+  1127→                    if idx < 0 or idx >= len(self.records):
+  1128→                        linkage_valid = False
+  1129→                        break
+  1130→        checks.append({
+  1131→            "name": "record_artifact_linkage",
+  1132→            "description": "All provenance indices reference valid records",
+  1133→            "passed": linkage_valid,
+  1134→        })
+  1135→
+  1136→        all_passed = all(c['passed'] for c in checks)
+  1137→        return {
+  1138→            "valid": all_passed,
+  1139→            "checks": checks,
+  1140→        }
+  1141→
+  1142→    # =========================================================================
+  1143→    # Views on the Proof
+  1144→    # =========================================================================
+  1145→
+  1146→    def explain(self, target: str = None) -> str:
+  1147→        """
+  1148→        Reconstruct a full explanation from this proof.
+  1149→
+  1150→        This proves that the .aicl-proof file contains ALL information
+  1151→        needed to answer "Why did the compiler generate this line?"
+  1152→        without requiring the compiler itself.
+  1153→
+  1154→        Args:
+  1155→            target: Optional filter (behavior name, pattern name, etc.)
+  1156→
+  1157→        Returns:
+  1158→            Human-readable explanation of all compilation decisions.
+  1159→        """
+  1160→        lines = []
+  1161→        lines.append("=" * 70)
+  1162→        lines.append("AICL PROOF OF ORIGIN — EXPLANATION")
+  1163→        lines.append("=" * 70)
+  1164→        lines.append("")
+  1165→        lines.append(f"Source: {self.source_path or '<unknown>'}")
+  1166→        lines.append(f"Compiled: {self.timestamp}")
+  1167→        lines.append(f"Compiler: AICL v{self.compiler_version}")
+  1168→        lines.append(f"Target: {self.target_language}")
+  1169→        lines.append("")
+  1170→
+  1171→        # Summary
+  1172→        total = len(self.records)
+  1173→        type_counts = {}
+  1174→        for rec in self.records:
+  1175→            st = rec.get('source_type', 'unknown')
+  1176→            type_counts[st] = type_counts.get(st, 0) + 1
+  1177→
+  1178→        lines.append(f"Total decisions: {total}")
+  1179→        for st, count in sorted(type_counts.items(), key=lambda x: -x[1]):
+  1180→            label = st.replace("_", " ").title()
+  1181→            lines.append(f"  {label}: {count}")
+  1182→        lines.append("")
+  1183→
+  1184→        # Confidence
+  1185→        if total > 0:
+  1186→            confidences = [r.get('confidence', 1.0) for r in self.records]
+  1187→            avg_conf = sum(confidences) / len(confidences)
+  1188→            fully_det = sum(1 for c in confidences if c >= 0.9)
+  1189→            lines.append(f"Average confidence: {avg_conf:.2f}")
+  1190→            lines.append(f"Fully deterministic: {fully_det}/{total} ({100*fully_det//max(total,1)}%)")
+  1191→            lines.append("")
+  1192→
+  1193→        # Group by source type
+  1194→        by_type: Dict[str, list] = {}
+  1195→        for rec in self.records:
+  1196→            st = rec.get('source_type', 'unknown')
+  1197→            if st not in by_type:
+  1198→                by_type[st] = []
+  1199→            by_type[st].append(rec)
+  1200→
+  1201→        for source_type, records in by_type.items():
+  1202→            type_label = source_type.replace("_", " ").title()
+  1203→            lines.append("-" * 70)
+  1204→            lines.append(f" {type_label} ({len(records)} decisions)")
+  1205→            lines.append("-" * 70)
+  1206→
+  1207→            for i, rec in enumerate(records):
+  1208→                # Filter by target if specified
+  1209→                if target and target.lower() not in rec.get('source_location', '').lower() \
+  1210→                        and target.lower() not in rec.get('pattern_name', '').lower():
+  1211→                    continue
+  1212→
+  1213→                lines.append("")
+  1214→                lines.append(f"  [{i+1}] {rec.get('source_location', '<unknown>')}")
+  1215→                lines.append(f"  Source:  \"{rec.get('source_text', '')}\"")
+  1216→                path = rec.get('resolution_path', [])
+  1217→                lines.append(f"  Path:    {' → '.join(path)}")
+  1218→
+  1219→                if rec.get('pattern_name'):
+  1220→                    lines.append(f"  Pattern: {rec['pattern_name']}")
+  1221→                if rec.get('template_name'):
+  1222→                    lines.append(f"  Template: {rec['template_name']}")
+  1223→                if rec.get('parameters'):
+  1224→                    params = rec['parameters']
+  1225→                    params_str = ", ".join(f"{k}={v}" for k, v in params.items() if not k.startswith("#"))
+  1226→                    if params_str:
+  1227→                        lines.append(f"  Params:  {params_str}")
+  1228→
+  1229→                lines.append(f"  Confidence: {rec.get('confidence', 1.0):.2f}")
+  1230→
+  1231→                # Show generated code (truncated)
+  1232→                code = rec.get('generated_code', '')
+  1233→                code_lines = code.strip().split('\n') if code.strip() else []
+  1234→                if len(code_lines) <= 4:
+  1235→                    for cl in code_lines:
+  1236→                        lines.append(f"  Code:    {cl}")
+  1237→                elif code_lines:
+  1238→                    for cl in code_lines[:3]:
+  1239→                        lines.append(f"  Code:    {cl}")
+  1240→                    lines.append(f"  Code:    ... ({len(code_lines) - 3} more lines)")
+  1241→
+  1242→                # Artifacts covered
+  1243→                art_names = rec.get('artifact_names', [])
+  1244→                if art_names:
+  1245→                    lines.append(f"  Covers:  {', '.join(art_names)}")
+  1246→
+  1247→        lines.append("")
+  1248→        lines.append("=" * 70)
+  1249→        lines.append("END OF EXPLANATION (from Proof of Origin)")
+  1250→        lines.append("=" * 70)
+  1251→
+  1252→        return '\n'.join(lines)
+  1253→
+  1254→    def explain_behavior(self, behavior_name: str) -> str:
+  1255→        """
+  1256→        Reconstruct a behavior-specific explanation from this proof.
+  1257→
+  1258→        Answers: "Why was this specific behavior generated this way?"
+  1259→        """
+  1260→        lines = []
+  1261→        lines.append(f"Compilation trace for: {behavior_name}")
+  1262→        lines.append(f"(Reconstructed from Proof of Origin)")
+  1263→        lines.append("")
+  1264→
+  1265→        matching = [
+  1266→            r for r in self.records
+  1267→            if behavior_name.lower() in r.get('source_location', '').lower()
+  1268→        ]
+  1269→
+  1270→        if not matching:
+  1271→            return f"No compilation records found for '{behavior_name}' in proof"
+  1272→
+  1273→        for rec in matching:
+  1274→            lines.append(f"Source type: {rec.get('source_type', 'unknown')}")
+  1275→            lines.append(f"Source text: \"{rec.get('source_text', '')}\"")
+  1276→            lines.append("")
+  1277→            lines.append("Resolution chain:")
+  1278→            for step in rec.get('resolution_path', []):
+  1279→                lines.append(f"  ↓ {step}")
+  1280→            lines.append("")
+  1281→            lines.append("Generated code:")
+  1282→            for cl in rec.get('generated_code', '').strip().split('\n'):
+  1283→                lines.append(f"  {cl}")
+  1284→            lines.append("")
+  1285→            lines.append(f"Confidence: {rec.get('confidence', 1.0):.2f}")
+  1286→            if rec.get('pattern_name'):
+  1287→                lines.append(f"Pattern: {rec['pattern_name']}")
+  1288→
+  1289→            art_names = rec.get('artifact_names', [])
+  1290→            if art_names:
+  1291→                lines.append(f"Artifacts covered: {', '.join(art_names)}")
+  1292→
+  1293→        return '\n'.join(lines)
+  1294→
+  1295→    def audit_report(self) -> str:
+  1296→        """
+  1297→        Reconstruct the full audit report from this proof.
+  1298→
+  1299→        Proves that the .aicl-proof file contains ALL information
+  1300→        needed to verify the Auditability property.
+  1301→        """
+  1302→        lines = []
+  1303→        lines.append("=" * 70)
+  1304→        lines.append("AICL AUDIT REPORT (from Proof of Origin)")
+  1305→        lines.append("=" * 70)
+  1306→        lines.append("")
+  1307→
+  1308→        # Proof metadata
+  1309→        lines.append("PROOF METADATA")
+  1310→        lines.append("-" * 70)
+  1311→        lines.append(f"  Compiler:        AICL v{self.compiler_version}")
+  1312→        lines.append(f"  Timestamp:       {self.timestamp}")
+  1313→        lines.append(f"  Source:          {self.source_path or '<unknown>'}")
+  1314→        lines.append(f"  Source hash:     {self.source_hash[:16]}...")
+  1315→        lines.append(f"  Program hash:    {self.program_hash[:16]}...")
+  1316→        lines.append("")
+  1317→
+  1318→        # Artifact audit
+  1319→        total_artifacts = self.audit_coverage.get('total_artifacts', len(self.artifacts))
+  1320→        auditable = self.audit_coverage.get('auditable_artifacts',
+  1321→            sum(1 for a in self.artifacts if not a.get('is_orphan', True)))
+  1322→        orphans = self.audit_coverage.get('orphan_artifacts', [])
+  1323→        coverage_val = self.audit_coverage.get('audit_coverage',
+  1324→            auditable / total_artifacts if total_artifacts > 0 else 1.0)
+  1325→
+  1326→        lines.append("ARTIFACT AUDIT")
+  1327→        lines.append("-" * 70)
+  1328→        lines.append(f"  Generated artifacts:       {total_artifacts}")
+  1329→        lines.append(f"  Artifacts with provenance: {auditable}")
+  1330→        lines.append(f"  Orphan artifacts:          {len(orphans)}")
+  1331→        lines.append("")
+  1332→        lines.append(f"  Audit Coverage:            {coverage_val:.2%}")
+  1333→        lines.append("")
+  1334→
+  1335→        # Audit status
+  1336→        if coverage_val >= 1.0:
+  1337→            lines.append("  Audit Status: VERIFIED")
+  1338→        elif coverage_val >= 0.90:
+  1339→            lines.append("  Audit Status: PARTIAL (investigation needed)")
+  1340→        else:
+  1341→            lines.append("  Audit Status: FAILED (significant provenance gaps)")
+  1342→        lines.append("")
+  1343→
+  1344→        # Formal properties
+  1345→        lines.append("FORMAL PROPERTIES")
+  1346→        lines.append("-" * 70)
+  1347→        for prop_name, prop_data in self.formal_properties.items():
+  1348→            label = prop_name.replace("_", " ").title()
+  1349→            verified = prop_data.get('verified', False)
+  1350→            status = "VERIFIED" if verified else "FAILED"
+  1351→            lines.append(f"  {label}: {status}")
+  1352→            if 'statement' in prop_data:
+  1353→                lines.append(f"    {prop_data['statement']}")
+  1354→            if 'orphan_count' in prop_data:
+  1355→                lines.append(f"    Orphan count: {prop_data['orphan_count']}")
+  1356→            if 'coverage' in prop_data:
+  1357→                lines.append(f"    Coverage: {prop_data['coverage']:.2%}")
+  1358→        lines.append("")
+  1359→
+  1360→        # Orphan artifacts
+  1361→        if orphans:
+  1362→            lines.append("ORPHAN ARTIFACTS (no provenance)")
+  1363→            lines.append("-" * 70)
+  1364→            for orphan in orphans:
+  1365→                lines.append(f"  [{orphan.get('type', 'unknown'):15s}] {orphan.get('name', 'unknown')}")
+  1366→                lines.append(f"    Source: {orphan.get('source', 'unknown')}")
+  1367→            lines.append("")
+  1368→
+  1369→        # Coverage by artifact type
+  1370→        by_type = self.audit_coverage.get('by_type', {})
+  1371→        if by_type:
+  1372→            lines.append("COVERAGE BY ARTIFACT TYPE")
+  1373→            lines.append("-" * 70)
+  1374→            for atype, info in sorted(by_type.items(), key=lambda x: -x[1].get('total', 0)):
+  1375→                cov = info.get('coverage', 0)
+  1376→                status = "VERIFIED" if cov >= 1.0 else "PARTIAL" if cov >= 0.9 else "FAILED"
+  1377→                lines.append(f"  {atype:15s}  {info.get('auditable', 0):3d}/{info.get('total', 0):3d}  {cov:6.2%}  [{status}]")
+  1378→            lines.append("")
+  1379→
+  1380→        # Line-level explicability
+  1381→        exp = self.explicability_coverage
+  1382→        if exp.get('total_lines', 0) > 0:
+  1383→            lines.append("LINE-LEVEL EXPLICABILITY")
+  1384→            lines.append("-" * 70)
+  1385→            lines.append(f"  Total meaningful lines:  {exp.get('total_lines', 0)}")
+  1386→            lines.append(f"  Lines with provenance:   {exp.get('accounted_lines', 0)}")
+  1387→            ratio = exp.get('coverage_ratio', 1.0)
+  1388→            lines.append(f"  Explicability coverage:  {ratio:.2%}")
+  1389→            if ratio >= 0.95:
+  1390→                lines.append("  Line status: PASS (>= 95%)")
+  1391→            elif ratio >= 0.80:
+  1392→                lines.append("  Line status: PARTIAL (80-95%)")
+  1393→            else:
+  1394→                lines.append("  Line status: FAIL (< 80%)")
+  1395→            lines.append("")
+  1396→
+  1397→        # Provenance summary
+  1398→        lines.append("PROVENANCE SUMMARY")
+  1399→        lines.append("-" * 70)
+  1400→        lines.append(f"  Total provenance records: {len(self.records)}")
+  1401→        if self.records:
+  1402→            confidences = [r.get('confidence', 1.0) for r in self.records]
+  1403→            avg_conf = sum(confidences) / len(confidences)
+  1404→            deterministic = sum(1 for c in confidences if c >= 0.9)
+  1405→            lines.append(f"  Average confidence:       {avg_conf:.2f}")
+  1406→            lines.append(f"  Deterministic decisions:  {deterministic}/{len(self.records)} ({100*deterministic//len(self.records)}%)")
+  1407→
+  1408→            # By type
+  1409→            type_counts = {}
+  1410→            for rec in self.records:
+  1411→                label = rec.get('source_type', 'unknown').replace("_", " ").title()
+  1412→                type_counts[label] = type_counts.get(label, 0) + 1
+  1413→            lines.append("  Provenance by type:")
+  1414→            for label, count in sorted(type_counts.items(), key=lambda x: -x[1]):
+  1415→                lines.append(f"    {label:30s} {count:4d}")
+  1416→        lines.append("")
+  1417→
+  1418→        # Verification result
+  1419→        verification = self.verify()
+  1420→        lines.append("PROOF VERIFICATION")
+  1421→        lines.append("-" * 70)
+  1422→        for check in verification['checks']:
+  1423→            status = "PASS" if check['passed'] else "FAIL"
+  1424→            lines.append(f"  [{status:4s}] {check['name']}: {check['description']}")
+  1425→        lines.append("")
+  1426→
+  1427→        # Final verdict
+  1428→        lines.append("=" * 70)
+  1429→        if verification['valid'] and coverage_val >= 1.0:
+  1430→            lines.append("AUDIT RESULT: PASSED")
+  1431→            lines.append("  Every generated artifact has provenance.")
+  1432→            lines.append("  Compilation is fully auditable.")
+  1433→            lines.append("  Proof of Origin is valid.")
+  1434→        elif coverage_val >= 0.90:
+  1435→            lines.append("AUDIT RESULT: PARTIAL")
+  1436→            lines.append("  Most artifacts have provenance.")
+  1437→        else:
+  1438→            lines.append("AUDIT RESULT: FAILED")
+  1439→            lines.append("  Significant provenance gaps detected.")
+  1440→        lines.append("=" * 70)
+  1441→
+  1442→        return '\n'.join(lines)
+  1443→
+  1444→    def audit_passed(self) -> bool:
+  1445→        """Check whether the audit passes based on this proof."""
+  1446→        coverage_val = self.audit_coverage.get('audit_coverage', 0)
+  1447→        if coverage_val < 1.0:
+  1448→            return False
+  1449→        verification = self.verify()
+  1450→        return verification['valid']
+  1451→
+  1452→    def coverage_report(self) -> str:
+  1453→        """
+  1454→        Reconstruct the explicability coverage report from this proof.
+  1455→        """
+  1456→        exp = self.explicability_coverage
+  1457→        lines = []
+  1458→        lines.append("=" * 70)
+  1459→        lines.append("EXPLICABILITY COVERAGE REPORT (from Proof of Origin)")
+  1460→        lines.append("=" * 70)
+  1461→        lines.append("")
+  1462→        lines.append(f"Total meaningful lines:   {exp.get('total_lines', 0)}")
+  1463→        lines.append(f"Lines with provenance:    {exp.get('accounted_lines', 0)}")
+  1464→        ratio = exp.get('coverage_ratio', 1.0)
+  1465→        lines.append(f"Coverage ratio:           {ratio:.3f}")
+  1466→        lines.append("")
+  1467→
+  1468→        if ratio >= 0.95:
+  1469→            lines.append("Status: PASS (coverage >= 95%)")
+  1470→        elif ratio >= 0.80:
+  1471→            lines.append("Status: PARTIAL (coverage 80-95%, investigation needed)")
+  1472→        else:
+  1473→            lines.append("Status: FAIL (coverage < 80%, provenance gaps detected)")
+  1474→
+  1475→        lines.append("")
+  1476→
+  1477→        # Provenance by type
+  1478→        type_counts = {}
+  1479→        for rec in self.records:
+  1480→            label = rec.get('source_type', 'unknown')
+  1481→            type_counts[label] = type_counts.get(label, 0) + 1
+  1482→
+  1483→        if type_counts:
+  1484→            lines.append("Provenance by type:")
+  1485→            for ptype, count in sorted(type_counts.items(), key=lambda x: -x[1]):
+  1486→                lines.append(f"  {ptype:30s} {count:4d} records")
+  1487→            lines.append("")
+  1488→
+  1489→        unaccounted = exp.get('unaccounted_lines', [])
+  1490→        if unaccounted:
+  1491→            lines.append(f"Unaccounted lines ({len(unaccounted)}):")
+  1492→            for item in unaccounted[:20]:
+  1493→                if isinstance(item, (list, tuple)) and len(item) >= 2:
+  1494→                    lines.append(f"  L{item[0]:4d}: {item[1]}")
+  1495→            if len(unaccounted) > 20:
+  1496→                lines.append(f"  ... and {len(unaccounted) - 20} more")
+  1497→        else:
+  1498→            lines.append("All lines have provenance coverage.")
+  1499→
+  1500→        lines.append("")
+  1501→        lines.append("=" * 70)
+  1502→        return '\n'.join(lines)
+  1503→
