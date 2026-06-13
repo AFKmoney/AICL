@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aicl"
-version = "0.7.0"
+version = "1.0.0"
 description = "AICL — Architecture Compilation Language: Auditable compilation with Proof of Origin. Every artifact has provenance, every proof is verifiable, every compilation is auditable."
 readme = "README.md"
 license = {text = "MIT"}
@@ -12,9 +12,9 @@ requires-python = ">=3.10"
 authors = [
     {name = "Philippe-Antoine"},
 ]
-keywords = ["aicl", "compiler", "explicable-compilation", "auditable-compilation", "provenance", "audit-coverage", "proof-of-origin", "risk-first", "architecture-as-code"]
+keywords = ["aicl", "compiler", "explicable-compilation", "auditable-compilation", "provenance", "audit-coverage", "proof-of-origin", "risk-first", "architecture-as-code", "self-healing-runtime", "ownership-model", "multi-language-targets", "cryptographic-signing"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",

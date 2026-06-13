@@ -1,5 +1,5 @@
 """
-AICL Compiler - Multi-Stage Compilation Pipeline v0.7
+AICL Compiler - Multi-Stage Compilation Pipeline v1.0
 
 Architecture Compilation with Auditable Provenance.
 
@@ -192,7 +192,7 @@ class Compiler:
             source_text=source,
             generated_source=source_code,
             generated_tests=test_code,
-            compiler_version="0.7.0",
+            compiler_version="1.0.0",
             target_language=self.target_language,
         )
 

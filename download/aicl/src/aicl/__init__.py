@@ -2,11 +2,11 @@
 AICL - Architecture Compilation Language
 Auditable Compilation: if the compiler cannot explain why, it does not generate.
 
-Version: 0.7.0
+Version: 1.0.0
 Author: Philippe-Antoine
 """
 
-__version__ = "0.7.0"
+__version__ = "1.0.0"
 __author__ = "Philippe-Antoine"
 
 from .parser import Parser, ParseError
@@ -28,6 +28,31 @@ from .provenance import (
     CompilationProvenance, ProvenanceType, ProvenanceRecord,
     GeneratedArtifact, ArtifactType, ProofOfOrigin,
 )
+from .spec_verify import (
+    SpecificationVerifier, VerificationReport, CheckResult, CheckStatus,
+    verify_source, verify_file,
+)
+from .modules import (
+    ModuleRegistry, ModuleResolver, CompiledModule,
+    ModuleExport, ImportDeclaration, CrossFileProvenance,
+    compile_multi_file, parse_imports, extract_exports,
+)
+from .crypto_signing import (
+    ProofSigner, ProofSignature, ProofChainLink,
+    create_signed_proof, verify_signed_proof,
+)
+from .runtime import (
+    RuntimeEnvironment, RuntimeProvenance, RuntimeProvenanceEvent,
+    RuntimeEventType, RecoveryExecutor, RiskRecoveryBinding,
+)
+from .ownership import (
+    OwnershipAnalyzer, OwnershipReport, OwnershipRelation,
+    OwnershipKind, Lifetime, generate_ownership_code,
+)
+from .auto_optimizer import (
+    ArchitectureOptimizer, OptimizationResult, OptimizationAction,
+    OptimizationStrategy,
+)
 
 __all__ = [
     "Parser", "ParseError",
@@ -43,4 +68,23 @@ __all__ = [
     "SubLanguageParser", "ArchitectureTemplateMapper",
     "CompilationProvenance", "ProvenanceType", "ProvenanceRecord",
     "GeneratedArtifact", "ArtifactType", "ProofOfOrigin",
+    # v0.9: Specification Verification
+    "SpecificationVerifier", "VerificationReport", "CheckResult", "CheckStatus",
+    "verify_source", "verify_file",
+    # v0.10: Multi-file Programs
+    "ModuleRegistry", "ModuleResolver", "CompiledModule",
+    "ModuleExport", "ImportDeclaration", "CrossFileProvenance",
+    "compile_multi_file", "parse_imports", "extract_exports",
+    # v0.11: Cryptographic Proof Signing
+    "ProofSigner", "ProofSignature", "ProofChainLink",
+    "create_signed_proof", "verify_signed_proof",
+    # v2.0: Self-healing Runtime
+    "RuntimeEnvironment", "RuntimeProvenance", "RuntimeProvenanceEvent",
+    "RuntimeEventType", "RecoveryExecutor", "RiskRecoveryBinding",
+    # v2.5: Memory Management
+    "OwnershipAnalyzer", "OwnershipReport", "OwnershipRelation",
+    "OwnershipKind", "Lifetime", "generate_ownership_code",
+    # v3.0: Autonomous Architecture Optimization
+    "ArchitectureOptimizer", "OptimizationResult", "OptimizationAction",
+    "OptimizationStrategy",
 ]

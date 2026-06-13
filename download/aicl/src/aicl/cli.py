@@ -31,6 +31,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from aicl import __version__, Parser, Compiler, ArchitectureTree
 from aicl.provenance import ProofOfOrigin
+from aicl.spec_verify import SpecificationVerifier, verify_file
+from aicl.targets import get_target_generator, list_targets
 
 
 def cmd_compile(args):
@@ -478,6 +480,74 @@ def cmd_version(args):
     """Display the AICL version."""
     print(f"AICL v{__version__}")
     print("Architecture Compilation Language: Auditable Compilation with Proof of Origin")
+    print(f"Target languages: python, rust, javascript, go")
+
+
+def cmd_verify(args):
+    """
+    Verify an AICL specification for completeness, coherence, and satisfaction.
+
+    Runs three levels of verification:
+        1. Completeness: all required elements present
+        2. Coherence: no contradictions or dangling references
+        3. Satisfaction: specification is implementable
+
+    Examples:
+        aicl verify pong.aicl                    # All three checks
+        aicl verify pong.aicl --completeness     # Completeness only
+        aicl verify pong.aicl --coherence        # Coherence only
+        aicl verify pong.aicl --satisfaction     # Satisfaction only
+    """
+    source = read_source(args.source)
+    from aicl.parser import Parser as P
+    parser = P(source)
+    program = parser.parse()
+    verifier = SpecificationVerifier(program)
+
+    if args.completeness:
+        report = verifier.completeness_only(source_name=args.source)
+    elif args.coherence:
+        report = verifier.coherence_only(source_name=args.source)
+    elif args.satisfaction:
+        report = verifier.satisfaction_only(source_name=args.source)
+    else:
+        report = verifier.verify(source_name=args.source)
+
+    print(report.summary())
+
+    if not report.passed:
+        sys.exit(1)
+
+
+def cmd_optimize(args):
+    """
+    Optimize the architecture of an AICL program.
+
+    Applies optimization strategies to improve the program structure:
+        - Layer consolidation
+        - Entity extraction
+        - Behavior inlining
+        - Risk distribution
+        - Parallelization
+        - Dependency reduction
+        - Validation strengthening
+
+    Every optimization is recorded in the provenance chain.
+
+    Examples:
+        aicl optimize pong.aicl
+        aicl optimize pong.aicl --max-iterations 5
+    """
+    source = read_source(args.source)
+    from aicl.parser import Parser as P
+    parser = P(source)
+    program = parser.parse()
+
+    from aicl.auto_optimizer import ArchitectureOptimizer
+    optimizer = ArchitectureOptimizer(program)
+    result = optimizer.optimize(max_iterations=args.max_iterations)
+
+    print(result.summary())
 
 
 def read_source(path: str) -> str:
@@ -504,7 +574,8 @@ def main():
     compile_parser.add_argument('--output-dir', '-o', default='./output',
                                 help='Output directory (default: ./output)')
     compile_parser.add_argument('--target', '-t', default='python',
-                                choices=['python'], help='Target language (default: python)')
+                                choices=['python', 'rust', 'javascript', 'js', 'go'],
+                                help='Target language (default: python)')
 
     # parse command
     parse_parser = subparsers.add_parser('parse', help='Parse and display AST')
@@ -552,6 +623,24 @@ def main():
     proof_parser.add_argument('--audit', '-a', action='store_true',
                               help='Show audit report from proof')
 
+    # verify command (v0.9)
+    verify_parser = subparsers.add_parser('verify',
+        help='Verify specification completeness, coherence, and satisfaction')
+    verify_parser.add_argument('source', help='AICL source file (.aicl)')
+    verify_parser.add_argument('--completeness', action='store_true',
+                               help='Run completeness checks only')
+    verify_parser.add_argument('--coherence', action='store_true',
+                               help='Run coherence checks only')
+    verify_parser.add_argument('--satisfaction', action='store_true',
+                               help='Run satisfaction checks only')
+
+    # optimize command (v3.0)
+    optimize_parser = subparsers.add_parser('optimize',
+        help='Optimize AICL program architecture')
+    optimize_parser.add_argument('source', help='AICL source file (.aicl)')
+    optimize_parser.add_argument('--max-iterations', type=int, default=10,
+                                 help='Maximum optimization iterations (default: 10)')
+
     # version command
     version_parser = subparsers.add_parser('version', help='Display version')
 
@@ -571,6 +660,10 @@ def main():
         cmd_audit(args)
     elif args.command == 'proof':
         cmd_proof(args)
+    elif args.command == 'verify':
+        cmd_verify(args)
+    elif args.command == 'optimize':
+        cmd_optimize(args)
     elif args.command == 'version':
         cmd_version(args)
     else:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-AICL White Paper Generator v0.7
+AICL White Paper Generator v1.0
 Architecture Compilation with Auditable Provenance
 
 Generates a comprehensive white paper centered on the thesis that
@@ -208,7 +208,7 @@ def page_header_footer(canvas, doc):
     canvas.setFont('Carlito', 7.5)
     canvas.setFillColor(TEXT_MUTED)
     canvas.drawString(LEFT_MARGIN, PAGE_H - 17*mm, "AICL - Architecture Compilation Language")
-    canvas.drawRightString(PAGE_W - RIGHT_MARGIN, PAGE_H - 17*mm, "v0.4.0 White Paper")
+    canvas.drawRightString(PAGE_W - RIGHT_MARGIN, PAGE_H - 17*mm, "v1.0 White Paper")
     canvas.restoreState()
 
 def cover_page_template(canvas, doc):
@@ -229,7 +229,7 @@ def build_whitepaper():
         bottomMargin=BOTTOM_MARGIN,
         title='AICL: Architecture Compilation with Auditable Provenance',
         author='Philippe-Antoine',
-        subject='AICL White Paper v0.7',
+        subject='AICL White Paper v1.0',
     )
 
     story = []
@@ -254,7 +254,7 @@ def build_whitepaper():
                         textColor=ACCENT)
     ))
     story.append(Spacer(1, 15*mm))
-    story.append(Paragraph("Version 0.7.0", cover_meta_style))
+    story.append(Paragraph("Version 1.0.0", cover_meta_style))
     story.append(Paragraph("Philippe-Antoine", cover_meta_style))
     story.append(Paragraph("June 2026", cover_meta_style))
     story.append(Spacer(1, 8*mm))
@@ -1086,7 +1086,7 @@ def build_whitepaper():
     # ════════════════════════════════════════════
     story.append(Paragraph("13. Implementation Status", h1_style))
     story.append(p(
-        "The current implementation (v0.7.0) includes a complete parser for all 10 language levels, "
+        "The current implementation (v1.0.0) includes a complete parser for all 10 language levels, "
         "a 9-stage compilation pipeline that generates Python code, a behavior pattern library with "
         "30+ deterministic patterns, a sub-language parser for explicit action specifications, a "
         "provenance tracker with 19 types that records every compilation decision, an artifact "

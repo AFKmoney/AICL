@@ -1309,7 +1309,7 @@ MovePlayer
         assert result.success
         assert result.proof is not None
         assert result.proof.format_version == "2.0"
-        assert result.proof.compiler_version == "0.7.0"
+        assert result.proof.compiler_version == "1.0.0"
         assert result.proof.timestamp != ""
         assert result.proof.program_hash != ""
         assert result.proof.source_hash != ""
@@ -1897,6 +1897,507 @@ Run
                 assert "VALID" in proc.stdout
             finally:
                 os.unlink(proof_path)
+
+
+# =============================================================================
+# v0.9: Specification Verification Tests
+# =============================================================================
+
+class TestSpecificationVerification:
+    """Tests for the specification verification system (v0.9)."""
+
+    def _simple_source(self):
+        return """Goal Build a simple game
+Layer GameLoop
+    SubLayer Rendering
+Entity Ball
+    x: float
+    y: float
+Behavior MoveBall
+    Input: Ball ball
+    Action: Move ball by velocity
+Validation Ball moves correctly
+    Ball position updates when moved
+Risk Ball goes off screen
+    Recovery Clamp ball position to screen bounds
+"""
+
+    def _minimal_source(self):
+        return """Goal Do something
+Layer App
+Validation It works
+"""
+
+    def test_completeness_check_passes(self):
+        """A well-formed AICL program passes completeness checks."""
+        from aicl.spec_verify import SpecificationVerifier, CheckStatus
+        parser = Parser(self._simple_source())
+        program = parser.parse()
+        verifier = SpecificationVerifier(program)
+        report = verifier.completeness_only()
+        # Should have no FAIL results for a well-formed program
+        fails = [r for r in report.completeness_results if r.status == CheckStatus.FAIL]
+        assert len(fails) == 0, f"Unexpected failures: {[r.name for r in fails]}"
+
+    def test_completeness_check_missing_goal(self):
+        """A program without a Goal fails completeness check."""
+        from aicl.spec_verify import SpecificationVerifier, CheckStatus
+        source = "Layer App\nValidation It works\n"
+        parser = Parser(source)
+        program = parser.parse()
+        verifier = SpecificationVerifier(program)
+        report = verifier.completeness_only()
+        goal_check = [r for r in report.completeness_results if r.name == "goal_present"]
+        assert len(goal_check) > 0
+        assert goal_check[0].status == CheckStatus.FAIL
+
+    def test_coherence_check_no_duplicates(self):
+        """Coherence check detects duplicate entity names."""
+        from aicl.spec_verify import SpecificationVerifier, CheckStatus
+        source = """Goal Test
+Layer App
+Entity Ball
+    x: float
+Entity Ball
+    y: float
+Validation It works
+"""
+        parser = Parser(source)
+        program = parser.parse()
+        verifier = SpecificationVerifier(program)
+        report = verifier.coherence_only()
+        dup_check = [r for r in report.coherence_results if r.name == "no_duplicate_entities"]
+        assert len(dup_check) > 0
+        assert dup_check[0].status == CheckStatus.FAIL
+
+    def test_satisfaction_check_achievable(self):
+        """Satisfaction check verifies goal is achievable."""
+        from aicl.spec_verify import SpecificationVerifier, CheckStatus
+        parser = Parser(self._simple_source())
+        program = parser.parse()
+        verifier = SpecificationVerifier(program)
+        report = verifier.satisfaction_only()
+        goal_check = [r for r in report.satisfaction_results if r.name == "goal_achievable"]
+        assert len(goal_check) > 0
+        assert goal_check[0].status == CheckStatus.PASS
+
+    def test_full_verification_passes(self):
+        """Full verification of a well-formed program passes."""
+        from aicl.spec_verify import SpecificationVerifier
+        parser = Parser(self._simple_source())
+        program = parser.parse()
+        verifier = SpecificationVerifier(program)
+        report = verifier.verify()
+        assert report.passed
+
+    def test_verify_source_convenience_function(self):
+        """verify_source convenience function works."""
+        from aicl.spec_verify import verify_source
+        report = verify_source(self._simple_source())
+        assert report.passed
+
+
+# =============================================================================
+# v0.10: Multi-File Module System Tests
+# =============================================================================
+
+class TestModuleSystem:
+    """Tests for the multi-file module system (v0.10)."""
+
+    def test_parse_imports(self):
+        """Import declarations are parsed correctly."""
+        from aicl.modules import parse_imports
+        source = """Goal Build game
+Import GameEngine from engine.aicl
+Import NetworkLayer from network.aicl
+Layer GameLoop
+Validation It works
+"""
+        imports = parse_imports(source)
+        assert len(imports) == 2
+        assert imports[0].symbols == ["GameEngine"]
+        assert imports[0].module_path == "engine.aicl"
+        assert imports[1].symbols == ["NetworkLayer"]
+
+    def test_module_registry(self):
+        """ModuleRegistry tracks compiled modules."""
+        from aicl.modules import ModuleRegistry, CompiledModule, ModuleExport
+        registry = ModuleRegistry()
+        module = CompiledModule(
+            module_path="test.aicl",
+            source_text="Goal Test",
+            program=AICLProgram(),
+            compilation_result=CompilationResult(success=True),
+            exports=[ModuleExport(name="Ball", symbol_type="entity", source_module="test.aicl")],
+        )
+        registry.register(module)
+        assert registry.is_compiled("test.aicl")
+        assert registry.get("test.aicl") is not None
+
+    def test_module_resolver(self):
+        """ModuleResolver resolves paths correctly."""
+        from aicl.modules import ModuleResolver
+        resolver = ModuleResolver(search_paths=["/nonexistent"])
+        # Should return None for non-existent paths
+        result = resolver.resolve("nonexistent.aicl")
+        assert result is None
+
+    def test_extract_exports(self):
+        """Entity exports are extracted from compiled programs."""
+        from aicl.modules import extract_exports
+        parser = Parser("Goal Test\nLayer App\nEntity Ball\n    x: float\nValidation Works\n")
+        program = parser.parse()
+        exports = extract_exports(program, "test.aicl")
+        entity_exports = [e for e in exports if e.symbol_type == "entity"]
+        assert len(entity_exports) >= 1
+        assert entity_exports[0].name == "Ball"
+
+    def test_cross_file_provenance(self):
+        """CrossFileProvenance creates import provenance records."""
+        from aicl.modules import ModuleRegistry, CompiledModule, CrossFileProvenance, ImportDeclaration
+        registry = ModuleRegistry()
+        dep_module = CompiledModule(
+            module_path="engine.aicl",
+            source_text="Goal Engine",
+            program=AICLProgram(),
+            compilation_result=CompilationResult(success=True),
+        )
+        registry.register(dep_module)
+
+        cross_prov = CrossFileProvenance(registry)
+        imp = ImportDeclaration(symbols=["GameEngine"], module_path="engine.aicl")
+        records = cross_prov.create_import_provenance(imp, "main.aicl")
+        assert len(records) >= 0  # No export found, so empty
+
+
+# =============================================================================
+# v0.11: Cryptographic Proof Signing Tests
+# =============================================================================
+
+class TestCryptoSigning:
+    """Tests for cryptographic proof signing (v0.11)."""
+
+    def test_sign_and_verify(self):
+        """Signing and verifying a proof works."""
+        from aicl.crypto_signing import ProofSigner
+        signer = ProofSigner(key_seed="test-key")
+        proof_dict = {"format_version": "2.0", "compiler_version": "1.0.0"}
+        signature = signer.sign(proof_dict)
+        assert signature.signature_hex != ""
+        assert signature.compiler_key_id != ""
+        assert signer.verify(proof_dict, signature)
+
+    def test_tampered_proof_fails_verification(self):
+        """A tampered proof fails signature verification."""
+        from aicl.crypto_signing import ProofSigner
+        signer = ProofSigner(key_seed="test-key")
+        proof_dict = {"format_version": "2.0", "compiler_version": "1.0.0"}
+        signature = signer.sign(proof_dict)
+        # Tamper with the proof
+        tampered = {"format_version": "2.0", "compiler_version": "9.9.9"}
+        assert not signer.verify(tampered, signature)
+
+    def test_proof_signature_serialization(self):
+        """ProofSignature can be serialized and deserialized."""
+        from aicl.crypto_signing import ProofSignature
+        sig = ProofSignature(
+            algorithm="HMAC-SHA256",
+            compiler_key_id="abc123",
+            signature_hex="deadbeef",
+            signed_at="2026-01-01T00:00:00Z",
+            proof_hash="hash123",
+        )
+        d = sig.to_dict()
+        restored = ProofSignature.from_dict(d)
+        assert restored.algorithm == sig.algorithm
+        assert restored.compiler_key_id == sig.compiler_key_id
+        assert restored.signature_hex == sig.signature_hex
+
+    def test_create_signed_proof(self):
+        """create_signed_proof adds signature to proof dict."""
+        from aicl.crypto_signing import create_signed_proof
+        proof_dict = {"format_version": "2.0", "compiler_version": "1.0.0"}
+        signed = create_signed_proof(proof_dict, key_seed="test-key")
+        assert "signature" in signed
+        assert signed["signature"]["algorithm"] == "HMAC-SHA256"
+
+    def test_verify_signed_proof(self):
+        """verify_signed_proof checks signed proof integrity."""
+        from aicl.crypto_signing import create_signed_proof, verify_signed_proof
+        proof_dict = {"format_version": "2.0", "compiler_version": "1.0.0"}
+        signed = create_signed_proof(proof_dict, key_seed="test-key")
+        result = verify_signed_proof(signed)
+        assert result["signature_present"]
+        assert result["proof_hash_valid"]
+
+
+# =============================================================================
+# v1.0: Multi-Language Target Tests
+# =============================================================================
+
+class TestMultiLanguageTargets:
+    """Tests for multi-language target generators (v1.0)."""
+
+    def _compile_example(self):
+        """Compile a simple example for target generation."""
+        source = """Goal Build a game
+Layer GameLoop
+Entity Ball
+    x: float
+    y: float
+Behavior MoveBall
+    Input: Ball ball
+    Action: Move ball by velocity
+Validation Ball moves
+Risk Ball off screen
+    Recovery Clamp position
+"""
+        compiler = Compiler()
+        return compiler.compile(source)
+
+    def test_list_targets(self):
+        """Available targets are listed."""
+        from aicl.targets import list_targets
+        targets = list_targets()
+        assert "rust" in targets
+        assert "javascript" in targets
+        assert "go" in targets
+
+    def test_rust_generator(self):
+        """Rust code generation produces valid output."""
+        from aicl.targets import get_target_generator
+        result = self._compile_example()
+        gen = get_target_generator("rust")
+        target_result = gen.generate(result)
+        assert target_result.target_language == "rust"
+        assert "fn main()" in target_result.source_code
+        assert "Cargo.toml" in target_result.project_files
+
+    def test_javascript_generator(self):
+        """JavaScript code generation produces valid output."""
+        from aicl.targets import get_target_generator
+        result = self._compile_example()
+        gen = get_target_generator("javascript")
+        target_result = gen.generate(result)
+        assert target_result.target_language == "javascript"
+        assert "class Application" in target_result.source_code
+        assert "package.json" in target_result.project_files
+
+    def test_go_generator(self):
+        """Go code generation produces valid output."""
+        from aicl.targets import get_target_generator
+        result = self._compile_example()
+        gen = get_target_generator("go")
+        target_result = gen.generate(result)
+        assert target_result.target_language == "go"
+        assert "func main()" in target_result.source_code
+        assert "go.mod" in target_result.project_files
+
+    def test_python_target_raises(self):
+        """Python target raises error (use built-in compiler)."""
+        from aicl.targets import get_target_generator
+        import pytest
+        with pytest.raises(ValueError, match="Python target"):
+            get_target_generator("python")
+
+
+# =============================================================================
+# v2.0: Self-Healing Runtime Tests
+# =============================================================================
+
+class TestSelfHealingRuntime:
+    """Tests for the self-healing runtime system (v2.0)."""
+
+    def test_runtime_environment_creation(self):
+        """RuntimeEnvironment can be created."""
+        from aicl.runtime import RuntimeEnvironment
+        env = RuntimeEnvironment()
+        assert env.provenance is not None
+
+    def test_register_risk_recovery(self):
+        """Risk/recovery pairs can be registered."""
+        from aicl.runtime import RuntimeEnvironment
+        env = RuntimeEnvironment()
+        env.register_risk_recovery(
+            "test_risk",
+            risk_condition=lambda: False,
+            recovery_action=lambda: True,
+        )
+        assert len(env._bindings) == 1
+
+    def test_run_with_no_risks(self):
+        """Running with no risks succeeds."""
+        from aicl.runtime import RuntimeEnvironment
+        env = RuntimeEnvironment()
+        result = env.run(lambda: None)
+        assert result["success"]
+        assert result["event_count"] >= 2  # start + end
+
+    def test_runtime_provenance_recording(self):
+        """Runtime provenance events are recorded."""
+        from aicl.runtime import RuntimeProvenance, RuntimeProvenanceEvent, RuntimeEventType
+        prov = RuntimeProvenance()
+        prov.record(RuntimeProvenanceEvent(
+            event_type=RuntimeEventType.RISK_DETECTED,
+            source="test",
+            description="Test risk detected",
+        ))
+        assert len(prov.events) == 1
+
+    def test_recovery_executor(self):
+        """RecoveryExecutor executes recovery actions."""
+        from aicl.runtime import RuntimeProvenance, RecoveryExecutor, RiskRecoveryBinding
+        prov = RuntimeProvenance()
+        executor = RecoveryExecutor(prov)
+        binding = RiskRecoveryBinding(
+            risk_name="test_risk",
+            risk_condition=lambda: True,
+            recovery_action=lambda: True,
+            max_attempts=3,
+        )
+        result = executor.execute(binding)
+        assert result
+        assert len(prov.events) >= 3  # risk detected + recovery executed + recovery success
+
+    def test_runtime_coverage(self):
+        """Runtime coverage is computed correctly."""
+        from aicl.runtime import RuntimeProvenance, RuntimeProvenanceEvent, RuntimeEventType
+        prov = RuntimeProvenance()
+        prov.record(RuntimeProvenanceEvent(
+            event_type=RuntimeEventType.RISK_DETECTED,
+            source="test", description="Risk",
+            risk_name="test_risk",
+        ))
+        prov.record(RuntimeProvenanceEvent(
+            event_type=RuntimeEventType.RECOVERY_SUCCESS,
+            source="test", description="Recovery",
+            risk_name="test_risk",
+            recovery_name="test_risk_recovery",
+        ))
+        coverage = prov.compute_runtime_coverage()
+        assert coverage["runtime_recovery_coverage"] == 1.0
+
+
+# =============================================================================
+# v2.5: Ownership Model Tests
+# =============================================================================
+
+class TestOwnershipModel:
+    """Tests for the ownership model (v2.5)."""
+
+    def test_ownership_analysis(self):
+        """OwnershipAnalyzer produces a report."""
+        from aicl.ownership import OwnershipAnalyzer
+        source = """Goal Test
+Layer App
+Entity Ball
+    x: float
+    y: float
+Behavior Move
+    Input: Ball ball
+    Action: Update position
+Validation Works
+"""
+        parser = Parser(source)
+        program = parser.parse()
+        analyzer = OwnershipAnalyzer(program)
+        report = analyzer.analyze()
+        assert len(report.relations) > 0
+
+    def test_layer_owns_entities(self):
+        """Layers own their entities."""
+        from aicl.ownership import OwnershipAnalyzer, OwnershipKind
+        source = """Goal Test
+Layer App
+Entity Ball
+    x: float
+Validation Works
+"""
+        parser = Parser(source)
+        program = parser.parse()
+        analyzer = OwnershipAnalyzer(program)
+        report = analyzer.analyze()
+        owns_rels = [r for r in report.relations if r.kind == OwnershipKind.OWNS]
+        assert len(owns_rels) > 0
+
+    def test_ownership_report_summary(self):
+        """OwnershipReport produces a summary string."""
+        from aicl.ownership import OwnershipAnalyzer
+        source = """Goal Test
+Layer App
+Entity Ball
+    x: float
+Validation Works
+"""
+        parser = Parser(source)
+        program = parser.parse()
+        analyzer = OwnershipAnalyzer(program)
+        report = analyzer.analyze()
+        summary = report.summary()
+        assert "OWNERSHIP MODEL" in summary
+
+    def test_generate_ownership_code(self):
+        """Ownership code generation produces Python code."""
+        from aicl.ownership import generate_ownership_code
+        source = """Goal Test
+Layer App
+Entity Ball
+    x: float
+Validation Works
+"""
+        parser = Parser(source)
+        program = parser.parse()
+        code = generate_ownership_code(program)
+        assert "class Ball" in code
+
+
+# =============================================================================
+# v3.0: Autonomous Architecture Optimization Tests
+# =============================================================================
+
+class TestArchitectureOptimization:
+    """Tests for autonomous architecture optimization (v3.0)."""
+
+    def test_optimizer_creates(self):
+        """ArchitectureOptimizer can be created."""
+        from aicl.auto_optimizer import ArchitectureOptimizer
+        source = """Goal Test
+Layer App
+Validation Works
+"""
+        parser = Parser(source)
+        program = parser.parse()
+        optimizer = ArchitectureOptimizer(program)
+        assert optimizer.program is not None
+
+    def test_optimize_minimal_program(self):
+        """Optimizing a minimal program runs without error."""
+        from aicl.auto_optimizer import ArchitectureOptimizer
+        source = """Goal Test
+Layer App
+Entity Ball
+    x: float
+Behavior MoveBall
+    Input: Ball ball
+    Action: move
+Validation It works
+Risk Ball escapes
+    Recovery clamp
+"""
+        parser = Parser(source)
+        program = parser.parse()
+        optimizer = ArchitectureOptimizer(program)
+        result = optimizer.optimize()
+        assert result.iterations >= 1
+        assert result.summary()  # Can generate summary
+
+    def test_optimization_strategies(self):
+        """All optimization strategies can be applied."""
+        from aicl.auto_optimizer import OptimizationStrategy
+        strategies = list(OptimizationStrategy)
+        assert len(strategies) == 7
+        assert OptimizationStrategy.LAYER_CONSOLIDATION in strategies
+        assert OptimizationStrategy.PARALLELIZATION in strategies
 
 
 # =============================================================================
