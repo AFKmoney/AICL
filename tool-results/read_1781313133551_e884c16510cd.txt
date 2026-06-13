@@ -1,0 +1,709 @@
+     1→<div align="center">
+     2→
+     3→# AICL
+     4→
+     5→**Architecture Compilation Language**
+     6→
+     7→*If the compiler cannot explain why it generated a line, it should not generate it.*
+     8→*And this property must be independently verifiable without trusting the compiler.*
+     9→
+    10→[![Version](https://img.shields.io/badge/version-0.7.0-blue.svg)](https://github.com/AFKmoney/AICL)
+    11→[![Status](https://img.shields.io/badge/status-alpha-orange.svg)](https://github.com/AFKmoney/AICL)
+    12→[![Python](https://img.shields.io/badge/python-3.10+-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
+    13→[![Tests](https://img.shields.io/badge/tests-95%20passing-brightgreen.svg)](https://github.com/AFKmoney/AICL)
+    14→[![Audit](https://img.shields.io/badge/audit%20coverage-100%25-brightgreen.svg)](https://github.com/AFKmoney/AICL)
+    15→[![Proof](https://img.shields.io/badge/proof%20of%20origin-verifiable-brightgreen.svg)](https://github.com/AFKmoney/AICL)
+    16→[![License](https://img.shields.io/badge/license-MIT-purple.svg)](https://github.com/AFKmoney/AICL/blob/main/LICENSE)
+    17→
+    18→[Install](#install) · [Quick Start](#quick-start) · [Proof of Origin](#proof-of-origin) · [Audit System](#audit-system) · [Language Reference](#language-levels) · [Grammar](spec/grammar.md) · [White Paper](docs/whitepaper.pdf)
+    19→
+    20→</div>
+    21→
+    22→---
+    23→
+    24→## Why AICL Exists
+    25→
+    26→Every production system needs error handling, failure recovery, and validation. Yet in every mainstream language, these are **optional afterthoughts** — scattered across try/catch blocks, buried in documentation, or forgotten entirely.
+    27→
+    28→**3:00 AM pages happen because risks were documented in Confluence, not compiled into code.**
+    29→
+    30→But there is a deeper problem. Modern compilers and AI code generators produce millions of lines of code without ever being able to answer a simple question: **why?** Why was this line generated? What architectural decision produced it? What risk does this recovery address? And — critically — **can you verify this without trusting the compiler itself?**
+    31→
+    32→No mainstream system can answer these questions. The code exists, but the reasoning behind it is lost the moment compilation finishes. And when the only entity that can vouch for the code's correctness is the same entity that generated it, you have a problem:
+    33→
+    34→> **Trust me bro → AICL says AICL is correct**
+    35→
+    36→AICL exists to solve this — and to make that solution **measurable and independently verifiable**.
+    37→
+    38→## The Core Idea
+    39→
+    40→AICL is an **Architecture Compilation System** that produces not just code, but a **Proof of Origin**: a self-contained, cryptographically bound artifact that proves every generated line has traceable provenance, and that this proof can be verified by anyone without installing AICL.
+    41→
+    42→This means five things that no other system does together:
+    43→
+    44→1. **Risk and Recovery are not optional.** You cannot write an AICL program without specifying what can fail and how to recover. The compiler enforces this the way other compilers enforce types.
+    45→
+    46→2. **Validation compiles into tests.** Every `Validation:` section becomes executable test code — not a comment, not a wish, but a compiled test.
+    47→
+    48→3. **Every artifact is explainable.** `aicl explain` tells you exactly why each method was generated, what pattern matched, and what source it came from.
+    49→
+    50→4. **Audit coverage is measurable.** `aicl audit` verifies that every generated artifact has provenance. The target is always: **Audit Coverage = 100%**.
+    51→
+    52→5. **Proofs are independently verifiable.** `verify_proof.py` (200 lines, zero AICL dependencies) verifies that the No-Orphan Property holds — without the compiler, without the parser, without trusting AICL at all.
+    53→
+    54→```aicl
+    55→Risk:
+    56→    Ball leaves play area
+    57→
+    58→Recovery:
+    59→    Clamp ball position to boundaries
+    60→```
+    61→
+    62→This is not a comment. It is not a try/catch you might remember to write. It is a **first-class language construct** that the compiler transforms into executable recovery logic — and produces a cryptographic proof that this transformation is traceable.
+    63→
+    64→## What Makes This Different
+    65→
+    66→Several systems have tried "architecture to code." That is not the novelty here.
+    67→
+    68→The novelty is **auditable compilation with independently verifiable proof of origin**:
+    69→
+    70→| | Traditional Compilers | AI Code Generators | AICL |
+    71→|---|---|---|---|
+    72→| **Risks** | Optional try/catch | Not considered | Mandatory `Risk:` keyword |
+    73→| **Recovery** | Scattered error handlers | Not considered | Paired `Recovery:` per risk |
+    74→| **Validation** | Separate test files | Not generated | Compiled from `Validation:` sections |
+    75→| **Architecture** | Documentation only | Hallucinated | Executable `Layer:` definitions |
+    76→| **Provenance** | None | None | Full audit trail (`aicl explain`) |
+    77→| **Audit** | None | None | Measurable coverage (`aicl audit`) |
+    78→| **Proof of Origin** | None | None | Self-contained `.aicl-proof` file |
+    79→| **Independent Verification** | None | None | `verify_proof.py` (zero AICL deps) |
+    80→| **Determinism** | Deterministic | Probabilistic | Deterministic by contract |
+    81→
+    82→The key insight: **AICL does not use AI to write code.** AI is an optional plugin. The core compiler is 100% deterministic, using a library of 30+ behavior patterns. This is a deliberate design choice — you should never need to wonder whether your compiler made a creative decision.
+    83→
+    84→**Traditional compilers generate code. AI generates code without accountability. AICL generates code with cryptographic proof of origin.**
+    85→
+    86→---
+    87→
+    88→## Proof of Origin
+    89→
+    90→The Proof of Origin is AICL's central artifact. When you compile:
+    91→
+    92→```
+    93→aicl compile pong.aicl --output-dir ./output
+    94→```
+    95→
+    96→You get:
+    97→
+    98→```
+    99→output/
+   100→├── main.py              # Executable program
+   101→├── test_main.py         # Generated test suite
+   102→├── architecture_tree.txt # Architecture visualization
+   103→└── main.aicl-proof      # Proof of Origin — the central artifact
+   104→```
+   105→
+   106→### The Architectural Shift
+   107→
+   108→```
+   109→Before:    AICL source → Compiler → Code
+   110→Then:      AICL source → Compiler → Code + Explain
+   111→Then:      AICL source → Compiler → Code + Audit
+   112→Now:       AICL source → Compiler → Proof of Origin
+   113→                                        ├── Code
+   114→                                        ├── Explain
+   115→                                        └── Audit
+   116→```
+   117→
+   118→The proof is the central artifact. Code, explain, and audit are all **views on the proof**.
+   119→
+   120→### Independent Verification
+   121→
+   122→The critical test: **can a third party verify the proof without using AICL?**
+   123→
+   124→```bash
+   125→# This uses ZERO AICL dependencies — only Python stdlib
+   126→python tools/verify_proof.py output/main.aicl-proof
+   127→
+   128→# Output:
+   129→======================================================================
+   130→AICL PROOF OF ORIGIN — INDEPENDENT VERIFICATION
+   131→======================================================================
+   132→
+   133→  [PASS] format_version
+   134→  [PASS] source_hash_binding
+   135→  [PASS] program_hash_binding
+   136→  [PASS] test_hash_binding
+   137→  [PASS] no_orphan_artifact_property
+   138→  [PASS] complete_coverage_property
+   139→  [PASS] record_artifact_linkage
+   140→  [PASS] artifact_consistency
+   141→
+   142→======================================================================
+   143→VERDICT: VALID
+   144→
+   145→  This Proof of Origin is independently verifiable.
+   146→  No AICL compiler, parser, or project dependency was used.
+   147→  The No-Orphan Property is verified as a property of the artifact,
+   148→  not as a claim of the compiler.
+   149→======================================================================
+   150→```
+   151→
+   152→**The No-Orphan Property is not a feature of the compiler. It is a verifiable property of an artifact produced by the compiler.** This distinction is critical.
+   153→
+   154→### Proof Format v2.0
+   155→
+   156→The `.aicl-proof` file (JSON) contains:
+   157→
+   158→| Field | Purpose |
+   159→|-------|---------|
+   160→| `source_text` | Original AICL source |
+   161→| `generated_source` | Generated program code |
+   162→| `generated_tests` | Generated test code |
+   163→| `source_hash` | SHA-256 of source text |
+   164→| `program_hash` | SHA-256 of generated program |
+   165→| `test_hash` | SHA-256 of generated tests |
+   166→| `formal_properties` | No Orphan, Complete Coverage, Hash Binding |
+   167→| `records` | All provenance records (19 types) |
+   168→| `artifacts` | All generated artifacts with provenance linkage |
+   169→
+   170→The proof is self-contained: an independent verifier recomputes hashes from the embedded code and compares them to the stored values. Any tampering is detected.
+   171→
+   172→### Working with Proofs
+   173→
+   174→```bash
+   175→# Inspect a proof
+   176→aicl proof output/main.aicl-proof
+   177→
+   178→# Verify a proof
+   179→aicl proof output/main.aicl-proof --verify
+   180→
+   181→# Explain from proof (no compiler needed)
+   182→aicl explain --proof output/main.aicl-proof
+   183→aicl explain --proof output/main.aicl-proof --behavior MovePaddle
+   184→
+   185→# Audit from proof (no compiler needed)
+   186→aicl audit --proof output/main.aicl-proof
+   187→aicl audit --proof output/main.aicl-proof --strict
+   188→
+   189→# Independent verification (no AICL needed at all)
+   190→python tools/verify_proof.py output/main.aicl-proof
+   191→```
+   192→
+   193→---
+   194→
+   195→## Audit System
+   196→
+   197→The audit system is AICL's most original contribution. It introduces concepts that no other compiler offers:
+   198→
+   199→### Auditability
+   200→
+   201→> A program is **auditable** if every generated artifact can be traced to its originating specification through a complete provenance chain.
+   202→
+   203→### Audit Coverage
+   204→
+   205→> **Audit Coverage = Auditable Artifacts / Generated Artifacts**
+   206→>
+   207→> Target: **Audit Coverage = 1.0** (100%)
+   208→
+   209→### Orphan Artifacts
+   210→
+   211→> An **orphan artifact** is a generated artifact (method, class, function, test) without provenance. It exists in the code, but the compiler cannot explain why.
+   212→
+   213→### Formal Properties
+   214→
+   215→The audit system verifies three formal properties:
+   216→
+   217→| Property | Statement | Verification |
+   218→|----------|-----------|-------------|
+   219→| **No Orphan Artifact** | Every generated artifact has at least one provenance chain | Orphan count = 0 |
+   220→| **Complete Coverage** | Audit Coverage = 1.0 | All artifacts have provenance |
+   221→| **Hash Binding** | Proof is cryptographically bound to generated code | SHA-256 hashes match |
+   222→
+   223→### Using the Audit System
+   224→
+   225→```bash
+   226→# Full audit report
+   227→aicl audit examples/02_pong.aicl
+   228→
+   229→# Strict mode: fail if coverage < 100%
+   230→aicl audit examples/02_pong.aicl --strict
+   231→
+   232→# Audit from proof file (no compiler needed)
+   233→aicl audit --proof output/main.aicl-proof --strict
+   234→```
+   235→
+   236→Example output:
+   237→
+   238→```
+   239→======================================================================
+   240→AICL AUDIT REPORT
+   241→======================================================================
+   242→
+   243→ARTIFACT AUDIT
+   244→----------------------------------------------------------------------
+   245→  Generated artifacts:       52
+   246→  Artifacts with provenance: 52
+   247→  Orphan artifacts:          0
+   248→
+   249→  Audit Coverage:            100.00%
+   250→
+   251→  Audit Status: VERIFIED
+   252→
+   253→COVERAGE BY ARTIFACT TYPE
+   254→----------------------------------------------------------------------
+   255→  method          35/ 35  100.00%  [VERIFIED]
+   256→  test_function   12/ 12  100.00%  [VERIFIED]
+   257→  dataclass        2/ 2  100.00%  [VERIFIED]
+   258→  class            1/ 1  100.00%  [VERIFIED]
+   259→  function         1/ 1  100.00%  [VERIFIED]
+   260→  import_block     1/ 1  100.00%  [VERIFIED]
+   261→
+   262→======================================================================
+   263→AUDIT RESULT: PASSED
+   264→  Every generated artifact has provenance.
+   265→  Compilation is fully auditable.
+   266→======================================================================
+   267→```
+   268→
+   269→---
+   270→
+   271→## What It Looks Like
+   272→
+   273→A complete Pong game in AICL:
+   274→
+   275→```aicl
+   276→Goal:
+   277→    Build a Pong game
+   278→
+   279→Constraint:
+   280→    Must run at 60 FPS minimum
+   281→
+   282→Risk:
+   283→    Ball leaves play area
+   284→
+   285→Recovery:
+   286→    Clamp ball position to boundaries
+   287→
+   288→Risk:
+   289→    Input lag detected
+   290→
+   291→Recovery:
+   292→    Enable input buffering
+   293→
+   294→Layer:
+   295→    Window Manager
+   296→
+   297→Layer:
+   298→    Rendering System
+   299→        Sublayer: Sprite rendering
+   300→        Sublayer: Text rendering
+   301→        Sublayer: Background rendering
+   302→
+   303→Layer:
+   304→    Input System
+   305→
+   306→Layer:
+   307→    Physics Engine
+   308→        Sublayer: Ball movement
+   309→        Sublayer: Collision detection
+   310→        Sublayer: Paddle movement
+   311→
+   312→Layer:
+   313→    Game Logic
+   314→        Sublayer: Score tracking
+   315→        Sublayer: Game state management
+   316→
+   317→Entity Player
+   318→    name: string
+   319→    score: integer
+   320→    paddle_position: float
+   321→
+   322→Entity Ball
+   323→    x: float
+   324→    y: float
+   325→    velocity_x: float
+   326→    velocity_y: float
+   327→
+   328→Behavior MovePaddle
+   329→    Input: Player direction string
+   330→    Action: Update paddle position based on direction
+   331→
+   332→Behavior UpdateBall
+   333→    Input: Ball
+   334→    Action: Update ball position and handle collisions
+   335→
+   336→Condition:
+   337→    When ball hits paddle
+   338→    Then reflect ball velocity
+   339→
+   340→Condition:
+   341→    When score reaches 10
+   342→    Then end match
+   343→
+   344→Event:
+   345→    On key press
+   346→    Action: move corresponding paddle
+   347→
+   348→Parallel:
+   349→    Rendering System
+   350→    Input System
+   351→    Physics Engine
+   352→
+   353→Validation:
+   354→    Complete one playable match
+   355→
+   356→Validation:
+   357→    Maintain 60 FPS during gameplay
+   358→```
+   359→
+   360→Compile it:
+   361→
+   362→```bash
+   363→aicl compile examples/02_pong.aicl --output-dir ./output
+   364→```
+   365→
+   366→Then verify the proof independently:
+   367→
+   368→```bash
+   369→python tools/verify_proof.py output/main.aicl-proof
+   370→# → VALID
+   371→```
+   372→
+   373→Verify that every generated artifact has provenance — because **if you can't audit it, you can't trust it, and if you can't verify the audit independently, you're still just trusting the compiler**.
+   374→
+   375→---
+   376→
+   377→## Install
+   378→
+   379→```bash
+   380→git clone https://github.com/AFKmoney/AICL.git
+   381→cd AICL
+   382→pip install -e .
+   383→```
+   384→
+   385→## Quick Start
+   386→
+   387→### Compile an AICL program
+   388→
+   389→```bash
+   390→aicl compile examples/02_pong.aicl --output-dir ./output
+   391→```
+   392→
+   393→### Verify the proof independently
+   394→
+   395→```bash
+   396→python tools/verify_proof.py output/main.aicl-proof
+   397→```
+   398→
+   399→### Audit the compilation
+   400→
+   401→```bash
+   402→aicl audit examples/02_pong.aicl               # Full audit report
+   403→aicl audit examples/02_pong.aicl --strict       # Fail if coverage < 100%
+   404→aicl audit --proof output/main.aicl-proof       # Audit from proof (no compiler)
+   405→```
+   406→
+   407→### Inspect the architecture
+   408→
+   409→```bash
+   410→aicl tree examples/04_chess.aicl       # Visualize the architecture tree
+   411→aicl parse examples/03_chat.aicl       # Dump the AST
+   412→aicl check examples/01_blue_square.aicl # Validate without compiling
+   413→```
+   414→
+   415→### Understand the compilation
+   416→
+   417→```bash
+   418→aicl explain examples/02_pong.aicl                          # Full compilation trace
+   419→aicl explain examples/02_pong.aicl --behavior MovePaddle    # Specific behavior trace
+   420→aicl explain examples/02_pong.aicl --coverage               # Explicability coverage report
+   421→aicl explain --proof output/main.aicl-proof                  # Explain from proof (no compiler)
+   422→```
+   423→
+   424→### Inspect and verify a proof
+   425→
+   426→```bash
+   427→aicl proof output/main.aicl-proof                # Inspect proof
+   428→aicl proof output/main.aicl-proof --verify       # Verify proof integrity
+   429→aicl proof output/main.aicl-proof --explain      # Full explanation from proof
+   430→aicl proof output/main.aicl-proof --audit        # Audit report from proof
+   431→```
+   432→
+   433→### Run the tests
+   434→
+   435→```bash
+   436→python -m pytest tests/ -v
+   437→```
+   438→
+   439→---
+   440→
+   441→## Examples
+   442→
+   443→The `examples/` directory contains four programs of increasing complexity — all achieving **100% audit coverage** and **independently verifiable Proofs of Origin**:
+   444→
+   445→| Example | Levels Used | Artifacts | Audit Coverage | Proof Verified |
+   446→|---------|------------|-----------|----------------|----------------|
+   447→| [`01_blue_square.aicl`](examples/01_blue_square.aicl) | 1 | 35 | 100% | VALID |
+   448→| [`02_pong.aicl`](examples/02_pong.aicl) | 1–6 | 52 | 100% | VALID |
+   449→| [`03_chat.aicl`](examples/03_chat.aicl) | 1–9 | 58 | 100% | VALID |
+   450→| [`04_chess.aicl`](examples/04_chess.aicl) | 1–9 | 59 | 100% | VALID |
+   451→
+   452→---
+   453→
+   454→## Language Levels
+   455→
+   456→AICL is organized in 10 progressive levels. Every program must include **Level 1**; higher levels are used as needed.
+   457→
+   458→| Level | Feature | Keywords | Example |
+   459→|:-----:|---------|----------|---------|
+   460→| **1** | **Architecture** *(mandatory)* | `Goal` `Constraint` `Risk` `Recovery` `Layer` `Sublayer` `Validation` | Every AICL program |
+   461→| **2** | **Entities** | `Entity` + typed fields | Data models |
+   462→| **3** | **Behaviors** | `Behavior` `Input` `Output` `Action` | Entity operations |
+   463→| **4** | **Conditions** | `Condition` `When` `Then` | Replace if/else |
+   464→| **5** | **Events** | `Event` `On` `Action` | Event-driven logic |
+   465→| **6** | **Concurrency** | `Parallel` | Concurrent layer execution |
+   466→| **7** | **Optimization** | `Optimize` `Priority` | Performance targets |
+   467→| **8** | **Learning** | `Learn` `Adapt` `Based` | ML integration |
+   468→| **9** | **Security** | `Security` `Encrypt` `Protect` | Security directives |
+   469→| **10** | **Native Code** | `Native` | Escape hatch for low-level code |
+   470→
+   471→### Minimal Valid Program
+   472→
+   473→A Level 1 program needs just three things — a goal, a layer, and a validation:
+   474→
+   475→```aicl
+   476→Goal:
+   477→    Hello World
+   478→
+   479→Layer:
+   480→    Core
+   481→
+   482→Validation:
+   483→    Output is produced
+   484→```
+   485→
+   486→---
+   487→
+   488→## Compilation Pipeline
+   489→
+   490→The AICL compiler does not just translate — it **reasons** about your architecture through a 9-stage pipeline, recording provenance at every step:
+   491→
+   492→```
+   493→  ┌─────────────┐
+   494→  │  AICL Source │
+   495→  └──────┬──────┘
+   496→         │
+   497→    ┌────▼────┐
+   498→    │  Parse  │  ──→ AST (17 node types)
+   499→    └────┬────┘
+   500→         │
+   501→    ┌────▼──────────┐
+   502→    │  Architecture  │  ──→ Structural completeness check
+   503→    │  Validation    │     (Goal, Layer, Validation present)
+   504→    └────┬──────────┘
+   505→         │
+   506→    ┌────▼──────────┐
+   507→    │  Dependency   │  ──→ Layer dependency graph
+   508→    │  Analysis     │
+   509→    └────┬──────────┘
+   510→         │
+   511→    ┌────▼──────────┐
+   512→    │  Risk         │  ──→ Risk/Recovery pairing
+   513→    │  Analysis     │     (every Risk needs a Recovery)
+   514→    └────┬──────────┘
+   515→         │
+   516→    ┌────▼──────────┐
+   517→    │  Recovery     │  ──→ Recovery logic synthesis
+   518→    │  Synthesis    │     + provenance recording
+   519→    └────┬──────────┘
+   520→         │
+   521→    ┌────▼──────────┐
+   522→    │  Code         │  ──→ Python source + error handling
+   523→    │  Generation   │     (30+ deterministic patterns)
+   524→    │               │     + artifact registration
+   525→    │               │     + provenance per artifact
+   526→    └────┬──────────┘
+   527→         │
+   528→    ┌────▼──────────┐
+   529→    │  Test         │  ──→ pytest suite from Validations
+   530→    │  Generation   │     + artifact registration
+   531→    │               │     + provenance linking
+   532→    └────┬──────────┘
+   533→         │
+   534→    ┌────▼──────────┐
+   535→    │  Optimization │  ──→ Apply Optimize/Priority hints
+   536→    └────┬──────────┘
+   537→         │
+   538→    ┌────▼──────────┐
+   539→    │  Final        │  ──→ main.py + test_main.py + tree
+   540→    │  Construction │     + main.aicl-proof (Proof of Origin)
+   541→    └──────────────┘
+   542→```
+   543→
+   544→### Deterministic Behavior Compilation
+   545→
+   546→The **Behavior Pattern Library** maps action descriptions to concrete code through 30+ deterministic patterns:
+   547→
+   548→| Category | Patterns | Example |
+   549→|----------|----------|---------|
+   550→| Movement | MOVE, MOVE_BALL, REFLECT_VELOCITY, CLAMP_POSITION | "Update paddle position" → MOVE pattern |
+   551→| Creation | CREATE, INIT_LAYER, CREATE_WINDOW | "Create new game" → CREATE pattern |
+   552→| Communication | BROADCAST, SEND_MESSAGE | "Transmit message" → BROADCAST pattern |
+   553→| Update | UPDATE, INCREMENT_SCORE, UPDATE_STATE | "Clamp ball position" → CLAMP pattern |
+   554→| Display | DISPLAY, RENDER_FRAME, HIGHLIGHT | "Draw game frame" → RENDER pattern |
+   555→| Validation | VALIDATE, CHECK_COLLISION | "Validate move" → VALIDATE pattern |
+   556→| Networking | CONNECT, RECONNECT, DISCONNECT | "Connect to server" → CONNECT pattern |
+   557→| Persistence | STORE, LOAD | "Save game state" → STORE pattern |
+   558→| Security | ENCRYPT_DATA, PROTECT_ACCESS | "Encrypt message" → ENCRYPT pattern |
+   559→
+   560→When no pattern matches, the **sub-language parser** handles explicit action specifications:
+   561→
+   562→```aicl
+   563→Behavior MovePaddle
+   564→    Input: Player direction string
+   565→    Action: assign paddle_position += direction * speed
+   566→            clamp paddle_position between 0 and screen_width
+   567→```
+   568→
+   569→This means **zero TODOs** in compiled output. Every behavior compiles to real, executable code — and every compilation decision is recorded in the provenance chain.
+   570→
+   571→---
+   572→
+   573→## Project Structure
+   574→
+   575→```
+   576→AICL/
+   577→├── src/aicl/                    # Compiler source
+   578→│   ├── __init__.py              # Package exports (v0.7.0)
+   579→│   ├── cli.py                   # CLI: compile, parse, tree, check, explain, audit, proof
+   580→│   ├── parser.py                # Line-based parser → AST
+   581→│   ├── ast.py                   # 17 AST node dataclasses
+   582→│   ├── ir.py                    # Intermediate representation (Architecture Tree)
+   583→│   ├── compiler.py              # 9-stage compilation pipeline + artifact tracking
+   584→│   ├── patterns.py              # 30+ deterministic behavior patterns
+   585→│   ├── provenance.py            # Provenance tracker + audit + Proof of Origin
+   586→│   └── lexer.py                 # Lexical analyzer (standalone)
+   587→├── examples/                    # Example programs
+   588→│   ├── 01_blue_square.aicl      # Level 1 — simple graphics (35 artifacts, 100% audit)
+   589→│   ├── 02_pong.aicl             # Levels 1–6 — game with behaviors (52 artifacts, 100% audit)
+   590→│   ├── 03_chat.aicl             # Levels 1–9 — full-featured app (58 artifacts, 100% audit)
+   591→│   └── 04_chess.aicl            # Levels 1–9 — complex state (59 artifacts, 100% audit)
+   592→├── tests/                       # Test suite
+   593→│   └── test_aicl.py             # 95 tests (all passing, including proof + verifier tests)
+   594→├── spec/                        # Language specification
+   595→│   └── grammar.md               # Formal BNF grammar & keyword table
+   596→├── docs/                        # Documentation
+   597→│   └── whitepaper.pdf           # White paper (16 sections, v0.7)
+   598→├── tools/                       # Build and utility scripts
+   599→│   ├── generate_whitepaper.py   # White paper PDF generator
+   600→│   └── verify_proof.py          # Independent proof verifier (~200 lines, zero AICL deps)
+   601→├── pyproject.toml               # Python package configuration
+   602→├── LICENSE                      # MIT License
+   603→├── .gitignore                   # Git ignore rules
+   604→└── README.md                    # This file
+   605→```
+   606→
+   607→---
+   608→
+   609→## Formal Specification
+   610→
+   611→The complete language specification is in [`spec/grammar.md`](spec/grammar.md), including:
+   612→
+   613→- Full BNF grammar for all 10 language levels
+   614→- 27 reserved keywords with level and purpose
+   615→- Type system (`string`, `integer`, `float`, `boolean`, `datetime`, `list`, `dict`, `set`, `any`, `void`, `bytes`)
+   616→- Comment syntax (lines starting with `#`)
+   617→- File extension (`.aicl`)
+   618→
+   619→---
+   620→
+   621→## White Paper
+   622→
+   623→The white paper at [`docs/whitepaper.pdf`](docs/whitepaper.pdf) presents AICL as an Architecture Compilation System with **auditable provenance** as its central thesis:
+   624→
+   625→- The provenance principle: a compiler that cannot explain why should not generate
+   626→- The No-Orphan Property: every artifact must have traceable provenance
+   627→- The Complete Coverage Property: audit coverage must equal 1.0
+   628→- Proof of Origin: self-contained, cryptographically bound compilation artifact
+   629→- Independent verification: proof verifiable without trusting the compiler
+   630→- The "Trust me bro" problem and how independent verification solves it
+   631→- Formal BNF grammar with derivation rules
+   632→- Risk and Recovery as mandatory language elements
+   633→- 19 provenance types covering all compilation zones
+   634→- Deterministic compilation contract
+   635→- Comparative analysis against DSLs, ADLs, and AI code generators
+   636→
+   637→---
+   638→
+   639→## Roadmap
+   640→
+   641→| Version | Milestone | Status |
+   642→|---------|-----------|--------|
+   643→| **v0.1** | Parser, grammar, Python codegen, 38 tests | Done |
+   644→| **v0.2** | Deterministic patterns, zero-TODO compilation, provenance | Done |
+   645→| **v0.3** | Sub-language expansion, architecture templates | Done |
+   646→| **v0.4** | Explicable compilation thesis, provenance-first design, project reorganization | Done |
+   647→| **v0.5** | Audit system, artifact tracking, 100% audit coverage, orphan detection, `aicl audit` | Done |
+   648→| **v0.6** | Proof of Origin v1.0, `aicl proof` command, explain/audit from proof file | Done |
+   649→| **v0.7** | Proof of Origin v2.0 (self-contained), independent verifier, 8 verification checks, No-Orphan as formal property | **Current** |
+   650→| **v0.8** | Position paper: "The No-Orphan Property: Towards Auditable Code Generation" | Planned |
+   651→| **v0.9** | Specification compilation: completeness checking, coherence checking, satisfaction checking, `aicl verify` | Planned |
+   652→| **v0.10** | Multi-file programs: import and module mechanisms, cross-file provenance | Planned |
+   653→| **v0.11** | Cryptographic proof signing: proof files signed with compiler key, proof chain across compilations | Planned |
+   654→| **v1.0** | Multi-language targets (Rust, JavaScript, Go), mature compiler, stable proof format | Future |
+   655→| **v1.5** | Provenance visualization: interactive exploration of compilation provenance graphs | Future |
+   656→| **v2.0** | Self-healing runtime with automatic recovery execution and runtime provenance | Future |
+   657→| **v2.5** | Memory management: ultra-simple ownership model derived from Layer/Entity structure | Future |
+   658→| **v3.0** | Autonomous architecture optimization, specification-driven refactoring | Future |
+   659→
+   660→### The Conceptual Trajectory
+   661→
+   662→The roadmap reflects a deepening understanding of what auditable compilation means:
+   663→
+   664→```
+   665→v0.1–v0.3:  "I want a simpler language than C++"
+   666→v0.4–v0.5:  "I want the compiler to explain itself"     → Explicable Compilation
+   667→v0.5–v0.6:  "I want to measure that explanation"         → Auditable Compilation
+   668→v0.7:        "I want proof that doesn't require trust"    → Proof of Origin + Independent Verification
+   669→v0.8:        "This idea transcends AICL itself"           → The No-Orphan Property (Position Paper)
+   670→v0.9:        "I want to verify the specification"         → Specification Compilation
+   671→v0.11:       "I want the proof to be tamper-proof"        → Cryptographic Proof Signing
+   672→```
+   673→
+   674→Each stage discovered that the previous stage's endpoint was actually the beginning of a deeper problem. Explicable compilation raised the question of measurement. Measurement raised the question of trust. Trust raised the question of independent verification.
+   675→
+   676→---
+   677→
+   678→## Contributing
+   679→
+   680→Contributions are welcome. Areas of particular interest:
+   681→
+   682→- **The No-Orphan Position Paper** — Help formalize the argument that every code-generating system should demonstrate 100% provenance coverage
+   683→- **Specification compilation** — Implement completeness, coherence, and satisfaction checking for AICL specifications
+   684→- **Cryptographic proof signing** — Sign proof files with compiler keys, create proof chains across compilations
+   685→- **New target languages** — Rust, TypeScript, Go code generation backends
+   686→- **New behavior patterns** — Expand the deterministic pattern library
+   687→- **Provenance visualization** — Tools to explore and visualize compilation provenance
+   688→- **IDE support** — Syntax highlighting, LSP server, VS Code extension
+   689→- **New examples** — Real-world programs showcasing different levels
+   690→
+   691→---
+   692→
+   693→## License
+   694→
+   695→MIT License — see [LICENSE](LICENSE) for details.
+   696→
+   697→## Author
+   698→
+   699→**Philippe-Antoine**
+   700→
+   701→---
+   702→
+   703→<div align="center">
+   704→
+   705→*"Traditional compilers generate code. AI generates code without accountability.*
+   706→*AICL generates code with cryptographic proof of origin — and that proof can be verified by anyone."*
+   707→
+   708→</div>
+   709→
