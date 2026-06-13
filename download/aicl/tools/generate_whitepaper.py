@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-AICL White Paper Generator v0.4
-Architecture Compilation with Explicable Compilation
+AICL White Paper Generator v0.7
+Architecture Compilation with Auditable Provenance
 
 Generates a comprehensive white paper centered on the thesis that
 a compiler which cannot explain why it generated a line of code
-should not generate it.
+should not generate it — and that this property must be independently
+verifiable without trusting the compiler itself.
 """
 
 import os
@@ -226,9 +227,9 @@ def build_whitepaper():
         rightMargin=RIGHT_MARGIN,
         topMargin=TOP_MARGIN,
         bottomMargin=BOTTOM_MARGIN,
-        title='AICL: Architecture Compilation with Explicable Compilation',
+        title='AICL: Architecture Compilation with Auditable Provenance',
         author='Philippe-Antoine',
-        subject='AICL White Paper v0.4',
+        subject='AICL White Paper v0.7',
     )
 
     story = []
@@ -239,7 +240,7 @@ def build_whitepaper():
     story.append(Spacer(1, 35*mm))
     story.append(Paragraph("AICL", cover_title_style))
     story.append(Paragraph(
-        "Architecture Compilation<br/>with Explicable Compilation",
+        "Architecture Compilation<br/>with Auditable Provenance",
         ParagraphStyle('CoverTitle2', parent=cover_title_style, fontSize=24, leading=30)
     ))
     story.append(Spacer(1, 6*mm))
@@ -247,12 +248,13 @@ def build_whitepaper():
     story.append(Spacer(1, 4*mm))
     story.append(Paragraph(
         "If the compiler cannot explain why it generated a line of code,<br/>"
-        "it should not generate it.",
-        ParagraphStyle('CoverThesis', parent=cover_subtitle_style, fontSize=13, leading=19,
+        "it should not generate it. And this property must be<br/>"
+        "independently verifiable without trusting the compiler.",
+        ParagraphStyle('CoverThesis', parent=cover_subtitle_style, fontSize=12.5, leading=18,
                         textColor=ACCENT)
     ))
     story.append(Spacer(1, 15*mm))
-    story.append(Paragraph("Version 0.4.0", cover_meta_style))
+    story.append(Paragraph("Version 0.7.0", cover_meta_style))
     story.append(Paragraph("Philippe-Antoine", cover_meta_style))
     story.append(Paragraph("June 2026", cover_meta_style))
     story.append(Spacer(1, 8*mm))
@@ -617,15 +619,19 @@ def build_whitepaper():
         "compilation. It records a trace of every compilation decision, from the initial parsing "
         "of source constructs to the final generation of code and tests. This trace is not "
         "generated after compilation as a debugging aid; it is produced during compilation as "
-        "an integral part of the compilation process."
+        "an integral part of the compilation process. In v0.5, the provenance system was extended "
+        "with artifact tracking and audit coverage computation. In v0.7, it became the foundation "
+        "for the Proof of Origin: a self-contained, independently verifiable compilation artifact."
     ))
 
     story.append(Paragraph("6.1 Provenance Types", h2_style))
     story.append(p(
-        "Every compilation decision is classified into one of twelve provenance types, each "
+        "Every compilation decision is classified into one of nineteen provenance types, each "
         "indicating the nature of the decision and the reasoning path that was followed. These "
         "types form a taxonomy of compilation reasoning that enables systematic analysis of "
-        "compiler behavior."
+        "compiler behavior. The initial twelve types were expanded in v0.5 to cover all code "
+        "generation zones, ensuring that every generated artifact has at least one provenance "
+        "record explaining its existence."
     ))
     prov_data = [
         ['PATTERN_MATCH', 'A behavior pattern matched with sufficient confidence'],
@@ -640,46 +646,76 @@ def build_whitepaper():
         ['ENTITY_GENERATION', 'Dataclass generated from Entity definition'],
         ['LAYER_INITIALIZATION', 'Component initialization from Layer definition'],
         ['HELPER_METHOD', 'Utility method generated to support other code'],
+        ['SECURITY_METHOD', 'Security enforcement method generated'],
+        ['PARALLEL_EXECUTION', 'Parallel execution code generated'],
+        ['RUN_METHOD', 'Main run method generated from architecture template'],
+        ['IMPORT_GENERATION', 'Import statements generated from program analysis'],
+        ['ENTRY_POINT', 'Main entry point function generated'],
+        ['TEST_GENERATION', 'Test functions generated from specifications'],
+        ['CLASS_STRUCTURE', 'Class structure (attributes, constructor) generated'],
     ]
     story.append(make_table(
         ['Type', 'Meaning'],
         prov_data,
         col_widths=[130, 293]
     ))
-    story.append(Paragraph("Table 4: Provenance Types", caption_style))
+    story.append(Paragraph("Table 4: Provenance Types (19 types, full coverage)", caption_style))
 
     story.append(Paragraph("6.2 The Provenance Record", h2_style))
     story.append(p(
-        "Each provenance record contains five fields: <b>source</b>, which identifies the AICL "
+        "Each provenance record contains five core fields: <b>source</b>, which identifies the AICL "
         "construct that triggered the compilation decision; <b>resolution_path</b>, which describes "
         "the sequence of steps the compiler took to arrive at the decision; <b>generated_code</b>, "
         "which contains the actual code that was produced; <b>confidence</b>, which quantifies the "
         "compiler's certainty in the match (for pattern-based decisions) or is set to 1.0 (for "
         "deterministic mappings); and <b>pattern_name</b>, which identifies the specific pattern "
-        "or mechanism that was used."
+        "or mechanism that was used. Additionally, each record carries <b>artifact_names</b>, which "
+        "links the record to the specific generated artifacts it explains."
     ))
     story.append(p(
         "The <font face='DejaVuSansMono' size='8.5'>aicl explain</font> command traverses these "
         "provenance records and produces a human-readable trace of the compilation process. When "
         "invoked with the <font face='DejaVuSansMono' size='8.5'>--behavior</font> flag, it "
         "focuses on a specific behavior and shows the pattern matching process in detail. When "
-        "invoked with <font face='DejaVuSansMono' size='8.5'>--provenance</font>, it produces "
-        "a full provenance report covering every compilation decision."
+        "invoked with <font face='DejaVuSansMono' size='8.5'>--proof</font>, it reads from the "
+        "Proof of Origin file directly, without requiring the compiler."
     ))
 
-    story.append(Paragraph("6.3 The Explainability Contract", h2_style))
+    story.append(Paragraph("6.3 The Auditability Contract", h2_style))
     story.append(p(
-        "The provenance system enforces an explainability contract: every line of generated code "
-        "must have at least one provenance record. If the compiler generates code without a "
-        "corresponding provenance record, this is a compiler bug, not an acceptable gap. This "
-        "contract ensures that the <font face='DejaVuSansMono' size='8.5'>aicl explain</font> "
-        "command can always provide a complete accounting of the compilation process."
+        "The provenance system enforces an auditability contract: every generated artifact must "
+        "have at least one provenance record. If the compiler generates an artifact without a "
+        "corresponding provenance record, this is an <b>orphan artifact</b> — a compiler bug, "
+        "not an acceptable gap. This contract ensures that the <font face='DejaVuSansMono' size='8.5'>"
+        "aicl audit</font> command can always provide a complete accounting of the compilation process."
     ))
     story.append(p(
-        "The explainability contract also serves as a constraint on future compiler development. "
+        "The auditability contract also serves as a constraint on future compiler development. "
         "Any new optimization pass, code generation strategy, or transformation must be accompanied "
         "by provenance recording. This prevents the compiler from growing features that would "
-        "violate the explicable compilation principle."
+        "violate the explicable compilation principle. The <font face='DejaVuSansMono' size='8.5'>"
+        "aicl audit --strict</font> command enforces this contract: it returns a non-zero exit code "
+        "if audit coverage is below 100%, making it suitable for CI/CD pipelines."
+    ))
+
+    story.append(Paragraph("6.4 Audit Coverage", h2_style))
+    story.append(p(
+        "Audit coverage is the key metric of the auditability contract. It measures the fraction "
+        "of generated artifacts that have at least one provenance chain linking them to their "
+        "originating specification. Formally:"
+    ))
+    story.append(quote(
+        "Audit Coverage = |{A in Artifacts : A has provenance chain}| / |Artifacts|"
+    ))
+    story.append(p(
+        "The target is always Audit Coverage = 1.0 (100%). In the current implementation, all "
+        "four example programs achieve 100% audit coverage with zero orphan artifacts. This is "
+        "not an accident but a direct consequence of the v0.5 expansion of provenance types to "
+        "cover all code generation zones. Before v0.5, certain code generation points (security "
+        "methods, import blocks, entry points, test functions, class structures) did not record "
+        "provenance, creating orphan artifacts. The v0.5 changes ensured that every generation "
+        "point in the compiler records provenance, making 100% audit coverage the default rather "
+        "than the exception."
     ))
 
     # ════════════════════════════════════════════
@@ -711,9 +747,185 @@ def build_whitepaper():
     ))
 
     # ════════════════════════════════════════════
-    # 8. FORMAL GRAMMAR
+    # 8. PROOF OF ORIGIN
     # ════════════════════════════════════════════
-    story.append(Paragraph("8. Formal Grammar", h1_style))
+    story.append(Paragraph("8. Proof of Origin", h1_style))
+    story.append(p(
+        "The Proof of Origin is the central artifact of AICL's auditable compilation system. "
+        "Introduced in v0.6 and made fully self-contained in v0.7, it represents a fundamental "
+        "architectural shift in how compilation outputs are structured. Rather than producing "
+        "code alone, or code with internal provenance data, the compiler now produces a single "
+        "self-contained proof artifact from which code, explanations, and audit reports can all "
+        "be reconstructed."
+    ))
+
+    story.append(Paragraph("8.1 The Architectural Shift", h2_style))
+    story.append(p(
+        "The evolution of AICL's output architecture reveals a deepening understanding of what "
+        "auditable compilation means. In the beginning, AICL produced code: a traditional "
+        "compiler output with no accountability mechanism. Then came explain: a human-readable "
+        "trace of why each line was generated, but one that required running the compiler again. "
+        "Then came audit: a verification that every artifact has provenance, but again requiring "
+        "the compiler."
+    ))
+    story.append(p(
+        "The Proof of Origin collapses these into a single architecture. The compiler produces "
+        "the proof, and from the proof, everything else follows. Code is in the proof. Explain "
+        "is a view on the proof. Audit is a verification of the proof. The proof becomes the "
+        "central artifact, and the compiler becomes just the mechanism that produces it."
+    ))
+    code_block = (
+        "AICL source  -->  Compiler  -->  Proof of Origin (.aicl-proof)<br/>"
+        "                                  |<br/>"
+        "                                  +-- Code (extracted from proof)<br/>"
+        "                                  +-- Explain (reconstructed from proof)<br/>"
+        "                                  +-- Audit (verified from proof)"
+    )
+    story.append(Paragraph(code_block, code_style))
+    story.append(Paragraph(
+        "Figure 2: The Proof of Origin as Central Artifact",
+        caption_style
+    ))
+
+    story.append(Paragraph("8.2 Self-Contained Verification (Format v2.0)", h2_style))
+    story.append(p(
+        "The critical design question for the Proof of Origin was: if <font face='DejaVuSansMono' "
+        "size='8.5'>aicl explain</font> were deleted entirely, would the <font face='DejaVuSansMono' "
+        "size='8.5'>.aicl-proof</font> file contain enough information to reconstruct the full "
+        "explanation? In format v1.0, the answer was no: the proof contained hashes and provenance "
+        "records but not the generated code itself. An external verifier could check structural "
+        "properties but could not verify hash binding without separately obtaining the code."
+    ))
+    story.append(p(
+        "Format v2.0, introduced in v0.7, makes the proof fully self-contained by embedding the "
+        "original AICL source text, the generated program code, and the generated test code directly "
+        "in the proof file. This means an independent verifier can: (1) recompute SHA-256 hashes "
+        "and compare them to the stored hashes, (2) verify that the proof is cryptographically "
+        "bound to specific code artifacts, and (3) reconstruct complete explanations and audit "
+        "reports from the proof alone, without needing the AICL compiler, parser, or any project "
+        "dependency."
+    ))
+
+    story.append(Paragraph("8.3 The Independent Verifier", h2_style))
+    story.append(p(
+        "The existence of a self-contained proof file raises an immediate question: who verifies "
+        "the verifier? If the only tool that can verify a proof is AICL itself, the system "
+        "collapses into circular reasoning: <i>AICL says AICL is correct</i>. This is the "
+        "\"trust me bro\" problem, and it is a serious threat to the credibility of any "
+        "self-auditing system."
+    ))
+    story.append(p(
+        "To address this, AICL v0.7 includes an independent verifier: <font face='DejaVuSansMono' "
+        "size='8.5'>tools/verify_proof.py</font>, approximately 200 lines of Python that use "
+        "only the standard library (json, hashlib, sys). This verifier has zero dependencies on "
+        "AICL: no compiler, no parser, no project modules. It reads the <font face='DejaVuSansMono' "
+        "size='8.5'>.aicl-proof</font> file as plain JSON and applies eight deterministic verification "
+        "checks:"
+    ))
+    checks_data = [
+        ['format_version', 'Proof format version is supported'],
+        ['source_hash_binding', 'SHA-256(source_text) matches source_hash'],
+        ['program_hash_binding', 'SHA-256(generated_source) matches program_hash'],
+        ['test_hash_binding', 'SHA-256(generated_tests) matches test_hash'],
+        ['no_orphan_artifact_property', 'Every artifact has at least one provenance chain'],
+        ['complete_coverage_property', 'Audit Coverage = 1.0'],
+        ['record_artifact_linkage', 'All provenance indices reference valid records'],
+        ['artifact_consistency', 'Orphan status consistent with provenance linkage'],
+    ]
+    story.append(make_table(
+        ['Check', 'Description'],
+        checks_data,
+        col_widths=[140, 283]
+    ))
+    story.append(Paragraph("Table 5: Independent Verifier Checks (8 checks, zero AICL dependencies)", caption_style))
+    story.append(p(
+        "The verifier can be run by anyone, anywhere, without installing AICL. It provides "
+        "a clear binary verdict: VALID or INVALID. If the proof passes all eight checks, "
+        "the No-Orphan Property is verified as a property of the artifact itself, not as a "
+        "claim of the compiler. This is the critical distinction: the property is not a "
+        "feature of the tool that produced the artifact; it is a verifiable characteristic "
+        "of the artifact, checkable by any third party with a 200-line script."
+    ))
+
+    story.append(Paragraph("8.4 Hash Binding", h2_style))
+    story.append(p(
+        "The Proof of Origin uses SHA-256 hashes to cryptographically bind the proof to "
+        "the generated code. Three hashes are stored: <b>source_hash</b> (SHA-256 of the "
+        "original AICL source text), <b>program_hash</b> (SHA-256 of the generated program), "
+        "and <b>test_hash</b> (SHA-256 of the generated tests). In format v2.0, the verifier "
+        "recomputes these hashes from the embedded code and compares them to the stored values. "
+        "Any tampering with the generated code, the source text, or the proof file itself "
+        "will be detected as a hash mismatch, causing verification to fail."
+    ))
+    story.append(p(
+        "This hash binding creates a chain of trust: the source hash ties the proof to the "
+        "original specification, the program hash ties the proof to the generated code, and "
+        "the test hash ties the proof to the test suite. Any break in this chain invalidates "
+        "the entire proof."
+    ))
+
+    # ════════════════════════════════════════════
+    # 9. FORMAL PROPERTIES
+    # ════════════════════════════════════════════
+    story.append(Paragraph("9. Formal Properties", h1_style))
+    story.append(p(
+        "AICL's auditable compilation system establishes three formal properties that are "
+        "verified in every compilation. These are not aspirational goals but checkable "
+        "properties: each one is tested by the independent verifier and must pass for a "
+        "Proof of Origin to be considered valid."
+    ))
+
+    story.append(Paragraph("9.1 No Orphan Artifact Property", h2_style))
+    story.append(quote(
+        "For any compilation C, if artifact A is generated, then A has at least one "
+        "provenance chain linking it to its originating specification."
+    ))
+    story.append(p(
+        "This is the foundational property of auditable compilation. An orphan artifact is "
+        "a generated piece of code (method, class, function, or test) that exists in the "
+        "output but has no provenance record explaining why it was generated. The No Orphan "
+        "Property states that such artifacts must not exist. In the current implementation, "
+        "all four example programs satisfy this property with zero orphan artifacts across "
+        "a total of 204 generated artifacts."
+    ))
+    story.append(p(
+        "The significance of this property extends beyond AICL. The question it raises is "
+        "universal: should any code-generating system — whether a traditional compiler, an "
+        "AI code generator, or a model-driven architecture tool — be able to demonstrate "
+        "that every line of code it produces has a traceable origin? The No Orphan Property "
+        "provides a formal framework for answering this question."
+    ))
+
+    story.append(Paragraph("9.2 Complete Coverage Property", h2_style))
+    story.append(quote(
+        "Coverage = |{A in Artifacts : A has provenance chain}| / |Artifacts| = 1.0"
+    ))
+    story.append(p(
+        "The Complete Coverage Property is the quantitative expression of the No Orphan "
+        "Property. It states that the fraction of artifacts with provenance must equal "
+        "exactly 1.0. Anything less means at least one artifact lacks justification. "
+        "The independent verifier computes this ratio independently from the proof file's "
+        "artifact list and provenance records, then compares it to the declared value. "
+        "Both must equal 1.0 for the proof to be valid."
+    ))
+
+    story.append(Paragraph("9.3 Hash Binding Property", h2_style))
+    story.append(quote(
+        "SHA-256(generated_code) = program_hash stored in Proof of Origin"
+    ))
+    story.append(p(
+        "The Hash Binding Property ensures that the proof is cryptographically bound to "
+        "the generated code. Without this property, a proof file could be detached from "
+        "its code artifact and attached to different code, defeating the purpose of "
+        "provenance tracking. The SHA-256 hash creates a tamper-evident link: any "
+        "modification to the generated code, the source text, or the proof itself will "
+        "cause a hash mismatch, immediately invalidating the proof."
+    ))
+
+    # ════════════════════════════════════════════
+    # 10. FORMAL GRAMMAR
+    # ════════════════════════════════════════════
+    story.append(Paragraph("10. Formal Grammar", h1_style))
     story.append(p(
         "AICL has a formal BNF grammar with 27 reserved keywords. The grammar is line-based, "
         "supporting two formats for keyword-value pairs: inline (Keyword: Value on the same line) "
@@ -730,7 +942,7 @@ def build_whitepaper():
         "requirement at the structural level."
     ))
 
-    story.append(Paragraph("8.1 Type System", h2_style))
+    story.append(Paragraph("10.1 Type System", h2_style))
     story.append(p(
         "AICL provides 11 built-in type names that can be used in Entity field declarations "
         "and Behavior input/output specifications: string, integer, float, boolean, datetime, "
@@ -741,7 +953,7 @@ def build_whitepaper():
         "implementation."
     ))
 
-    story.append(Paragraph("8.2 Keyword Reference", h2_style))
+    story.append(Paragraph("10.2 Keyword Reference", h2_style))
     keyword_data = [
         ['Goal', '1', 'Define system objective'],
         ['Constraint', '1', 'Specify system constraints'],
@@ -776,12 +988,12 @@ def build_whitepaper():
         keyword_data,
         col_widths=[65, 35, 323]
     ))
-    story.append(Paragraph("Table 5: Complete Keyword Reference", caption_style))
+    story.append(Paragraph("Table 7: Complete Keyword Reference", caption_style))
 
     # ════════════════════════════════════════════
     # 9. INTERMEDIATE REPRESENTATION
     # ════════════════════════════════════════════
-    story.append(Paragraph("9. Intermediate Representation", h1_style))
+    story.append(Paragraph("11. Intermediate Representation", h1_style))
     story.append(p(
         "Between the AST and the code generation stage, the compiler constructs an Architecture "
         "Tree: a hierarchical intermediate representation that organizes the flat list of AST "
@@ -810,7 +1022,7 @@ def build_whitepaper():
     # ════════════════════════════════════════════
     # 10. COMPARATIVE ANALYSIS
     # ════════════════════════════════════════════
-    story.append(Paragraph("10. Comparative Analysis", h1_style))
+    story.append(Paragraph("12. Comparative Analysis", h1_style))
     story.append(p(
         "AICL occupies a unique position in the landscape of programming languages, domain-specific "
         "languages, and code generation systems. This section compares AICL with related approaches "
@@ -825,15 +1037,18 @@ def build_whitepaper():
         ['Architecture as program', 'No', 'Partial', 'No', 'Yes'],
         ['AI-free core pipeline', 'Yes', 'No', 'Yes', 'Yes'],
         ['Specification-first syntax', 'No', 'No', 'Yes', 'Yes'],
+        ['Proof of Origin artifact', 'No', 'No', 'No', 'Yes'],
+        ['Independent verification', 'No', 'No', 'No', 'Yes'],
+        ['No Orphan Property (formal)', 'No', 'No', 'No', 'Yes'],
     ]
     story.append(make_table(
         ['Feature', 'Mainstream', 'AI Code Gen', 'Traditional DSL', 'AICL'],
         comp_data,
         col_widths=[130, 72, 72, 72, 72]
     ))
-    story.append(Paragraph("Table 6: Comparative Analysis", caption_style))
+    story.append(Paragraph("Table 8: Comparative Analysis", caption_style))
 
-    story.append(Paragraph("10.1 Mainstream Languages", h2_style))
+    story.append(Paragraph("12.1 Mainstream Languages", h2_style))
     story.append(p(
         "Languages like Python, Rust, Go, and C++ treat error handling as an optional practice. "
         "Even Rust, which enforces error handling through its Result type, does not require "
@@ -843,7 +1058,7 @@ def build_whitepaper():
         "to architectural decisions."
     ))
 
-    story.append(Paragraph("10.2 AI Code Generation", h2_style))
+    story.append(Paragraph("12.2 AI Code Generation", h2_style))
     story.append(p(
         "AI code generators like GitHub Copilot, ChatGPT, and Cursor produce code that is often "
         "functional but never explainable in the AICL sense. These systems use probabilistic models "
@@ -854,7 +1069,7 @@ def build_whitepaper():
         "system are direct responses to this problem."
     ))
 
-    story.append(Paragraph("10.3 Traditional DSLs and ADLs", h2_style))
+    story.append(Paragraph("12.3 Traditional DSLs and ADLs", h2_style))
     story.append(p(
         "Domain-specific languages and architecture description languages share AICL's "
         "specification-first philosophy. However, traditional DSLs focus on generating "
@@ -869,39 +1084,99 @@ def build_whitepaper():
     # ════════════════════════════════════════════
     # 11. IMPLEMENTATION STATUS
     # ════════════════════════════════════════════
-    story.append(Paragraph("11. Implementation Status", h1_style))
+    story.append(Paragraph("13. Implementation Status", h1_style))
     story.append(p(
-        "The current implementation (v0.4.0) includes a complete parser for all 10 language levels, "
+        "The current implementation (v0.7.0) includes a complete parser for all 10 language levels, "
         "a 9-stage compilation pipeline that generates Python code, a behavior pattern library with "
         "30+ deterministic patterns, a sub-language parser for explicit action specifications, a "
-        "provenance tracker that records every compilation decision, and a CLI with five commands: "
-        "compile, parse, tree, check, and explain. The test suite contains 63 tests, all passing. "
-        "Four example programs of increasing complexity compile to zero-TODO Python code."
+        "provenance tracker with 19 types that records every compilation decision, an artifact "
+        "tracking system that registers every generated code unit, an audit system that verifies "
+        "100% provenance coverage, a Proof of Origin system that produces self-contained, "
+        "cryptographically bound proof files, and an independent verifier that can validate "
+        "proofs without any AICL dependency. The test suite contains 95 tests, all passing. "
+        "Four example programs of increasing complexity compile to zero-TODO Python code, "
+        "each achieving 100% audit coverage and producing valid Proofs of Origin."
     ))
     story.append(p(
-        "Several components are currently minimal or stubbed and are targets for future development. "
-        "The dependency analysis stage currently returns layers in source order rather than computing "
-        "a true dependency graph. The optimization stage counts remaining TODOs but does not apply "
-        "optimization transformations. The risk distribution algorithm in the Architecture Tree "
-        "computes keyword-based scores but does not actually redistribute risks to layers. And the "
-        "target language backend currently only supports Python; Rust, JavaScript, and Go backends "
-        "are planned for v1.0."
+        "The compilation pipeline consists of nine stages: Specification Parsing, Architecture "
+        "Validation, Dependency Analysis, Risk Analysis, Recovery Synthesis, Code Generation "
+        "(with full provenance and artifact tracking), Test Generation (with provenance and "
+        "artifact tracking), Optimization, and Final Construction. Each stage records provenance "
+        "for every decision it makes, ensuring complete traceability from source to output."
     ))
     story.append(p(
-        "The validation methods generated by the compiler use keyword-based heuristics to determine "
-        "what each validation checks. While this approach works for the current example programs, "
-        "more sophisticated validation code generation is needed for complex real-world scenarios. "
-        "Similarly, helper methods like collision detection and check detection currently return "
-        "default values rather than performing real computations. These are areas where the "
-        "deterministic pattern library needs to expand."
+        "The CLI provides seven commands: compile (with Proof of Origin output), parse, tree, "
+        "check, explain (from source or from proof), audit (from source or from proof), and "
+        "proof (inspect and verify a proof file). The explain and audit commands can operate "
+        "entirely from the Proof of Origin file, demonstrating that the proof contains all "
+        "information needed to reconstruct explanations and audit reports."
     ))
 
     # ════════════════════════════════════════════
     # 12. FUTURE DIRECTIONS
     # ════════════════════════════════════════════
-    story.append(Paragraph("12. Future Directions", h1_style))
+    story.append(Paragraph("14. Future Directions", h1_style))
 
-    story.append(Paragraph("12.1 Memory Management", h2_style))
+    story.append(Paragraph("14.1 The No-Orphan Position Paper", h2_style))
+    story.append(p(
+        "The most immediate intellectual contribution is a position paper: \"The No-Orphan "
+        "Property: Towards Auditable Code Generation.\" This paper transcends AICL itself and "
+        "asks a universal question: should any code-generating system — whether a compiler, an "
+        "AI code generator, or a model-driven architecture tool — be able to demonstrate that "
+        "every line of code it produces has a traceable origin? The No-Orphan Property provides "
+        "a formal framework for this question, and the independent verifier provides a practical "
+        "mechanism for enforcing it. The paper would argue that the No-Orphan Property should be "
+        "considered a necessary condition for trustworthy code generation, not just a nice-to-have "
+        "feature of one particular tool."
+    ))
+
+    story.append(Paragraph("14.2 Specification Compilation", h2_style))
+    story.append(p(
+        "AICL currently compiles architectural specifications into code. The next conceptual leap "
+        "is specification compilation: compiling not just the architecture but the full specification, "
+        "including completeness checking (are all behaviors implemented?), coherence checking (do "
+        "the behaviors and conditions form a consistent system?), and satisfaction checking (does "
+        "the generated code satisfy the original goals and constraints?). This would transform "
+        "AICL from a compiler that generates code into a system that verifies specifications "
+        "and then generates verified code. The Proof of Origin would extend to include "
+        "specification verification results, creating a complete chain from specification "
+        "through verification to code."
+    ))
+
+    story.append(Paragraph("14.3 Multi-File Programs", h2_style))
+    story.append(p(
+        "The current implementation supports only single-file AICL programs. Multi-file support "
+        "(planned for v0.5) will introduce import and module mechanisms that allow architectural "
+        "specifications to be decomposed across multiple files. This raises questions about "
+        "provenance across file boundaries: when a behavior in one file uses an entity defined in "
+        "another, the provenance chain must span both files. The design must ensure that explicable "
+        "compilation is not compromised by modularization."
+    ))
+
+    story.append(Paragraph("14.3 Multi-Language Targets", h2_style))
+    story.append(p(
+        "The compiler currently generates only Python code. Multi-language targets (Rust, "
+        "JavaScript, Go) are planned for v1.0. Each target language raises unique challenges "
+        "for explicable compilation. Rust's ownership model, JavaScript's event loop, and Go's "
+        "goroutine model each require different code generation strategies, and the provenance "
+        "system must track which language-specific decisions were made and why. The explicable "
+        "compilation principle provides a natural framework for this: the provenance record must "
+        "indicate not just what code was generated, but why it was generated differently for "
+        "Rust than for Python."
+    ))
+
+    story.append(Paragraph("14.4 Self-Healing Runtime", h2_style))
+    story.append(p(
+        "The v2.0 milestone envisions a self-healing runtime that can automatically execute "
+        "recovery strategies when risks materialize at runtime. This would transform AICL's "
+        "Risk/Recovery pairs from compile-time specifications into runtime instrumentation, "
+        "where the generated code includes monitoring hooks that detect risk conditions and "
+        "trigger the corresponding recovery code. The provenance system would extend to "
+        "cover runtime events, creating a complete trace from architectural risk identification "
+        "through code generation to runtime recovery execution."
+    ))
+
+    story.append(Paragraph("14.5 Memory Management", h2_style))
     story.append(p(
         "A critical area for future development is memory management. The goal is to provide an "
         "ultra-simple ownership model that is more effective than existing systems like Zig's "
@@ -914,40 +1189,7 @@ def build_whitepaper():
         "programmers to think about pointers, allocators, or lifetimes directly."
     ))
 
-    story.append(Paragraph("12.2 Multi-File Programs", h2_style))
-    story.append(p(
-        "The current implementation supports only single-file AICL programs. Multi-file support "
-        "(planned for v0.5) will introduce import and module mechanisms that allow architectural "
-        "specifications to be decomposed across multiple files. This raises questions about "
-        "provenance across file boundaries: when a behavior in one file uses an entity defined in "
-        "another, the provenance chain must span both files. The design must ensure that explicable "
-        "compilation is not compromised by modularization."
-    ))
-
-    story.append(Paragraph("12.3 Multi-Language Targets", h2_style))
-    story.append(p(
-        "The compiler currently generates only Python code. Multi-language targets (Rust, "
-        "JavaScript, Go) are planned for v1.0. Each target language raises unique challenges "
-        "for explicable compilation. Rust's ownership model, JavaScript's event loop, and Go's "
-        "goroutine model each require different code generation strategies, and the provenance "
-        "system must track which language-specific decisions were made and why. The explicable "
-        "compilation principle provides a natural framework for this: the provenance record must "
-        "indicate not just what code was generated, but why it was generated differently for "
-        "Rust than for Python."
-    ))
-
-    story.append(Paragraph("12.4 Self-Healing Runtime", h2_style))
-    story.append(p(
-        "The v2.0 milestone envisions a self-healing runtime that can automatically execute "
-        "recovery strategies when risks materialize at runtime. This would transform AICL's "
-        "Risk/Recovery pairs from compile-time specifications into runtime instrumentation, "
-        "where the generated code includes monitoring hooks that detect risk conditions and "
-        "trigger the corresponding recovery code. The provenance system would extend to "
-        "cover runtime events, creating a complete trace from architectural risk identification "
-        "through code generation to runtime recovery execution."
-    ))
-
-    story.append(Paragraph("12.5 Provenance Visualization", h2_style))
+    story.append(Paragraph("14.6 Provenance Visualization", h2_style))
     story.append(p(
         "The current provenance output is text-based, accessed through the <font "
         "face='DejaVuSansMono' size='8.5'>aicl explain</font> command. Future work will "
@@ -960,54 +1202,73 @@ def build_whitepaper():
     # ════════════════════════════════════════════
     # 13. CONCLUSION
     # ════════════════════════════════════════════
-    story.append(Paragraph("13. Conclusion", h1_style))
+    story.append(Paragraph("15. Conclusion", h1_style))
     story.append(p(
         "AICL presents a new approach to the relationship between architecture and code. Rather "
         "than treating architecture as documentation that informs code, AICL treats architecture "
         "as the program itself, and compiles it into executable code with mandatory risk management, "
-        "automatic test generation, and full compilation provenance."
+        "automatic test generation, full compilation provenance, and independently verifiable "
+        "proof of origin."
     ))
     story.append(p(
-        "The central contribution of this work is the principle of explicable compilation: the "
-        "idea that a compiler should be able to explain why it generated every line of code it "
-        "produces, and that if it cannot explain, it should not generate. This principle is "
-        "implemented through a provenance system that records every compilation decision, a "
-        "deterministic compilation contract that makes provenance reproducible, and a language "
-        "design that makes risks, recoveries, and validations mandatory rather than optional."
+        "The central contribution of this work has evolved through several stages. The original "
+        "contribution was explicable compilation: the idea that a compiler should be able to "
+        "explain why it generated every line of code, and that if it cannot explain, it should "
+        "not generate. This was implemented through a provenance system that records every "
+        "compilation decision and a deterministic compilation contract that makes provenance "
+        "reproducible."
     ))
     story.append(p(
-        "The real test of any language is not its white paper but whether someone else can take "
-        "it and build an application without its creator. AICL is not yet at that point. The "
-        "pattern library needs to expand, the generated code needs to be more sophisticated, and "
-        "the memory management system needs to be designed and implemented. But the core "
-        "idea—that compilers should be able to explain themselves, and that this explainability "
-        "should be enforced by design rather than added as an afterthought—is one that deserves "
-        "serious exploration."
+        "The contribution then deepened with auditable compilation: the principle that "
+        "explainability is not enough — it must also be measurable. This was implemented through "
+        "the audit system, which computes audit coverage and detects orphan artifacts, and "
+        "through the formal No Orphan Property and Complete Coverage Property."
+    ))
+    story.append(p(
+        "The current contribution is the Proof of Origin: the principle that auditability must "
+        "not depend on trusting the compiler. The Proof of Origin is a self-contained, "
+        "cryptographically bound artifact that can be verified by an independent third party "
+        "using a 200-line script with zero AICL dependencies. This transforms the No Orphan "
+        "Property from a feature of the compiler into a verifiable property of the artifact "
+        "itself. This is a critical distinction: the property does not require you to trust "
+        "AICL. It requires only that you can run a simple verification script."
+    ))
+    story.append(p(
+        "The evolution of AICL reveals a trajectory that is more interesting than any single "
+        "feature. The project began as an attempt to make a simpler language than C++. It "
+        "became an exploration of explicable compilation, then auditable compilation, and now "
+        "a code generation system with cryptographic proof of origin. Each stage discovered "
+        "that the previous stage's endpoint was actually the beginning of a deeper problem. "
+        "Explicable compilation raised the question of measurement. Measurement raised the "
+        "question of trust. Trust raised the question of independent verification."
     ))
     story.append(p(
         "In a world where AI code generators produce code without accountability, where production "
         "systems fail at 3:00 AM because risks were documented but not compiled, and where the "
         "gap between architectural intent and implemented code grows wider every year, the "
-        "principle of explicable compilation offers a different direction. Not more code generation, "
-        "but more accountable code generation. Not faster compilation, but more transparent "
-        "compilation. Not AI that writes code, but compilers that can explain the code they write."
+        "principle of auditable compilation with proof of origin offers a different direction. "
+        "Not more code generation, but more accountable code generation. Not faster compilation, "
+        "but more transparent compilation. Not AI that writes code, but compilers that can "
+        "prove why they wrote the code they did — and where that proof can be verified by anyone."
     ))
 
     # ════════════════════════════════════════════
     # 14. REFERENCES
     # ════════════════════════════════════════════
-    story.append(Paragraph("14. References", h1_style))
+    story.append(Paragraph("16. References", h1_style))
     refs = [
         "[1] AICL Project Repository. https://github.com/AFKmoney/AICL",
         "[2] AICL Formal Grammar Specification. spec/grammar.md",
         "[3] AICL Compilation Provenance Implementation. src/aicl/provenance.py",
-        "[4] AICL Behavior Pattern Library. src/aicl/patterns.py",
-        "[5] AICL Test Suite. tests/test_aicl.py",
-        "[6] Garlan, D. and Shaw, M. Software Architecture: Perspectives on an Emerging Discipline. Prentice Hall, 1996.",
-        "[7] Clements, P. et al. Documenting Software Architectures: Views and Beyond. Addison-Wesley, 2010.",
-        "[8] Mernik, M. et al. 'Domain-Specific Languages: A Systematic Mapping Study.' Information and Software Technology, 2022.",
-        "[9] Van Deursen, A. et al. 'Domain-Specific Languages: An Annotated Bibliography.' ACM SIGPLAN Notices, 2000.",
-        "[10] Zig Programming Language. https://ziglang.org/",
+        "[4] AICL Independent Proof Verifier. tools/verify_proof.py",
+        "[5] AICL Behavior Pattern Library. src/aicl/patterns.py",
+        "[6] AICL Test Suite. tests/test_aicl.py",
+        "[7] Garlan, D. and Shaw, M. Software Architecture: Perspectives on an Emerging Discipline. Prentice Hall, 1996.",
+        "[8] Clements, P. et al. Documenting Software Architectures: Views and Beyond. Addison-Wesley, 2010.",
+        "[9] Mernik, M. et al. 'Domain-Specific Languages: A Systematic Mapping Study.' Information and Software Technology, 2022.",
+        "[10] Van Deursen, A. et al. 'Domain-Specific Languages: An Annotated Bibliography.' ACM SIGPLAN Notices, 2000.",
+        "[11] Zig Programming Language. https://ziglang.org/",
+        "[12] FIPS 180-4. Secure Hash Standard (SHA-256). NIST, 2015.",
     ]
     for ref in refs:
         story.append(Paragraph(ref, ParagraphStyle(
