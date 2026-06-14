@@ -130,8 +130,12 @@ export default function AICLEditor() {
     { id: 'untitled-1', name: 'untitled-1.aicl', content: DEFAULT_FILE, modified: false }
   ]);
   const [activeFileId, setActiveFileId] = useState('untitled-1');
-  const [output, setOutput] = useState<OutputEntry[]>([]);
-  const [replHistory, setReplHistory] = useState<OutputEntry[]>([]);
+  const [output, setOutput] = useState<OutputEntry[]>([
+    { type: 'system', message: 'AICL Web Editor v5.0 — Cognitive Architecture Ready', timestamp: 0 }
+  ]);
+  const [replHistory, setReplHistory] = useState<OutputEntry[]>([
+    { type: 'system', message: 'AICL Interactive Shell v5.0 — Type AICL statements or commands', timestamp: 0 }
+  ]);
   const [replInput, setReplInput] = useState('');
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
   const [isRunning, setIsRunning] = useState(false);
@@ -170,7 +174,7 @@ export default function AICLEditor() {
     error?: ChatError; // structured error info for display
   }
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([
-    { role: 'assistant', content: 'Hello! I\'m the AICL AI Assistant. I can help you write AICL specifications, understand concepts like the No-Orphan Property and Proof of Origin, and guide you through the editor.\n\nTry asking me: "Describe a todo app in AICL" or "Write a chat server specification"' },
+    { role: 'assistant', content: '__WELCOME_SPLASH__' },
   ]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
@@ -182,13 +186,6 @@ export default function AICLEditor() {
   const chatInputRef = useRef<HTMLInputElement>(null);
 
   const activeFile = files.find(f => f.id === activeFileId) || files[0];
-
-  // --- Initialize client-only state (avoids hydration mismatch) ---
-  useEffect(() => {
-    const now = Date.now();
-    setOutput([{ type: 'system', message: 'AICL Web Editor v1.0.0 — Ready', timestamp: now }]);
-    setReplHistory([{ type: 'system', message: 'AICL Interactive Shell — Type AICL statements or commands', timestamp: now }]);
-  }, []);
 
   // --- Load examples and exercises on mount ---
   useEffect(() => {
@@ -976,7 +973,7 @@ export default function AICLEditor() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: [...chatMessages, userMessage].map(m => ({ role: m.role, content: m.content })),
+          messages: [...chatMessages, userMessage].map(m => ({ role: m.role, content: m.content === '__WELCOME_SPLASH__' ? 'Hello, I am using the AICL editor.' : m.content })),
           context: activeFile.content,
         }),
       });
@@ -1153,7 +1150,7 @@ export default function AICLEditor() {
           messages: [...chatMessages, {
             role: 'user' as const,
             content: `I got this error during ${errorInfo.operation}: ${errorInfo.message}${errorInfo.details?.length ? '\nDetails:\n' + errorInfo.details.join('\n') : ''}\n\nPlease explain what went wrong and how to fix it. Be specific and actionable.`,
-          }].map(m => ({ role: m.role, content: m.content })),
+          }].map(m => ({ role: m.role, content: m.content === '__WELCOME_SPLASH__' ? 'Hello, I am using the AICL editor.' : m.content })),
           context: activeFile.content,
         }),
       });
@@ -1192,32 +1189,33 @@ export default function AICLEditor() {
   // ============================================================
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="h-screen flex flex-col bg-[#1e1e1e] text-[#d4d4d4] overflow-hidden">
+      <div className="h-screen flex flex-col bg-[#1a1a2e] text-[#d4d4d4] overflow-hidden">
         {/* ======== TOOLBAR ======== */}
-        <div className="flex items-center gap-1 px-2 py-1 bg-[#252526] border-b border-[#3c3c3c] flex-shrink-0">
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-[#1e1e36] to-[#252540] border-b border-[#3c3c50] flex-shrink-0 panel-depth">
           {/* Left: Logo + File ops */}
-          <div className="flex items-center gap-1 mr-2">
-            <div className="flex items-center gap-1.5 px-2">
-              <div className="w-4 h-4 rounded bg-[#cd2d48] flex items-center justify-center">
-                <span className="text-white text-[8px] font-bold">A</span>
+          <div className="flex items-center gap-2 mr-3">
+            <div className="flex items-center gap-2 px-2 py-0.5 rounded-md bg-[#cd2d48]/10 border border-[#cd2d48]/20">
+              <div className="w-6 h-6 rounded-md bg-[#cd2d48] flex items-center justify-center shadow-lg shadow-[#cd2d48]/20">
+                <span className="text-white text-xs font-black tracking-tight">A</span>
               </div>
-              <span className="text-xs font-semibold text-[#cd2d48]">AICL</span>
+              <span className="text-sm font-bold text-[#cd2d48] tracking-wide">AICL</span>
+              <span className="text-[10px] text-[#cd2d48]/60 font-medium">v5.0</span>
             </div>
-            <div className="w-px h-4 bg-[#3c3c3c]" />
+            <div className="w-px h-5 bg-[#3c3c50]" />
           </div>
 
-          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30]" onClick={newFile}><Plus className="h-3.5 w-3.5 mr-1" />New</Button></TooltipTrigger><TooltipContent>New File</TooltipContent></Tooltip>
-          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30]" onClick={loadFile}><FolderOpen className="h-3.5 w-3.5 mr-1" />Open</Button></TooltipTrigger><TooltipContent>Open File</TooltipContent></Tooltip>
-          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30]" onClick={saveFile}><Save className="h-3.5 w-3.5 mr-1" />Save</Button></TooltipTrigger><TooltipContent>Save (Ctrl+S)</TooltipContent></Tooltip>
+          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs hover:bg-[#2d2d3d] rounded-md transition-colors" onClick={newFile}><Plus className="h-3.5 w-3.5 mr-1.5" />New</Button></TooltipTrigger><TooltipContent>New File</TooltipContent></Tooltip>
+          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs hover:bg-[#2d2d3d] rounded-md transition-colors" onClick={loadFile}><FolderOpen className="h-3.5 w-3.5 mr-1.5" />Open</Button></TooltipTrigger><TooltipContent>Open File</TooltipContent></Tooltip>
+          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs hover:bg-[#2d2d3d] rounded-md transition-colors" onClick={saveFile}><Save className="h-3.5 w-3.5 mr-1.5" />Save</Button></TooltipTrigger><TooltipContent>Save (Ctrl+S)</TooltipContent></Tooltip>
 
-          <div className="w-px h-4 bg-[#3c3c3c] mx-1" />
+          <div className="w-px h-5 bg-[#3c3c50] mx-1" />
 
           {/* Target language selector */}
           <Select value={targetLang} onValueChange={setTargetLang}>
-            <SelectTrigger className="h-7 w-[110px] text-xs bg-[#2d2d30] border-[#3c3c3c]">
+            <SelectTrigger className="h-7 w-[110px] text-xs bg-[#2d2d3d] border-[#3c3c50] rounded-md">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="bg-[#252526] border-[#3c3c3c]">
+            <SelectContent className="bg-[#1e1e36] border-[#3c3c50]">
               <SelectItem value="python">Python</SelectItem>
               <SelectItem value="rust">Rust</SelectItem>
               <SelectItem value="javascript">JavaScript</SelectItem>
@@ -1225,46 +1223,46 @@ export default function AICLEditor() {
             </SelectContent>
           </Select>
 
-          <div className="w-px h-4 bg-[#3c3c3c] mx-1" />
+          <div className="w-px h-5 bg-[#3c3c50] mx-1" />
 
           {/* AICL Actions */}
-          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30] text-[#4ec9b0]" onClick={runCompile} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Play className="h-3.5 w-3.5 mr-1" />}Compile</Button></TooltipTrigger><TooltipContent>Compile AICL source code</TooltipContent></Tooltip>
-          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30] text-[#569cd6]" onClick={runVerify} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5 mr-1" />}Verify</Button></TooltipTrigger><TooltipContent>Verify specification quality</TooltipContent></Tooltip>
-          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30] text-[#dcdcaa]" onClick={runAudit} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <FileSearch className="h-3.5 w-3.5 mr-1" />}Audit</Button></TooltipTrigger><TooltipContent>Audit compilation provenance</TooltipContent></Tooltip>
-          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30] text-[#c586c0]" onClick={runExplain} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Brain className="h-3.5 w-3.5 mr-1" />}Explain</Button></TooltipTrigger><TooltipContent>Explain compilation provenance</TooltipContent></Tooltip>
-          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30] text-[#6a9955]" onClick={runTree} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <TreePine className="h-3.5 w-3.5 mr-1" />}Tree</Button></TooltipTrigger><TooltipContent>Architecture tree</TooltipContent></Tooltip>
-          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30] text-[#ce9178]" onClick={runOptimize} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Zap className="h-3.5 w-3.5 mr-1" />}Optimize</Button></TooltipTrigger><TooltipContent>Optimize architecture</TooltipContent></Tooltip>
+          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-3 text-xs hover:bg-[#4ec9b0]/10 rounded-md text-[#4ec9b0] compile-btn font-semibold transition-all" onClick={runCompile} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Play className="h-3.5 w-3.5 mr-1.5" />}Compile</Button></TooltipTrigger><TooltipContent>Compile AICL → Code</TooltipContent></Tooltip>
+          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs hover:bg-[#569cd6]/10 rounded-md text-[#569cd6] transition-colors" onClick={runVerify} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5 mr-1.5" />}Verify</Button></TooltipTrigger><TooltipContent>Verify specification quality</TooltipContent></Tooltip>
+          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs hover:bg-[#dcdcaa]/10 rounded-md text-[#dcdcaa] transition-colors" onClick={runAudit} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <FileSearch className="h-3.5 w-3.5 mr-1.5" />}Audit</Button></TooltipTrigger><TooltipContent>Audit compilation provenance</TooltipContent></Tooltip>
+          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs hover:bg-[#c586c0]/10 rounded-md text-[#c586c0] transition-colors" onClick={runExplain} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Brain className="h-3.5 w-3.5 mr-1.5" />}Explain</Button></TooltipTrigger><TooltipContent>Explain compilation provenance</TooltipContent></Tooltip>
+          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs hover:bg-[#6a9955]/10 rounded-md text-[#6a9955] transition-colors" onClick={runTree} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <TreePine className="h-3.5 w-3.5 mr-1.5" />}Tree</Button></TooltipTrigger><TooltipContent>Architecture tree</TooltipContent></Tooltip>
+          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs hover:bg-[#ce9178]/10 rounded-md text-[#ce9178] transition-colors" onClick={runOptimize} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Zap className="h-3.5 w-3.5 mr-1.5" />}Optimize</Button></TooltipTrigger><TooltipContent>Optimize architecture</TooltipContent></Tooltip>
 
-          <div className="w-px h-4 bg-[#3c3c3c] mx-1" />
+          <div className="w-px h-5 bg-[#3c3c50] mx-1" />
 
-          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30] text-[#c586c0]" onClick={() => { setRightPanelOpen(true); setRightPanelContent('chat'); setTimeout(() => chatInputRef.current?.focus(), 100); }}><MessageSquare className="h-3.5 w-3.5 mr-1" />AI Chat</Button></TooltipTrigger><TooltipContent>Open AI Assistant chat</TooltipContent></Tooltip>
+          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs hover:bg-[#cd2d48]/10 rounded-md text-[#cd2d48] transition-colors animate-pulse-glow" onClick={() => { setRightPanelOpen(true); setRightPanelContent('chat'); setTimeout(() => chatInputRef.current?.focus(), 100); }}><MessageSquare className="h-3.5 w-3.5 mr-1.5" />AI Chat</Button></TooltipTrigger><TooltipContent>Open AI Assistant chat</TooltipContent></Tooltip>
 
-          <div className="w-px h-4 bg-[#3c3c3c] mx-1" />
+          <div className="w-px h-5 bg-[#3c3c50] mx-1" />
 
-          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30]" onClick={clearOutput}><Trash2 className="h-3.5 w-3.5 mr-1" />Clear</Button></TooltipTrigger><TooltipContent>Clear output</TooltipContent></Tooltip>
+          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs hover:bg-[#2d2d3d] rounded-md transition-colors" onClick={clearOutput}><Trash2 className="h-3.5 w-3.5 mr-1.5" />Clear</Button></TooltipTrigger><TooltipContent>Clear output</TooltipContent></Tooltip>
 
           {/* Spacer */}
           <div className="flex-1" />
 
           {/* Right: Search */}
-          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30]" onClick={() => { setFindOpen(!findOpen); setTimeout(() => findInputRef.current?.focus(), 50); }}><Search className="h-3.5 w-3.5 mr-1" />Find</Button></TooltipTrigger><TooltipContent>Find & Replace (Ctrl+F)</TooltipContent></Tooltip>
+          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs hover:bg-[#2d2d3d] rounded-md transition-colors" onClick={() => { setFindOpen(!findOpen); setTimeout(() => findInputRef.current?.focus(), 50); }}><Search className="h-3.5 w-3.5 mr-1.5" />Find</Button></TooltipTrigger><TooltipContent>Find & Replace (Ctrl+F)</TooltipContent></Tooltip>
         </div>
 
         {/* ======== FILE TABS ======== */}
-        <div className="flex items-center bg-[#252526] border-b border-[#3c3c3c] flex-shrink-0 overflow-x-auto">
+        <div className="flex items-center bg-[#1e1e36] border-b border-[#3c3c50] flex-shrink-0 overflow-x-auto">
           {files.map(file => (
             <div
               key={file.id}
-              className={`flex items-center gap-1 px-3 py-1.5 text-xs cursor-pointer border-r border-[#3c3c3c] group min-w-0 ${
-                file.id === activeFileId ? 'bg-[#1e1e1e] text-white border-t-2 border-t-[#cd2d48]' : 'bg-[#2d2d30] text-[#808080] hover:bg-[#2d2d30]'
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs cursor-pointer border-r border-[#3c3c50] group min-w-0 tab-transition ${
+                file.id === activeFileId ? 'bg-[#1a1a2e] text-white border-t-2 border-t-[#cd2d48]' : 'bg-[#252540] text-[#808090] hover:bg-[#2d2d3d]'
               }`}
               onClick={() => setActiveFileId(file.id)}
             >
               <File className="h-3 w-3 text-[#4ec9b0] flex-shrink-0" />
               <span className="truncate max-w-[120px]">{file.name}</span>
-              {file.modified && <span className="w-2 h-2 rounded-full bg-[#cd2d48] flex-shrink-0" />}
+              {file.modified && <span className="w-2 h-2 rounded-full bg-[#cd2d48] flex-shrink-0 shadow-sm shadow-[#cd2d48]/30" />}
               <button
-                className="ml-1 opacity-0 group-hover:opacity-100 hover:text-white flex-shrink-0"
+                className="ml-1 opacity-0 group-hover:opacity-100 hover:text-white flex-shrink-0 transition-opacity"
                 onClick={(e) => { e.stopPropagation(); closeFile(file.id); }}
               >
                 <X className="h-3 w-3" />
@@ -1272,7 +1270,7 @@ export default function AICLEditor() {
             </div>
           ))}
           <button
-            className="px-2 py-1.5 text-[#808080] hover:text-white hover:bg-[#2d2d30] text-xs"
+            className="px-2 py-1.5 text-[#808090] hover:text-white hover:bg-[#2d2d3d] text-xs transition-colors"
             onClick={newFile}
           >
             <Plus className="h-3.5 w-3.5" />
@@ -1281,30 +1279,30 @@ export default function AICLEditor() {
 
         {/* ======== FIND/REPLACE BAR ======== */}
         {findOpen && (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-[#252526] border-b border-[#3c3c3c] flex-shrink-0">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-[#1e1e36] border-b border-[#3c3c50] flex-shrink-0">
             <div className="flex items-center gap-1 flex-1">
-              <Search className="h-3.5 w-3.5 text-[#808080]" />
+              <Search className="h-3.5 w-3.5 text-[#808090]" />
               <input
                 ref={findInputRef}
-                className="bg-[#3c3c3c] border border-[#4f4f4f] rounded px-2 py-1 text-xs text-[#d4d4d4] w-48 focus:outline-none focus:border-[#cd2d48]"
+                className="bg-[#2d2d3d] border border-[#3c3c50] rounded-md px-2 py-1 text-xs text-[#d4d4d4] w-48 focus:outline-none focus:border-[#cd2d48] transition-colors"
                 placeholder="Find..."
                 value={findText}
                 onChange={(e) => setFindText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleFindNext(); if (e.key === 'Escape') setFindOpen(false); }}
               />
-              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={handleFindNext}>Next</Button>
+              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs hover:bg-[#2d2d3d]">Next</Button>
             </div>
             <div className="flex items-center gap-1 flex-1">
-              <Replace className="h-3.5 w-3.5 text-[#808080]" />
+              <Replace className="h-3.5 w-3.5 text-[#808090]" />
               <input
-                className="bg-[#3c3c3c] border border-[#4f4f4f] rounded px-2 py-1 text-xs text-[#d4d4d4] w-48 focus:outline-none focus:border-[#cd2d48]"
+                className="bg-[#2d2d3d] border border-[#3c3c50] rounded-md px-2 py-1 text-xs text-[#d4d4d4] w-48 focus:outline-none focus:border-[#cd2d48] transition-colors"
                 placeholder="Replace..."
                 value={replaceText}
                 onChange={(e) => setReplaceText(e.target.value)}
               />
-              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={handleReplaceAll}>Replace All</Button>
+              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs hover:bg-[#2d2d3d]" onClick={handleReplaceAll}>Replace All</Button>
             </div>
-            <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => setFindOpen(false)}>
+            <Button variant="ghost" size="sm" className="h-6 px-2 hover:bg-[#2d2d3d]" onClick={() => setFindOpen(false)}>
               <X className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -1315,17 +1313,37 @@ export default function AICLEditor() {
           {/* --- Left Panel --- */}
           {leftPanelOpen && (
             <>
-              <div className="w-60 bg-[#252526] border-r border-[#3c3c3c] flex flex-col flex-shrink-0 overflow-hidden">
+              <div className="w-60 bg-[#1e1e36] border-r border-[#3c3c50] flex flex-col flex-shrink-0 overflow-hidden panel-depth">
+                {/* Cognitive Vision Banner */}
+                <div className="welcome-gradient border-b border-[#3c3c50] p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#cd2d48]">Cognitive Vision</span>
+                    <button className="text-[#808090] hover:text-white text-xs transition-colors" onClick={() => setLeftPanelOpen(false)}>
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px] font-mono">
+                    <span className="px-1.5 py-0.5 rounded bg-[#4ec9b0]/15 text-[#4ec9b0] font-semibold">Architecture</span>
+                    <span className="text-[#808090] flow-arrow">→</span>
+                    <span className="px-1.5 py-0.5 rounded bg-[#cd2d48]/15 text-[#cd2d48] font-semibold">AICL</span>
+                    <span className="text-[#808090] flow-arrow flow-arrow-delay-1">→</span>
+                    <span className="px-1.5 py-0.5 rounded bg-[#c586c0]/15 text-[#c586c0] font-semibold">AI</span>
+                    <span className="text-[#808090] flow-arrow flow-arrow-delay-2">→</span>
+                    <span className="px-1.5 py-0.5 rounded bg-[#569cd6]/15 text-[#569cd6] font-semibold">Code</span>
+                  </div>
+                  <p className="text-[9px] text-[#808090] mt-2 leading-relaxed">The architecture is the real program. Code is the byproduct.</p>
+                </div>
+
                 {/* Panel Tabs */}
-                <div className="flex border-b border-[#3c3c3c]">
+                <div className="flex border-b border-[#3c3c50]">
                   <button
-                    className={`flex-1 px-3 py-2 text-xs font-medium ${leftPanelTab === 'files' ? 'text-[#cd2d48] border-b-2 border-[#cd2d48]' : 'text-[#808080] hover:text-[#d4d4d4]'}`}
+                    className={`flex-1 px-3 py-2 text-xs font-medium tab-transition ${leftPanelTab === 'files' ? 'text-[#cd2d48] border-b-2 border-[#cd2d48]' : 'text-[#808090] hover:text-[#d4d4d4]'}`}
                     onClick={() => setLeftPanelTab('files')}
                   >
                     <FolderOpen className="h-3.5 w-3.5 inline mr-1" />Examples
                   </button>
                   <button
-                    className={`flex-1 px-3 py-2 text-xs font-medium ${leftPanelTab === 'exercises' ? 'text-[#cd2d48] border-b-2 border-[#cd2d48]' : 'text-[#808080] hover:text-[#d4d4d4]'}`}
+                    className={`flex-1 px-3 py-2 text-xs font-medium tab-transition ${leftPanelTab === 'exercises' ? 'text-[#cd2d48] border-b-2 border-[#cd2d48]' : 'text-[#808090] hover:text-[#d4d4d4]'}`}
                     onClick={() => setLeftPanelTab('exercises')}
                   >
                     <BookOpen className="h-3.5 w-3.5 inline mr-1" />Exercises
@@ -1336,26 +1354,26 @@ export default function AICLEditor() {
                 {leftPanelTab === 'files' && (
                   <ScrollArea className="flex-1">
                     <div className="p-2">
-                      <div className="text-xs text-[#808080] uppercase tracking-wider mb-2 px-2">AICL Examples</div>
+                      <div className="text-xs text-[#808090] uppercase tracking-wider mb-2 px-2 font-semibold">AICL Examples</div>
                       {examples.map(ex => (
                         <button
                           key={ex.id}
-                          className="w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded hover:bg-[#2d2d30] group text-left"
+                          className="w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-md hover:bg-[#2d2d3d] group text-left transition-colors"
                           onClick={() => openExample(ex)}
                         >
                           <FileText className="h-3.5 w-3.5 text-[#4ec9b0] flex-shrink-0" />
                           <div className="min-w-0">
                             <div className="truncate text-[#d4d4d4]">{ex.title}</div>
-                            <div className="text-[#808080] truncate">{ex.description}</div>
+                            <div className="text-[#808090] truncate">{ex.description}</div>
                           </div>
                         </button>
                       ))}
 
-                      <div className="text-xs text-[#808080] uppercase tracking-wider mb-2 mt-4 px-2">Open Files</div>
+                      <div className="text-xs text-[#808090] uppercase tracking-wider mb-2 mt-4 px-2 font-semibold">Open Files</div>
                       {files.map(f => (
                         <button
                           key={f.id}
-                          className={`w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded group text-left ${f.id === activeFileId ? 'bg-[#2d2d30] text-white' : 'hover:bg-[#2d2d30] text-[#d4d4d4]'}`}
+                          className={`w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-md group text-left transition-colors ${f.id === activeFileId ? 'bg-[#2d2d3d] text-white border-l-2 border-l-[#cd2d48]' : 'hover:bg-[#2d2d3d] text-[#d4d4d4]'}`}
                           onClick={() => setActiveFileId(f.id)}
                         >
                           <File className="h-3.5 w-3.5 text-[#4ec9b0] flex-shrink-0" />
@@ -1371,19 +1389,19 @@ export default function AICLEditor() {
                 {leftPanelTab === 'exercises' && (
                   <ScrollArea className="flex-1">
                     <div className="p-2">
-                      <div className="text-xs text-[#808080] uppercase tracking-wider mb-2 px-2">Progressive Exercises</div>
+                      <div className="text-xs text-[#808090] uppercase tracking-wider mb-2 px-2 font-semibold">Progressive Exercises</div>
                       {exercises.map(ex => (
                         <button
                           key={ex.id}
-                          className={`w-full flex items-start gap-2 px-2 py-2 text-xs rounded hover:bg-[#2d2d30] text-left ${activeExercise === ex.id ? 'bg-[#2d2d30] border-l-2 border-[#cd2d48]' : ''}`}
+                          className={`w-full flex items-start gap-2 px-2 py-2 text-xs rounded-md hover:bg-[#2d2d3d] text-left transition-colors ${activeExercise === ex.id ? 'bg-[#2d2d3d] border-l-2 border-[#cd2d48]' : ''}`}
                           onClick={() => openExercise(ex)}
                         >
-                          <div className="w-5 h-5 rounded-full bg-[#2d2d30] flex items-center justify-center flex-shrink-0 mt-0.5 border border-[#3c3c3c]">
+                          <div className="w-5 h-5 rounded-full bg-[#2d2d3d] flex items-center justify-center flex-shrink-0 mt-0.5 border border-[#3c3c50]">
                             <span className="text-[10px] text-[#cd2d48] font-bold">{ex.id}</span>
                           </div>
                           <div className="min-w-0">
                             <div className="text-[#d4d4d4] font-medium">{ex.title}</div>
-                            <div className="text-[#808080] line-clamp-2 mt-0.5">{ex.description}</div>
+                            <div className="text-[#808090] line-clamp-2 mt-0.5">{ex.description}</div>
                           </div>
                         </button>
                       ))}
@@ -1391,22 +1409,23 @@ export default function AICLEditor() {
                   </ScrollArea>
                 )}
               </div>
-              <div className="resize-handle w-1 bg-[#3c3c3c] hover:bg-[#cd2d48] cursor-col-resize flex-shrink-0" />
+              <div className="resize-handle w-1 bg-[#3c3c50] hover:bg-[#cd2d48] cursor-col-resize flex-shrink-0" />
             </>
           )}
 
           {/* --- Center: Code Editor --- */}
           <div className="flex-1 flex flex-col overflow-hidden min-w-0">
             {/* Auto-complete hint */}
-            <div className="flex items-center gap-2 px-3 py-1 bg-[#252526] border-b border-[#3c3c3c] flex-shrink-0">
-              <span className="text-[10px] text-[#808080]">
+            <div className="flex items-center gap-2 px-3 py-1 bg-[#1e1e36] border-b border-[#3c3c50] flex-shrink-0">
+              <span className="text-[10px] text-[#808090]">
                 Ctrl+Space: Auto-complete | Tab: Indent | Shift+Tab: Outdent | Enter: Auto-indent
               </span>
               <div className="flex-1" />
-              <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs hover:bg-[#2d2d30]" onClick={() => setLeftPanelOpen(!leftPanelOpen)}>
+              <span className="text-[10px] text-[#4ec9b0]/60 font-mono">{activeFile.content.split('\n').length} lines</span>
+              <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs hover:bg-[#2d2d3d] transition-colors" onClick={() => setLeftPanelOpen(!leftPanelOpen)}>
                 {leftPanelOpen ? <PanelLeftClose className="h-3.5 w-3.5" /> : <PanelLeftOpen className="h-3.5 w-3.5" />}
               </Button></TooltipTrigger><TooltipContent>Toggle left panel</TooltipContent></Tooltip>
-              <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs hover:bg-[#2d2d30]" onClick={() => setRightPanelOpen(!rightPanelOpen)}>
+              <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs hover:bg-[#2d2d3d] transition-colors" onClick={() => setRightPanelOpen(!rightPanelOpen)}>
                 {rightPanelOpen ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRightOpen className="h-3.5 w-3.5" />}
               </Button></TooltipTrigger><TooltipContent>Toggle right panel</TooltipContent></Tooltip>
             </div>
@@ -1416,9 +1435,9 @@ export default function AICLEditor() {
               {/* Line numbers + Highlighted overlay + Textarea */}
               <div className="absolute inset-0 flex">
                 {/* Line numbers */}
-                <div className="w-12 bg-[#1e1e1e] text-right pr-3 pt-2 select-none overflow-hidden flex-shrink-0">
+                <div className="w-14 bg-[#16162a] text-right pr-4 pt-2 select-none overflow-hidden flex-shrink-0 border-r border-[#2a2a40]">
                   {lineNumbers.map(n => (
-                    <div key={n} className="text-[11px] leading-[21px] text-[#4f4f4f] font-mono">{n}</div>
+                    <div key={n} className={`text-[11px] leading-[21px] font-mono ${n === cursorPos.line ? 'text-[#cd2d48] font-semibold' : 'text-[#4f4f60]'}`}>{n}</div>
                   ))}
                 </div>
 
@@ -1426,7 +1445,7 @@ export default function AICLEditor() {
                 <div className="flex-1 relative">
                   {/* Syntax highlighted background */}
                   <pre
-                    className="absolute inset-0 pt-2 pl-0 pr-4 overflow-auto pointer-events-none editor-textarea whitespace-pre text-[#d4d4d4]"
+                    className="absolute inset-0 pt-2 pl-2 pr-4 overflow-auto pointer-events-none editor-textarea whitespace-pre text-[#d4d4d4]"
                     aria-hidden="true"
                     dangerouslySetInnerHTML={{ __html: highlightedCode }}
                     style={{ font: '14px/1.5 var(--font-geist-mono), "Consolas", monospace' }}
@@ -1435,7 +1454,7 @@ export default function AICLEditor() {
                   {/* Actual textarea */}
                   <textarea
                     ref={textareaRef}
-                    className="absolute inset-0 pt-2 pl-0 pr-4 editor-textarea bg-transparent text-transparent caret-[#d4d4d4] resize-none focus:outline-none whitespace-pre overflow-auto"
+                    className="absolute inset-0 pt-2 pl-2 pr-4 editor-textarea bg-transparent text-transparent caret-[#d4d4d4] resize-none focus:outline-none whitespace-pre overflow-auto"
                     value={activeFile.content}
                     onChange={(e) => updateFileContent(activeFileId, e.target.value)}
                     onKeyDown={handleKeyDown}
@@ -1460,14 +1479,14 @@ export default function AICLEditor() {
           {/* --- Right Panel --- */}
           {rightPanelOpen && (
             <>
-              <div className="resize-handle w-1 bg-[#3c3c3c] hover:bg-[#cd2d48] cursor-col-resize flex-shrink-0" />
-              <div className="w-80 bg-[#252526] border-l border-[#3c3c3c] flex flex-col flex-shrink-0 overflow-hidden">
+              <div className="resize-handle w-1 bg-[#3c3c50] hover:bg-[#cd2d48] cursor-col-resize flex-shrink-0" />
+              <div className={`w-80 flex flex-col flex-shrink-0 overflow-hidden panel-depth ${rightPanelContent === 'chat' ? 'chat-panel-bg border-l border-[#3c3c50]' : 'bg-[#1e1e36] border-l border-[#3c3c50]'}`}>
                 {/* Right panel tabs */}
-                <div className="flex border-b border-[#3c3c3c]">
+                <div className="flex border-b border-[#3c3c50] bg-[#1e1e36]">
                   {(['output', 'tree', 'code', 'chat'] as const).map(tab => (
                     <button
                       key={tab}
-                      className={`flex-1 px-2 py-1.5 text-[10px] font-medium capitalize ${rightPanelContent === tab ? 'text-[#cd2d48] border-b-2 border-[#cd2d48]' : 'text-[#808080] hover:text-[#d4d4d4]'}`}
+                      className={`flex-1 px-2 py-1.5 text-[10px] font-medium capitalize tab-transition ${rightPanelContent === tab ? 'text-[#cd2d48] border-b-2 border-[#cd2d48]' : 'text-[#808090] hover:text-[#d4d4d4]'}`}
                       onClick={() => {
                         setRightPanelContent(tab);
                         if (tab === 'tree') setTreeData('');
@@ -1477,7 +1496,7 @@ export default function AICLEditor() {
                       {tab === 'output' && <FileSearch className="h-3 w-3 inline mr-1" />}
                       {tab === 'tree' && <TreePine className="h-3 w-3 inline mr-1" />}
                       {tab === 'code' && <Code2 className="h-3 w-3 inline mr-1" />}
-                      {tab === 'chat' && <MessageSquare className="h-3 w-3 inline mr-1" />}
+                      {tab === 'chat' && <><MessageSquare className="h-3 w-3 inline mr-1" /><span className="inline-block w-1.5 h-1.5 rounded-full bg-[#4ec9b0] animate-cognitive-pulse ml-0.5" /></>}
                       {tab}
                     </button>
                   ))}
@@ -1486,24 +1505,34 @@ export default function AICLEditor() {
                 {/* Output */}
                 {rightPanelContent === 'output' && (
                   <ScrollArea className="flex-1">
-                    <div className="p-2 font-mono text-xs">
-                      {output.map((entry, i) => (
-                        <div key={i} className={`py-0.5 ${
-                          entry.type === 'success' ? 'text-[#4ec9b0]' :
-                          entry.type === 'error' ? 'text-[#f44747]' :
-                          entry.type === 'warning' ? 'text-[#dcdcaa]' :
-                          entry.type === 'system' ? 'text-[#808080]' :
-                          'text-[#d4d4d4]'
-                        }`}>
-                          <span className="text-[#4f4f4f] mr-2" suppressHydrationWarning>
-                            {entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '--:--:--'}
-                          </span>
-                          {entry.type === 'success' && <CheckCircle className="h-3 w-3 inline mr-1" />}
-                          {entry.type === 'error' && <XCircle className="h-3 w-3 inline mr-1" />}
-                          {entry.type === 'warning' && <AlertTriangle className="h-3 w-3 inline mr-1" />}
-                          <span className="whitespace-pre-wrap">{entry.message}</span>
-                        </div>
-                      ))}
+                    <div className="p-2">
+                      {/* Copy All button */}
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] text-[#808090] uppercase tracking-wider font-semibold">Output</span>
+                        <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px] text-[#808090] hover:text-white hover:bg-[#2d2d3d] transition-colors" onClick={() => { navigator.clipboard.writeText(output.map(e => e.message).join('\n')); toast({ title: 'Copied!', description: 'All output copied to clipboard' }); }}>
+                          <Copy className="h-3 w-3 mr-1" />Copy All
+                        </Button>
+                      </div>
+                      <div className="font-mono text-xs space-y-0.5">
+                        {output.map((entry, i) => (
+                          <div key={i} className={`py-0.5 rounded px-1.5 ${
+                            entry.type === 'success' ? 'text-[#4ec9b0] success-entry' :
+                            entry.type === 'error' ? 'text-[#f44747] error-entry bg-[#f44747]/5' :
+                            entry.type === 'warning' ? 'text-[#dcdcaa]' :
+                            entry.type === 'system' ? 'text-[#808090]' :
+                            'text-[#d4d4d4]'
+                          }`}>
+                            <span className="text-[#4f4f60] mr-2" suppressHydrationWarning>
+                              {entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '--:--:--'}
+                            </span>
+                            {entry.type === 'success' && <CheckCircle className="h-3 w-3 inline mr-1" />}
+                            {entry.type === 'error' && <XCircle className="h-3.5 w-3.5 inline mr-1" />}
+                            {entry.type === 'warning' && <AlertTriangle className="h-3 w-3 inline mr-1" />}
+                            {entry.type === 'info' && <Info className="h-3 w-3 inline mr-1 text-[#569cd6]" />}
+                            <span className={`whitespace-pre-wrap ${entry.type === 'success' ? 'font-semibold' : ''}`}>{entry.message}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </ScrollArea>
                 )}
@@ -1525,25 +1554,25 @@ export default function AICLEditor() {
                         <div>
                           <div className="flex items-center gap-2 mb-2">
                             <Badge variant="outline" className="text-[10px] text-[#4ec9b0] border-[#4ec9b0]">main.py</Badge>
-                            <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px] hover:bg-[#2d2d30]" onClick={() => { navigator.clipboard.writeText(compiledCode); toast({ title: 'Copied!', description: 'Compiled code copied to clipboard' }); }}>
+                            <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px] hover:bg-[#2d2d3d] transition-colors" onClick={() => { navigator.clipboard.writeText(compiledCode); toast({ title: 'Copied!', description: 'Compiled code copied to clipboard' }); }}>
                               <Copy className="h-3 w-3 mr-1" />Copy
                             </Button>
                           </div>
-                          <pre className="font-mono text-[11px] text-[#d4d4d4] whitespace-pre bg-[#1e1e1e] p-2 rounded border border-[#3c3c3c] max-h-[50vh] overflow-auto">{compiledCode}</pre>
+                          <pre className="font-mono text-[11px] text-[#d4d4d4] whitespace-pre bg-[#16162a] p-2 rounded-md border border-[#3c3c50] max-h-[50vh] overflow-auto">{compiledCode}</pre>
                           {testCode && (
                             <div className="mt-3">
                               <div className="flex items-center gap-2 mb-2">
                                 <Badge variant="outline" className="text-[10px] text-[#dcdcaa] border-[#dcdcaa]">test_main.py</Badge>
-                                <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px] hover:bg-[#2d2d30]" onClick={() => { navigator.clipboard.writeText(testCode); toast({ title: 'Copied!', description: 'Test code copied to clipboard' }); }}>
+                                <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px] hover:bg-[#2d2d3d] transition-colors" onClick={() => { navigator.clipboard.writeText(testCode); toast({ title: 'Copied!', description: 'Test code copied to clipboard' }); }}>
                                   <Copy className="h-3 w-3 mr-1" />Copy
                                 </Button>
                               </div>
-                              <pre className="font-mono text-[11px] text-[#d4d4d4] whitespace-pre bg-[#1e1e1e] p-2 rounded border border-[#3c3c3c] max-h-[50vh] overflow-auto">{testCode}</pre>
+                              <pre className="font-mono text-[11px] text-[#d4d4d4] whitespace-pre bg-[#16162a] p-2 rounded-md border border-[#3c3c50] max-h-[50vh] overflow-auto">{testCode}</pre>
                             </div>
                           )}
                         </div>
                       ) : (
-                        <div className="text-xs text-[#808080]">Click &quot;Compile&quot; in the toolbar to generate code</div>
+                        <div className="text-xs text-[#808090]">Click &quot;Compile&quot; in the toolbar to generate code</div>
                       )}
                     </div>
                   </ScrollArea>
@@ -1555,42 +1584,91 @@ export default function AICLEditor() {
                     <ScrollArea className="flex-1">
                       <div className="p-3 space-y-3">
                         {chatMessages.map((msg, i) => (
-                          <div key={i} className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          <div key={i} className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
                             {msg.role === 'assistant' && (
-                              <div className="w-6 h-6 rounded-full bg-[#cd2d48] flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#cd2d48] to-[#8b1a2d] flex items-center justify-center flex-shrink-0 mt-0.5 shadow-lg shadow-[#cd2d48]/20">
                                 <Bot className="h-3.5 w-3.5 text-white" />
                               </div>
                             )}
-                            <div className={`max-w-[85%] rounded-lg text-xs leading-relaxed ${
+                            <div className={`max-w-[85%] rounded-xl text-xs leading-relaxed ${
                               msg.role === 'user'
-                                ? 'bg-[#cd2d48] text-white rounded-br-sm px-3 py-2'
-                                : 'bg-[#2d2d30] text-[#d4d4d4] rounded-bl-sm'
+                                ? 'bg-[#cd2d48] text-white rounded-br-sm px-3 py-2 shadow-lg shadow-[#cd2d48]/10'
+                                : 'bg-[#2d2d3d] text-[#d4d4d4] rounded-bl-sm'
                             }`}>
                               {msg.role === 'user' ? (
                                 <div className="whitespace-pre-wrap break-words">{msg.content}</div>
                               ) : (
                                 <div>
-                                  {msg.content && (
+                                  {msg.content === '__WELCOME_SPLASH__' ? (
+                                    /* Welcome Splash Screen */
+                                    <div className="px-3 py-2">
+                                      <div className="flex items-center gap-2 mb-3">
+                                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#cd2d48] to-[#8b1a2d] flex items-center justify-center shadow-lg shadow-[#cd2d48]/30">
+                                          <span className="text-white text-sm font-black">A</span>
+                                        </div>
+                                        <div>
+                                          <div className="text-[#cd2d48] font-bold text-sm">AICL v5.0</div>
+                                          <div className="text-[#808090] text-[10px]">Cognitive Architecture Language</div>
+                                        </div>
+                                      </div>
+                                      <div className="bg-[#1a1a2e] rounded-lg p-3 mb-3 border border-[#3c3c50]">
+                                        <p className="text-[#d4d4d4] text-[11px] leading-relaxed italic">
+                                          AICL is not a programming language. It is a <span className="text-[#cd2d48] font-semibold">cognitive representation language</span> designed for the learning, reasoning, and autonomous evolution of AI systems.
+                                        </p>
+                                        <p className="text-[#808090] text-[10px] leading-relaxed mt-2">
+                                          The generated code is a byproduct. The architecture is the real program.
+                                        </p>
+                                      </div>
+                                      <div className="flex items-center gap-1 text-[10px] font-mono mb-3">
+                                        <span className="px-1.5 py-0.5 rounded bg-[#4ec9b0]/15 text-[#4ec9b0] font-semibold">Architecture</span>
+                                        <span className="text-[#808090]">→</span>
+                                        <span className="px-1.5 py-0.5 rounded bg-[#cd2d48]/15 text-[#cd2d48] font-semibold">AICL</span>
+                                        <span className="text-[#808090]">→</span>
+                                        <span className="px-1.5 py-0.5 rounded bg-[#c586c0]/15 text-[#c586c0] font-semibold">AI reasons</span>
+                                        <span className="text-[#808090]">→</span>
+                                        <span className="px-1.5 py-0.5 rounded bg-[#569cd6]/15 text-[#569cd6] font-semibold">Code</span>
+                                      </div>
+                                      <div className="text-[10px] text-[#808090] space-y-1">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="w-1 h-1 rounded-full bg-[#4ec9b0]" />
+                                          <span>Describe architectures, not implementations</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="w-1 h-1 rounded-full bg-[#cd2d48]" />
+                                          <span>No-Orphan Property ensures every artifact has provenance</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="w-1 h-1 rounded-full bg-[#c586c0]" />
+                                          <span>Proof of Origin validates compilation decisions</span>
+                                        </div>
+                                      </div>
+                                      <div className="mt-3 pt-2 border-t border-[#3c3c50]">
+                                        <p className="text-[10px] text-[#808090]">Try asking:</p>
+                                        <p className="text-[11px] text-[#cd2d48] mt-1">&quot;Describe a todo app in AICL&quot;</p>
+                                        <p className="text-[11px] text-[#4ec9b0]">&quot;Write a chat server specification&quot;</p>
+                                      </div>
+                                    </div>
+                                  ) : msg.content && (
                                     <div className="whitespace-pre-wrap break-words px-3 py-2">{msg.content}</div>
                                   )}
                                   {msg.aiclFiles?.map((file, fi) => (
-                                    <div key={fi} className="border-t border-[#3c3c3c] mt-1">
-                                      <div className="flex items-center gap-2 px-3 py-1.5 bg-[#1e1e1e]">
+                                    <div key={fi} className="border-t border-[#3c3c50] mt-1 rounded-b-xl overflow-hidden">
+                                      <div className="flex items-center gap-2 px-3 py-1.5 bg-[#1a1a2e]">
                                         <FileText className="h-3.5 w-3.5 text-[#4ec9b0]" />
                                         <span className="text-[#4ec9b0] font-mono text-[11px]">{file.filename}</span>
                                       </div>
-                                      <pre className="px-3 py-2 text-[11px] font-mono text-[#d4d4d4] whitespace-pre overflow-x-auto max-h-40 bg-[#1e1e1e]">{file.code}</pre>
-                                      <div className="flex items-center gap-1.5 px-3 py-2 bg-[#1e1e1e]">
+                                      <pre className="px-3 py-2 text-[11px] font-mono text-[#d4d4d4] whitespace-pre overflow-x-auto max-h-40 bg-[#1a1a2e]">{file.code}</pre>
+                                      <div className="flex items-center gap-1.5 px-3 py-2 bg-[#1a1a2e]">
                                         <Button
                                           size="sm"
-                                          className="h-6 text-[10px] px-2 bg-[#4ec9b0] hover:bg-[#3ba890] text-[#1e1e1e]"
+                                          className="h-6 text-[10px] px-2 bg-[#4ec9b0] hover:bg-[#3ba890] text-[#1a1a2e] font-semibold rounded-md transition-colors"
                                           onClick={() => chatCreateFile(file.filename, file.code)}
                                         >
                                           <Plus className="h-3 w-3 mr-1" />Create File
                                         </Button>
                                         <Button
                                           size="sm"
-                                          className="h-6 text-[10px] px-2 bg-[#cd2d48] hover:bg-[#a8233b] text-white"
+                                          className="h-6 text-[10px] px-2 bg-[#cd2d48] hover:bg-[#a8233b] text-white font-semibold rounded-md transition-colors"
                                           onClick={() => chatCreateAndCompile(file.filename, file.code)}
                                           disabled={isRunning}
                                         >
@@ -1598,7 +1676,7 @@ export default function AICLEditor() {
                                         </Button>
                                         <Button
                                           size="sm"
-                                          className="h-6 text-[10px] px-2 bg-[#569cd6] hover:bg-[#4a8bc2] text-white"
+                                          className="h-6 text-[10px] px-2 bg-[#569cd6] hover:bg-[#4a8bc2] text-white font-semibold rounded-md transition-colors"
                                           onClick={() => chatCreateAndVerify(file.filename, file.code)}
                                           disabled={isRunning}
                                         >
@@ -1608,10 +1686,10 @@ export default function AICLEditor() {
                                     </div>
                                   ))}
                                   {msg.error && (
-                                    <div className="border-t border-[#5c1a1a] mt-1 bg-[#3c1414] rounded-b-lg">
+                                    <div className="border-t border-[#5c1a1a] mt-1 bg-[#2a1015] rounded-b-xl overflow-hidden error-entry">
                                       <div className="flex items-center gap-2 px-3 py-2">
-                                        <XCircle className="h-4 w-4 text-[#f87171] flex-shrink-0" />
-                                        <span className="text-[#f87171] font-semibold text-xs">{msg.error.message}</span>
+                                        <XCircle className="h-5 w-5 text-[#f87171] flex-shrink-0" />
+                                        <span className="text-[#f87171] font-bold text-xs">{msg.error.message}</span>
                                       </div>
                                       {msg.error.details && msg.error.details.length > 0 && (
                                         <div className="px-3 pb-2 space-y-1">
@@ -1626,7 +1704,7 @@ export default function AICLEditor() {
                                       <div className="flex items-center gap-1.5 px-3 py-2 border-t border-[#5c1a1a]">
                                         <Button
                                           size="sm"
-                                          className="h-6 text-[10px] px-2 bg-[#f87171] hover:bg-[#ef4444] text-[#1e1e1e]"
+                                          className="h-7 text-[10px] px-3 bg-[#f87171] hover:bg-[#ef4444] text-[#1a1a2e] font-semibold rounded-md transition-colors"
                                           onClick={() => explainErrorInChat(msg.error!)}
                                           disabled={chatLoading}
                                         >
@@ -1635,7 +1713,7 @@ export default function AICLEditor() {
                                         {msg.error.operation === 'compile' && (
                                           <Button
                                             size="sm"
-                                            className="h-6 text-[10px] px-2 bg-[#4ec9b0] hover:bg-[#3ba890] text-[#1e1e1e]"
+                                            className="h-7 text-[10px] px-2 bg-[#4ec9b0] hover:bg-[#3ba890] text-[#1a1a2e] font-semibold rounded-md transition-colors"
                                             onClick={() => chatCreateAndVerify(
                                               activeFile.name,
                                               activeFile.content
@@ -1652,29 +1730,37 @@ export default function AICLEditor() {
                               )}
                             </div>
                             {msg.role === 'user' && (
-                              <div className="w-6 h-6 rounded-full bg-[#3c3c3c] flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <div className="w-7 h-7 rounded-full bg-[#2d2d3d] flex items-center justify-center flex-shrink-0 mt-0.5 border border-[#3c3c50]">
                                 <User className="h-3.5 w-3.5 text-[#d4d4d4]" />
                               </div>
                             )}
                           </div>
                         ))}
                         {chatLoading && (
-                          <div className="flex gap-2 justify-start">
-                            <div className="w-6 h-6 rounded-full bg-[#cd2d48] flex items-center justify-center flex-shrink-0">
+                          <div className="flex gap-2 justify-start animate-fade-in">
+                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#cd2d48] to-[#8b1a2d] flex items-center justify-center flex-shrink-0">
                               <Bot className="h-3.5 w-3.5 text-white" />
                             </div>
-                            <div className="bg-[#2d2d30] px-3 py-2 rounded-lg rounded-bl-sm">
-                              <Loader2 className="h-4 w-4 animate-spin text-[#cd2d48]" />
+                            <div className="bg-[#2d2d3d] px-4 py-2.5 rounded-xl rounded-bl-sm">
+                              <div className="flex items-center gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin text-[#cd2d48]" />
+                                <span className="text-[#808090] text-[11px]">Cognitive agent reasoning...</span>
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#4ec9b0] animate-cognitive-pulse" />
+                              </div>
                             </div>
                           </div>
                         )}
                         <div ref={chatEndRef} />
                       </div>
                     </ScrollArea>
-                    <div className="flex items-center gap-2 px-3 py-2 border-t border-[#3c3c3c]">
+                    <div className="flex items-center gap-2 px-3 py-2.5 border-t border-[#3c3c50] bg-[#1e1e36]">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-[#4ec9b0] animate-cognitive-pulse" />
+                        <span className="text-[9px] text-[#4ec9b0]/60">COGNITIVE</span>
+                      </div>
                       <input
                         ref={chatInputRef}
-                        className="flex-1 bg-[#3c3c3c] border border-[#4f4f4f] rounded px-2 py-1.5 text-xs text-[#d4d4d4] focus:outline-none focus:border-[#cd2d48]"
+                        className="flex-1 bg-[#2d2d3d] border border-[#3c3c50] rounded-lg px-3 py-2 text-xs text-[#d4d4d4] focus:outline-none focus:border-[#cd2d48] transition-colors"
                         placeholder='Try "Describe a todo app in AICL"...'
                         value={chatInput}
                         onChange={(e) => setChatInput(e.target.value)}
@@ -1683,7 +1769,7 @@ export default function AICLEditor() {
                       />
                       <Button
                         size="sm"
-                        className="h-7 w-7 p-0 bg-[#cd2d48] hover:bg-[#a8233b]"
+                        className="h-8 w-8 p-0 bg-[#cd2d48] hover:bg-[#a8233b] rounded-lg transition-colors shadow-lg shadow-[#cd2d48]/20"
                         onClick={sendChatMessage}
                         disabled={chatLoading || !chatInput.trim()}
                       >
@@ -1699,13 +1785,13 @@ export default function AICLEditor() {
 
         {/* ======== BOTTOM PANEL ======== */}
         {bottomPanelOpen && (
-          <div className="h-52 bg-[#252526] border-t border-[#3c3c3c] flex flex-col flex-shrink-0">
+          <div className="h-52 bg-[#1e1e36] border-t border-[#3c3c50] flex flex-col flex-shrink-0 panel-depth">
             {/* Bottom panel tabs */}
-            <div className="flex items-center border-b border-[#3c3c3c]">
+            <div className="flex items-center border-b border-[#3c3c50] bg-[#1e1e36]">
               {(['output', 'repl', 'exercises'] as const).map(tab => (
                 <button
                   key={tab}
-                  className={`px-3 py-1.5 text-xs font-medium capitalize ${bottomPanelTab === tab ? 'text-[#cd2d48] border-b-2 border-[#cd2d48]' : 'text-[#808080] hover:text-[#d4d4d4]'}`}
+                  className={`px-3 py-1.5 text-xs font-medium capitalize tab-transition ${bottomPanelTab === tab ? 'text-[#cd2d48] border-b-2 border-[#cd2d48]' : 'text-[#808090] hover:text-[#d4d4d4]'}`}
                   onClick={() => setBottomPanelTab(tab)}
                 >
                   {tab === 'output' && <FileSearch className="h-3 w-3 inline mr-1" />}
@@ -1715,7 +1801,7 @@ export default function AICLEditor() {
                 </button>
               ))}
               <div className="flex-1" />
-              <Button variant="ghost" size="sm" className="h-6 px-2 mr-1 text-xs hover:bg-[#2d2d30]" onClick={() => setBottomPanelOpen(false)}>
+              <Button variant="ghost" size="sm" className="h-6 px-2 mr-1 text-xs hover:bg-[#2d2d3d] transition-colors" onClick={() => setBottomPanelOpen(false)}>
                 <Minimize2 className="h-3 w-3" />
               </Button>
             </div>
@@ -1729,12 +1815,16 @@ export default function AICLEditor() {
                       entry.type === 'success' ? 'text-[#4ec9b0]' :
                       entry.type === 'error' ? 'text-[#f44747]' :
                       entry.type === 'warning' ? 'text-[#dcdcaa]' :
-                      entry.type === 'system' ? 'text-[#808080]' :
+                      entry.type === 'system' ? 'text-[#808090]' :
                       'text-[#d4d4d4]'
                     }`}>
-                      <span className="text-[#4f4f4f] mr-2" suppressHydrationWarning>
+                      <span className="text-[#4f4f60] mr-2" suppressHydrationWarning>
                         {entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '--:--:--'}
                       </span>
+                      {entry.type === 'success' && <CheckCircle className="h-3 w-3 inline mr-1" />}
+                      {entry.type === 'error' && <XCircle className="h-3 w-3 inline mr-1" />}
+                      {entry.type === 'warning' && <AlertTriangle className="h-3 w-3 inline mr-1" />}
+                      {entry.type === 'info' && <Info className="h-3 w-3 inline mr-1 text-[#569cd6]" />}
                       {entry.message}
                     </div>
                   ))}
@@ -1752,7 +1842,7 @@ export default function AICLEditor() {
                         entry.type === 'success' ? 'text-[#4ec9b0]' :
                         entry.type === 'error' ? 'text-[#f44747]' :
                         entry.type === 'warning' ? 'text-[#dcdcaa]' :
-                        entry.type === 'system' ? 'text-[#808080]' :
+                        entry.type === 'system' ? 'text-[#808090]' :
                         'text-[#d4d4d4]'
                       }`}>
                         {entry.message}
@@ -1760,7 +1850,7 @@ export default function AICLEditor() {
                     ))}
                   </div>
                 </ScrollArea>
-                <div className="flex items-center gap-2 px-2 py-1 border-t border-[#3c3c3c]">
+                <div className="flex items-center gap-2 px-2 py-1 border-t border-[#3c3c50]">
                   <span className="text-[#cd2d48] font-mono text-xs">{'>>>'}</span>
                   <input
                     ref={replInputRef}
@@ -1782,20 +1872,20 @@ export default function AICLEditor() {
                     <div>
                       {(() => {
                         const ex = exercises.find(e => e.id === activeExercise);
-                        if (!ex) return <div className="text-xs text-[#808080]">No exercise selected</div>;
+                        if (!ex) return <div className="text-xs text-[#808090]">No exercise selected</div>;
                         return (
                           <>
                             <div className="flex items-center gap-2 mb-2">
                               <Badge variant="outline" className="text-[#cd2d48] border-[#cd2d48] text-xs">Exercise {ex.id}</Badge>
                               <span className="text-sm font-medium text-[#d4d4d4]">{ex.title}</span>
                             </div>
-                            <p className="text-xs text-[#808080] mb-3">{ex.description}</p>
+                            <p className="text-xs text-[#808090] mb-3">{ex.description}</p>
                             <div className="flex gap-2">
-                              <Button size="sm" className="h-7 text-xs bg-[#cd2d48] hover:bg-[#a8233b]" onClick={checkExercise} disabled={isRunning}>
+                              <Button size="sm" className="h-7 text-xs bg-[#cd2d48] hover:bg-[#a8233b] rounded-md transition-colors" onClick={checkExercise} disabled={isRunning}>
                                 {isRunning ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
                                 Check
                               </Button>
-                              <Button size="sm" variant="outline" className="h-7 text-xs border-[#3c3c3c] hover:bg-[#2d2d30]" onClick={() => setActiveExercise(null)}>
+                              <Button size="sm" variant="outline" className="h-7 text-xs border-[#3c3c50] hover:bg-[#2d2d3d] rounded-md transition-colors" onClick={() => setActiveExercise(null)}>
                                 Back to list
                               </Button>
                             </div>
@@ -1805,19 +1895,19 @@ export default function AICLEditor() {
                     </div>
                   ) : (
                     <div>
-                      <div className="text-xs text-[#808080] mb-3">Select an exercise to start learning AICL:</div>
+                      <div className="text-xs text-[#808090] mb-3">Select an exercise to start learning AICL:</div>
                       {exercises.map(ex => (
                         <button
                           key={ex.id}
-                          className="w-full flex items-start gap-2 px-2 py-2 text-xs rounded hover:bg-[#2d2d30] text-left mb-1"
+                          className="w-full flex items-start gap-2 px-2 py-2 text-xs rounded-md hover:bg-[#2d2d3d] text-left mb-1 transition-colors"
                           onClick={() => openExercise(ex)}
                         >
-                          <div className="w-5 h-5 rounded-full bg-[#2d2d30] flex items-center justify-center flex-shrink-0 mt-0.5 border border-[#3c3c3c]">
+                          <div className="w-5 h-5 rounded-full bg-[#2d2d3d] flex items-center justify-center flex-shrink-0 mt-0.5 border border-[#3c3c50]">
                             <span className="text-[10px] text-[#cd2d48] font-bold">{ex.id}</span>
                           </div>
                           <div className="min-w-0">
                             <div className="text-[#d4d4d4] font-medium">{ex.title}</div>
-                            <div className="text-[#808080] line-clamp-2 mt-0.5">{ex.description}</div>
+                            <div className="text-[#808090] line-clamp-2 mt-0.5">{ex.description}</div>
                           </div>
                         </button>
                       ))}
@@ -1830,25 +1920,30 @@ export default function AICLEditor() {
         )}
 
         {/* ======== STATUS BAR ======== */}
-        <div className="flex items-center justify-between px-3 py-1 bg-[#cd2d48] text-white text-[11px] flex-shrink-0">
+        <div className="flex items-center justify-between px-3 py-1 bg-gradient-to-r from-[#cd2d48] via-[#b02540] to-[#cd2d48] text-white text-[11px] flex-shrink-0 shadow-[0_-2px_8px_rgba(205,45,72,0.15)]">
           <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1.5 font-semibold">
               <Layers className="h-3 w-3" />
-              AICL v1.0.0
+              AICL v5.0
             </span>
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1 text-white/80">
               <File className="h-3 w-3" />
               {activeFile.name}
               {activeFile.modified && ' (modified)'}
             </span>
+            <span className="text-white/60 text-[10px] hidden sm:inline">Architecture {'>'} Implementation</span>
           </div>
           <div className="flex items-center gap-4">
+            <span className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#4ec9b0] animate-cognitive-pulse" />
+              AI Connected
+            </span>
             <span>Ln {cursorPos.line}, Col {cursorPos.col}</span>
             <span>Target: {targetLang}</span>
             <span>UTF-8</span>
             {isRunning && <span className="flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />Processing...</span>}
             {!bottomPanelOpen && (
-              <button className="hover:text-white/80" onClick={() => setBottomPanelOpen(true)}>
+              <button className="hover:text-white/80 transition-colors" onClick={() => setBottomPanelOpen(true)}>
                 <Maximize2 className="h-3 w-3" />
               </button>
             )}
