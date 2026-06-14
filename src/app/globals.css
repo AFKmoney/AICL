@@ -43,6 +43,12 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --animate-pulse-glow: pulse-glow 2s ease-in-out infinite;
+  --animate-fade-in: fade-in 0.3s ease-out;
+  --animate-slide-up: slide-up 0.3s ease-out;
+  --animate-shake: shake 0.4s ease-in-out;
+  --animate-cognitive-pulse: cognitive-pulse 2.5s ease-in-out infinite;
+  --animate-compile-glow: compile-glow 2s ease-in-out infinite;
 }
 
 :root {
@@ -83,36 +89,36 @@
 }
 
 .dark {
-  --background: #1e1e1e;
+  --background: #1a1a2e;
   --foreground: #d4d4d4;
-  --card: #252526;
+  --card: #1e1e36;
   --card-foreground: #d4d4d4;
-  --popover: #252526;
+  --popover: #1e1e36;
   --popover-foreground: #d4d4d4;
   --primary: #cd2d48;
   --primary-foreground: #ffffff;
-  --secondary: #2d2d30;
+  --secondary: #2d2d3d;
   --secondary-foreground: #d4d4d4;
-  --muted: #2d2d30;
-  --muted-foreground: #808080;
-  --accent: #2d2d30;
+  --muted: #2d2d3d;
+  --muted-foreground: #808090;
+  --accent: #2d2d3d;
   --accent-foreground: #d4d4d4;
   --destructive: #f44747;
-  --border: #3c3c3c;
-  --input: #3c3c3c;
+  --border: #3c3c50;
+  --input: #3c3c50;
   --ring: #cd2d48;
   --chart-1: #cd2d48;
   --chart-2: #4ec9b0;
   --chart-3: #569cd6;
   --chart-4: #dcdcaa;
   --chart-5: #c586c0;
-  --sidebar: #252526;
+  --sidebar: #1e1e36;
   --sidebar-foreground: #d4d4d4;
   --sidebar-primary: #cd2d48;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #2d2d30;
+  --sidebar-accent: #2d2d3d;
   --sidebar-accent-foreground: #d4d4d4;
-  --sidebar-border: #3c3c3c;
+  --sidebar-border: #3c3c50;
   --sidebar-ring: #cd2d48;
   --aicl: #cd2d48;
   --aicl-foreground: #ffffff;
@@ -127,23 +133,79 @@
   }
 }
 
-/* Custom scrollbar for dark theme */
+/* ===== Keyframe Animations ===== */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 4px rgba(205, 45, 72, 0.3); }
+  50% { box-shadow: 0 0 16px rgba(205, 45, 72, 0.6), 0 0 32px rgba(205, 45, 72, 0.2); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-3px); }
+  40% { transform: translateX(3px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+
+@keyframes cognitive-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+@keyframes compile-glow {
+  0%, 100% { box-shadow: 0 0 6px rgba(78, 201, 176, 0.3); }
+  50% { box-shadow: 0 0 18px rgba(78, 201, 176, 0.5), 0 0 36px rgba(78, 201, 176, 0.15); }
+}
+
+@keyframes error-appear {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes success-pop {
+  0% { transform: scale(0.8); opacity: 0; }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes flow-arrow {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+@keyframes welcome-gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ===== Custom scrollbar ===== */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #1e1e1e;
+  background: #16162a;
 }
 ::-webkit-scrollbar-thumb {
-  background: #424242;
+  background: #3c3c50;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #4f4f4f;
+  background: #4f4f60;
 }
 
-/* AICL Editor specific styles */
+/* ===== AICL Editor specific styles ===== */
 .editor-textarea {
   tab-size: 4;
   -moz-tab-size: 4;
@@ -154,36 +216,44 @@
 }
 
 .editor-textarea::placeholder {
-  color: #4f4f4f;
+  color: #4f4f5a;
 }
 
-/* Syntax highlighting classes */
+/* ===== Syntax highlighting (more vibrant) ===== */
 .aicl-keyword {
-  color: #4ec9b0;
-  font-weight: 600;
+  color: #56f0c8;
+  font-weight: 700;
+  text-shadow: 0 0 8px rgba(86, 240, 200, 0.15);
 }
 .aicl-type {
-  color: #4ec9b0;
+  color: #56f0c8;
+  font-weight: 500;
 }
 .aicl-comment {
   color: #6a9955;
   font-style: italic;
 }
 .aicl-string {
-  color: #ce9178;
+  color: #f0a070;
 }
 .aicl-colon {
   color: #d4d4d4;
   font-weight: bold;
 }
 .aicl-entity-name {
-  color: #dcdcaa;
+  color: #e8e070;
+  font-weight: 500;
 }
 .aicl-identifier {
   color: #9cdcfe;
 }
 
-/* Resizable panel handle */
+/* ===== Panel transitions ===== */
+.panel-transition {
+  transition: all 0.2s ease-out;
+}
+
+/* ===== Resizable panel handle ===== */
 .resize-handle {
   cursor: col-resize;
   background: transparent;
@@ -199,4 +269,86 @@
 }
 .resize-handle-h:hover {
   background: #cd2d48;
+}
+
+/* ===== Compile button glow ===== */
+.compile-btn {
+  position: relative;
+  overflow: hidden;
+}
+.compile-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(78, 201, 176, 0.15), transparent);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.compile-btn:hover::before {
+  opacity: 1;
+}
+
+/* ===== Chat gradient background ===== */
+.chat-panel-bg {
+  background: linear-gradient(180deg, #1e1e36 0%, #1a1a2e 50%, #1e1e36 100%);
+}
+
+/* ===== Error animation ===== */
+.error-entry {
+  animation: error-appear 0.3s ease-out;
+}
+
+/* ===== Success animation ===== */
+.success-entry {
+  animation: success-pop 0.3s ease-out;
+}
+
+/* ===== Welcome banner gradient ===== */
+.welcome-gradient {
+  background: linear-gradient(135deg, #1e1e36, #2a1a30, #1e1e36);
+  background-size: 200% 200%;
+  animation: welcome-gradient 8s ease infinite;
+}
+
+/* ===== Cognitive flow arrows ===== */
+.flow-arrow {
+  animation: flow-arrow 1.5s ease-in-out infinite;
+}
+.flow-arrow-delay-1 {
+  animation-delay: 0.3s;
+}
+.flow-arrow-delay-2 {
+  animation-delay: 0.6s;
+}
+.flow-arrow-delay-3 {
+  animation-delay: 0.9s;
+}
+
+/* ===== Current line highlight ===== */
+.current-line-highlight {
+  background: rgba(205, 45, 72, 0.06);
+  border-left: 2px solid rgba(205, 45, 72, 0.4);
+}
+
+/* ===== Panel depth ===== */
+.panel-depth {
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 2px 8px rgba(0,0,0,0.3);
+}
+
+/* ===== Status bar gradient ===== */
+.status-bar-gradient {
+  background: linear-gradient(90deg, #cd2d48, #b02540, #cd2d48);
+  background-size: 200% 100%;
+}
+
+/* ===== Tab transition ===== */
+.tab-transition {
+  transition: all 0.15s ease-out;
+}
+
+/* ===== Line number active ===== */
+.line-number-active {
+  color: #cd2d48 !important;
+  font-weight: 600;
 }
