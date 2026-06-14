@@ -158,10 +158,16 @@ export default function AICLEditor() {
     filename: string;
     code: string;
   }
+  interface ChatError {
+    operation: string; // 'compile', 'verify', 'audit', etc.
+    message: string;
+    details?: string[];
+  }
   interface ChatMsg {
     role: 'user' | 'assistant';
     content: string;
     aiclFiles?: AICLFileBlock[]; // parsed :::AICL_FILE blocks
+    error?: ChatError; // structured error info for display
   }
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([
     { role: 'assistant', content: 'Hello! I\'m the AICL AI Assistant. I can help you write AICL specifications, understand concepts like the No-Orphan Property and Proof of Origin, and guide you through the editor.\n\nTry asking me: "Describe a todo app in AICL" or "Write a chat server specification"' },
@@ -344,12 +350,36 @@ export default function AICLEditor() {
       } else {
         addOutput('error', 'Compilation failed!');
         data.errors?.forEach((e: string) => addOutput('error', e));
+        // Also show error in chat if it's open
+        if (rightPanelContent === 'chat') {
+          setChatMessages(prev => [...prev, {
+            role: 'assistant',
+            content: '',
+            error: {
+              operation: 'compile',
+              message: `Compilation of ${activeFile.name} failed`,
+              details: data.errors?.length ? data.errors : ['Unknown compilation error. Click "Explain Error" for help.'],
+            },
+          }]);
+        }
       }
     } catch (err) {
-      addOutput('error', `Compile error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      addOutput('error', `Compile error: ${errMsg}`);
+      if (rightPanelContent === 'chat') {
+        setChatMessages(prev => [...prev, {
+          role: 'assistant',
+          content: '',
+          error: {
+            operation: 'compile',
+            message: `Compilation of ${activeFile.name} failed — server error`,
+            details: [errMsg, 'Check if the server is running and try again.'],
+          },
+        }]);
+      }
     }
     setIsRunning(false);
-  }, [activeFile, targetLang, addOutput]);
+  }, [activeFile, targetLang, addOutput, rightPanelContent]);
 
   const runVerify = useCallback(async () => {
     setIsRunning(true);
@@ -371,11 +401,42 @@ export default function AICLEditor() {
         );
       });
       setRightPanelContent('output');
+      // Show verification errors in chat if it's open and there are failures
+      if (rightPanelContent === 'chat' && data.overall !== 'PASS') {
+        const failedChecks = (data.checks || []).filter((c: VerifyCheck) => c.status === 'FAIL');
+        const warnChecks = (data.checks || []).filter((c: VerifyCheck) => c.status === 'WARN');
+        if (failedChecks.length > 0 || warnChecks.length > 0) {
+          setChatMessages(prev => [...prev, {
+            role: 'assistant',
+            content: '',
+            error: {
+              operation: 'verify',
+              message: `Verification of ${activeFile.name}: ${data.overall}`,
+              details: [
+                ...failedChecks.map((c: VerifyCheck) => `FAIL — ${c.name}: ${c.message}${c.details ? '\n  → ' + c.details.join('\n  → ') : ''}`),
+                ...warnChecks.map((c: VerifyCheck) => `WARN — ${c.name}: ${c.message}`),
+              ],
+            },
+          }]);
+        }
+      }
     } catch (err) {
-      addOutput('error', `Verify error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      addOutput('error', `Verify error: ${errMsg}`);
+      if (rightPanelContent === 'chat') {
+        setChatMessages(prev => [...prev, {
+          role: 'assistant',
+          content: '',
+          error: {
+            operation: 'verify',
+            message: `Verification of ${activeFile.name} failed — server error`,
+            details: [errMsg],
+          },
+        }]);
+      }
     }
     setIsRunning(false);
-  }, [activeFile, addOutput]);
+  }, [activeFile, addOutput, rightPanelContent]);
 
   const runAudit = useCallback(async () => {
     setIsRunning(true);
@@ -389,6 +450,17 @@ export default function AICLEditor() {
       const data = await res.json();
       if (data.error) {
         addOutput('error', `Audit error: ${data.error}`);
+        if (rightPanelContent === 'chat') {
+          setChatMessages(prev => [...prev, {
+            role: 'assistant',
+            content: '',
+            error: {
+              operation: 'audit',
+              message: `Audit of ${activeFile.name} failed`,
+              details: [data.error, 'Make sure the AICL code has been compiled first, or check the specification for syntax errors.'],
+            },
+          }]);
+        }
       } else {
         const coveragePercent = ((data.coverage || 0) * 100).toFixed(1);
         addOutput('success', `Audit Coverage: ${coveragePercent}%`);
@@ -399,13 +471,42 @@ export default function AICLEditor() {
         if (data.orphan_names?.length) {
           data.orphan_names.forEach((n: string) => addOutput('warning', `  Orphan: ${n}`));
         }
+        // Show audit issues in chat if there are orphans
+        if (rightPanelContent === 'chat' && data.orphan_count > 0) {
+          setChatMessages(prev => [...prev, {
+            role: 'assistant',
+            content: '',
+            error: {
+              operation: 'audit',
+              message: `Audit of ${activeFile.name}: ${data.orphan_count} orphan artifacts found (No-Orphan Property violated)`,
+              details: [
+                `Coverage: ${coveragePercent}% — Target: 100%`,
+                `Orphan artifacts: ${data.orphan_names?.join(', ') || 'unknown'}`,
+                'The No-Orphan Property requires every generated artifact to have a provenance chain to source specification.',
+                'Try adding more specific Entity, Behavior, or Validation sections to give the compiler more context.',
+              ],
+            },
+          }]);
+        }
       }
       setRightPanelContent('output');
     } catch (err) {
-      addOutput('error', `Audit error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      addOutput('error', `Audit error: ${errMsg}`);
+      if (rightPanelContent === 'chat') {
+        setChatMessages(prev => [...prev, {
+          role: 'assistant',
+          content: '',
+          error: {
+            operation: 'audit',
+            message: `Audit of ${activeFile.name} failed — server error`,
+            details: [errMsg],
+          },
+        }]);
+      }
     }
     setIsRunning(false);
-  }, [activeFile, addOutput]);
+  }, [activeFile, addOutput, rightPanelContent]);
 
   const runExplain = useCallback(async () => {
     setIsRunning(true);
@@ -889,8 +990,21 @@ export default function AICLEditor() {
         aiclFiles: files.length > 0 ? files : undefined,
       };
       setChatMessages(prev => [...prev, assistantMessage]);
-    } catch {
-      setChatMessages(prev => [...prev, { role: 'assistant', content: 'Connection error. Please try again.' }]);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: '',
+        error: {
+          operation: 'chat',
+          message: 'Connection to AI assistant failed',
+          details: [
+            errMsg,
+            'The AI service may be temporarily unavailable.',
+            'You can still use the editor buttons (Compile, Verify, Audit) manually while the chat is down.',
+          ],
+        },
+      }]);
     }
     setChatLoading(false);
   }, [chatInput, chatLoading, chatMessages, activeFile.content]);
@@ -927,12 +1041,38 @@ export default function AICLEditor() {
           setTestCode(data.test_code || '');
           if (data.tree) setTreeData(data.tree);
           setRightPanelContent('code');
+          // Add success message to chat
+          setChatMessages(prev => [...prev, {
+            role: 'assistant',
+            content: `✓ Compilation of **${filename}** succeeded!\n\n- ${data.stages_completed?.length || 0} stages completed\n- Audit coverage: ${((data.audit_coverage || 0) * 100).toFixed(0)}%\n- Proof of Origin: ${data.proof_valid ? 'Valid ✓' : 'Invalid ✗'}\n\nYou can view the generated code in the **Code** tab.`,
+          }]);
         } else {
+          const errorDetails = data.errors || ['Unknown compilation error'];
           addOutput('error', 'Compilation failed!');
-          data.errors?.forEach((e: string) => addOutput('error', e));
+          errorDetails.forEach((e: string) => addOutput('error', e));
+          // Show detailed error in chat
+          setChatMessages(prev => [...prev, {
+            role: 'assistant',
+            content: '',
+            error: {
+              operation: 'compile',
+              message: `Compilation of ${filename} failed`,
+              details: errorDetails,
+            },
+          }]);
         }
       } catch (err) {
-        addOutput('error', `Compile error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        const errMsg = err instanceof Error ? err.message : 'Unknown error';
+        addOutput('error', `Compile error: ${errMsg}`);
+        setChatMessages(prev => [...prev, {
+          role: 'assistant',
+          content: '',
+          error: {
+            operation: 'compile',
+            message: `Compilation of ${filename} failed — network or server error`,
+            details: [errMsg, 'The server may be temporarily unavailable. Try again or verify your AICL code manually.'],
+          },
+        }]);
       }
       setIsRunning(false);
     }, 200);
@@ -959,12 +1099,75 @@ export default function AICLEditor() {
             `${icon} ${c.name}: ${c.message}`);
         });
         setRightPanelContent('output');
+        // Show verification result in chat
+        if (data.overall !== 'PASS') {
+          const failedChecks = (data.checks || []).filter((c: VerifyCheck) => c.status === 'FAIL');
+          const warnChecks = (data.checks || []).filter((c: VerifyCheck) => c.status === 'WARN');
+          setChatMessages(prev => [...prev, {
+            role: 'assistant',
+            content: '',
+            error: {
+              operation: 'verify',
+              message: `Verification of ${filename}: ${data.overall}`,
+              details: [
+                ...failedChecks.map((c: VerifyCheck) => `FAIL — ${c.name}: ${c.message}${c.details ? '\n  → ' + c.details.join('\n  → ') : ''}`),
+                ...warnChecks.map((c: VerifyCheck) => `WARN — ${c.name}: ${c.message}`),
+              ],
+            },
+          }]);
+        } else {
+          setChatMessages(prev => [...prev, {
+            role: 'assistant',
+            content: `✓ Verification of **${filename}** passed! All checks are green.`,
+          }]);
+        }
       } catch (err) {
-        addOutput('error', `Verify error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        const errMsg = err instanceof Error ? err.message : 'Unknown error';
+        addOutput('error', `Verify error: ${errMsg}`);
+        setChatMessages(prev => [...prev, {
+          role: 'assistant',
+          content: '',
+          error: {
+            operation: 'verify',
+            message: `Verification of ${filename} failed — network or server error`,
+            details: [errMsg],
+          },
+        }]);
       }
       setIsRunning(false);
     }, 200);
   }, [chatCreateFile, addOutput]);
+
+  // Chat action: ask AI to explain an error
+  const explainErrorInChat = useCallback(async (errorInfo: ChatError) => {
+    setChatMessages(prev => [...prev, {
+      role: 'user',
+      content: `Explain this error: ${errorInfo.message}${errorInfo.details?.length ? '\n' + errorInfo.details.join('\n') : ''}`,
+    }]);
+    setChatLoading(true);
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [...chatMessages, {
+            role: 'user' as const,
+            content: `I got this error during ${errorInfo.operation}: ${errorInfo.message}${errorInfo.details?.length ? '\nDetails:\n' + errorInfo.details.join('\n') : ''}\n\nPlease explain what went wrong and how to fix it. Be specific and actionable.`,
+          }].map(m => ({ role: m.role, content: m.content })),
+          context: activeFile.content,
+        }),
+      });
+      const data = await res.json();
+      const rawMessage = data.message || 'Unable to explain the error.';
+      setChatMessages(prev => [...prev, { role: 'assistant', content: rawMessage }]);
+    } catch {
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'I cannot connect to the AI right now to explain this error. However, common fixes include:\n\n- Make sure your AICL code has **Goal**, **Layer**, and **Validation** sections\n- Check that all keywords are spelled correctly\n- Ensure Entity/Behavior sections have proper Input/Output/Action structure\n- Risk and Recovery should always be paired',
+      }]);
+    }
+    setChatLoading(false);
+  }, [chatMessages, activeFile.content]);
 
   // Auto-scroll chat to bottom
   useEffect(() => {
@@ -1404,6 +1607,47 @@ export default function AICLEditor() {
                                       </div>
                                     </div>
                                   ))}
+                                  {msg.error && (
+                                    <div className="border-t border-[#5c1a1a] mt-1 bg-[#3c1414] rounded-b-lg">
+                                      <div className="flex items-center gap-2 px-3 py-2">
+                                        <XCircle className="h-4 w-4 text-[#f87171] flex-shrink-0" />
+                                        <span className="text-[#f87171] font-semibold text-xs">{msg.error.message}</span>
+                                      </div>
+                                      {msg.error.details && msg.error.details.length > 0 && (
+                                        <div className="px-3 pb-2 space-y-1">
+                                          {msg.error.details.map((d, di) => (
+                                            <div key={di} className="flex gap-2 text-[11px]">
+                                              <span className="text-[#f87171] flex-shrink-0">→</span>
+                                              <span className="text-[#fca5a5] whitespace-pre-wrap break-words">{d}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                      <div className="flex items-center gap-1.5 px-3 py-2 border-t border-[#5c1a1a]">
+                                        <Button
+                                          size="sm"
+                                          className="h-6 text-[10px] px-2 bg-[#f87171] hover:bg-[#ef4444] text-[#1e1e1e]"
+                                          onClick={() => explainErrorInChat(msg.error!)}
+                                          disabled={chatLoading}
+                                        >
+                                          <Bug className="h-3 w-3 mr-1" />Explain Error
+                                        </Button>
+                                        {msg.error.operation === 'compile' && (
+                                          <Button
+                                            size="sm"
+                                            className="h-6 text-[10px] px-2 bg-[#4ec9b0] hover:bg-[#3ba890] text-[#1e1e1e]"
+                                            onClick={() => chatCreateAndVerify(
+                                              activeFile.name,
+                                              activeFile.content
+                                            )}
+                                            disabled={isRunning}
+                                          >
+                                            <ShieldCheck className="h-3 w-3 mr-1" />Try Verify First
+                                          </Button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>

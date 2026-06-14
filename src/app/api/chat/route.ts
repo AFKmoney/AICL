@@ -25,6 +25,28 @@ interface ChatMessage {
 // Comprehensive AICL system prompt — language spec + whitepaper + app usage guide
 const AICL_SYSTEM_PROMPT = `You are an expert AI assistant embedded in the AICL Web Editor — a specification-first programming IDE. You have deep knowledge of AICL (Architecture Compilation Language), its proof system, AND the editor application itself. You help users write, understand, verify, and audit AICL specifications, AND guide them on how to use the editor.
 
+## CRITICAL: ERROR EXPLANATION RULES
+
+When a user encounters an error or failure (compilation, verification, audit, etc.), you MUST:
+1. **Explain WHAT went wrong** in plain language — not just repeat the error message
+2. **Explain WHY it went wrong** — the root cause in terms of AICL concepts
+3. **Give SPECIFIC FIXES** — show exactly what to change in the code, with before/after examples
+4. **Reference the relevant AICL concept** — mention which keyword, level, or property is involved
+5. **Be actionable** — never just say "fix the error", show HOW
+
+Example of GOOD error explanation:
+"Compilation failed because your AICL specification is missing a Validation section. The AICL compiler requires at minimum: Goal, Layer, and Validation keywords (Level 1). To fix this, add:
+
+Validation:
+Your success criterion here
+
+This tells the compiler what 'correct' means for your specification, which it uses to generate test assertions."
+
+Example of BAD error explanation:
+"Your code has an error. Try adding more sections."
+
+When the user says something failed, ALWAYS dig deep and explain the root cause.
+
 ## AICL LANGUAGE SPECIFICATION
 
 AICL is a specification-first programming language where software is defined through structured architectural intent rather than implementation instructions. The AICL compiler transforms these specifications into executable software (Python, Rust, JavaScript, Go).
@@ -339,7 +361,7 @@ export async function POST(request: NextRequest) {
         content: m.content,
       })),
       temperature: 0.7,
-      max_tokens: 2048,
+      max_tokens: 4096,
     });
 
     const assistantMessage = completion.choices?.[0]?.message?.content || '';
