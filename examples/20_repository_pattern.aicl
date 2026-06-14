@@ -1,0 +1,411 @@
+# AICL Example: Repository Pattern Data Layer
+# Implements a comprehensive Repository pattern data access layer with abstract data access,
+# specification-based queries, unit of work for transactions, multi-level caching, and connection management.
+
+# Level 1: Architecture
+Goal: Build a repository pattern data access layer that abstracts persistence details,
+    supports specification-based composable queries, manages transactions via unit of work,
+    provides multi-level caching, and ensures data consistency across operations.
+
+Constraint: Domain layer must never reference infrastructure persistence directly.
+Constraint: All queries must be expressed as specification objects, not raw query strings.
+Constraint: Each unit of work scope must correspond to exactly one transaction.
+Constraint: Cache invalidation must occur within the same transaction as the write.
+Constraint: Repository interfaces must be defined in the domain layer; implementations in infrastructure.
+
+Risk: Cache returns stale data after write
+Recovery: Invalidate cache entries within write transaction; use write-through for critical entities
+
+Risk: Unit of work rollback leaves cache in inconsistent state
+Recovery: Enroll cache in transaction participation; rollback cache operations on transaction abort
+
+Risk: Specification composition creates N+1 query problem
+Recovery: Detect eager-load annotations; auto-join related entities via specification visitor
+
+Risk: Connection pool exhaustion under high concurrency
+Recovery: Queue requests with timeout; scale pool dynamically based on wait-time metrics
+
+Risk: Optimistic concurrency conflict on high-contention entities
+Recovery: Retry with exponential backoff up to 3 times; escalate to pessimistic lock if threshold exceeded
+
+Risk: Repository abstraction leaks persistence details through error types
+Recovery: Translate all infrastructure exceptions to domain-specific error types at repository boundary
+
+Layer: Domain
+    SubLayer: RepositoryInterface
+    SubLayer: Specification
+    SubLayer: AggregateRoot
+Layer: Application
+    SubLayer: UnitOfWork
+    SubLayer: TransactionManager
+    SubLayer: SpecificationComposer
+Layer: Infrastructure
+    SubLayer: RepositoryImplementation
+    SubLayer: CacheLayer
+    SubLayer: ConnectionPool
+
+Validation: Repository method must accept and return domain types only
+Validation: Specification must be serializable for cache key generation
+Validation: Unit of work must not span multiple database connections
+Validation: Cache TTL must be less than or equal to source data freshness requirement
+Validation: Connection pool size must match concurrent transaction limit
+Validation: All repository write operations must participate in active unit of work
+
+# Level 2: Entities
+Entity Repository
+    repositoryId: string
+    aggregateType: string
+    connectionString: string
+    cacheEnabled: boolean
+    cacheTtl: integer
+    batchSize: integer
+    readOnly: boolean
+    maxRetryCount: integer
+
+Entity Specification
+    specificationId: string
+    criteria: dict
+    orderBy: list
+    pageNumber: integer
+    pageSize: integer
+    includes: list
+    cacheable: boolean
+    cacheKey: string
+
+Entity UnitOfWork
+    unitOfWorkId: string
+    transactionId: string
+    state: string
+    operations: list
+    enrolledRepositories: list
+    startedAt: datetime
+    isolationLevel: string
+    timeout: integer
+
+Entity CacheEntry
+    cacheKey: string
+    value: any
+    createdAt: datetime
+    expiresAt: datetime
+    region: string
+    sizeBytes: integer
+    hitCount: integer
+    version: integer
+
+Entity AggregateRoot
+    aggregateId: string
+    aggregateType: string
+    version: integer
+    createdAt: datetime
+    modifiedAt: datetime
+    createdBy: string
+    modifiedBy: string
+    isDirty: boolean
+
+Entity QueryResult
+    queryId: string
+    items: list
+    totalCount: integer
+    pageNumber: integer
+    pageSize: integer
+    hasMore: boolean
+    executionTime: integer
+    cacheHit: boolean
+
+# Level 3: Behaviors
+Behavior FindBySpecification
+    Input:
+        repository: Repository
+        specification: Specification
+    Output:
+        result: QueryResult
+    Action:
+        Generate cache key from specification hash
+        Check L1 in-process cache for hit
+        Check L2 distributed cache for hit
+        If cache miss, translate specification to query
+        Execute query against persistence store
+        Hydrate domain entities from result set
+        Populate both cache layers with results
+        Return paginated query result with metadata
+
+Behavior AddAggregate
+    Input:
+        repository: Repository
+        aggregate: AggregateRoot
+        unitOfWork: UnitOfWork
+    Output:
+        persisted: AggregateRoot
+    Action:
+        Validate aggregate invariants
+        Enroll repository in unit of work if not already
+        Add insert operation to unit of work change set
+        Mark aggregate as persisted in identity map
+        Invalidate cache entries for affected specifications
+        Return aggregate with generated ID
+
+Behavior UpdateAggregate
+    Input:
+        repository: Repository
+        aggregate: AggregateRoot
+        unitOfWork: UnitOfWork
+    Output:
+        updated: AggregateRoot
+    Action:
+        Check optimistic concurrency version match
+        Add update operation to unit of work change set
+        Increment aggregate version
+        Invalidate cache for this aggregate and related queries
+        Mark aggregate as clean in identity map
+        Return updated aggregate
+
+Behavior CommitUnitOfWork
+    Input:
+        unitOfWork: UnitOfWork
+    Output:
+        commitResult: string
+    Action:
+        Validate all enrolled repositories are in consistent state
+        Begin database transaction if not already active
+        Execute all operations in change set in order
+        Flush all cache invalidations
+        Commit transaction
+        Update identity map with final state
+        Notify change trackers
+        Return commit acknowledgment
+
+Behavior ComposeSpecification
+    Input:
+        left: Specification
+        right: Specification
+        compositionType: string
+    Output:
+        composed: Specification
+    Action:
+        Merge criteria based on composition type (AND, OR, NOT)
+        Combine includes and deduplicate
+        Resolve ordering conflicts with priority rules
+        Recalculate cache key from merged specification
+        Validate composed specification is satisfiable
+        Return composed specification
+
+Behavior InvalidateCache
+    Input:
+        region: string
+        keys: list
+        propagation: string
+    Output:
+        invalidated: integer
+    Action:
+        Remove entries from L1 in-process cache
+        Remove entries from L2 distributed cache
+        If propagation is immediate, block until L2 confirms
+        If propagation is eventual, queue invalidation for async processing
+        Track invalidated count for metrics
+        Return count of invalidated entries
+
+# Level 4: Conditions
+Condition: ConcurrencyConflict
+    When aggregate version at persist differs from loaded version
+    Then raise concurrency exception with current version; suggest reload and retry strategy
+
+Condition: CacheStampede
+    When multiple concurrent requests cache-miss for the same key
+    Then allow only one request to compute; others wait and share the computed result
+
+Condition: TransactionTimeout
+    When unit of work exceeds configured timeout duration
+    Then rollback transaction, release locks, and invalidate any partially committed cache
+
+# Level 5: Events
+Event: OnCacheMiss
+    On specification query results not found in either cache layer
+    Action: Increment miss metric, trigger cache warm for related specifications
+
+Event: OnTransactionCommitted
+    On unit of work successfully committed to persistence store
+    Action: Finalize cache invalidations, release identity map locks, emit domain events
+
+Event: OnSpecificationExecuted
+    On specification translated and executed against persistence
+    Action: Log query performance, update slow-query metrics, suggest indexes if threshold exceeded
+
+Event: OnConcurrencyRetry
+    On optimistic concurrency conflict triggering automatic retry
+    Action: Increment retry metric, log contention hot-spot, alert if retry count exceeds threshold
+
+# Level 6: Concurrency
+Parallel:
+    L1 and L2 cache lookups executed concurrently
+    Multiple repository read operations within same unit of work
+    Cache invalidation propagation to distributed nodes
+    Connection pool health monitoring and scaling
+    Specification compilation and cache key generation
+
+# Level 7: Optimization
+Optimize: Query execution performance
+    Priority: Compile specifications to parameterized queries; reuse execution plans; batch reads
+
+Optimize: Cache hit ratio
+    Priority: Pre-warm caches for top-accessed specifications; adjust TTL based on access frequency
+
+# Level 8: Learning
+Learn: Optimal cache TTL per entity type
+    Goal: Maximize cache hit ratio while minimizing staleness for each aggregate type
+    Adapt: Per-entity-type cache TTL values
+    Based: Cache hit ratio, access frequency, and data mutation rate over sliding 1-hour window
+
+Learn: Query plan optimization
+    Goal: Identify slow specifications and suggest index improvements
+    Adapt: Database index recommendations and specification rewrite hints
+    Based: Query execution time distribution and full table scan detection
+
+# Level 9: Security
+Security:
+    Encrypt: Database connection strings using vault-managed secrets with automatic rotation
+    Encrypt: Cached PII fields using envelope encryption before storage in distributed cache
+    Protect: Repository against SQL injection via parameterized query compilation from specifications
+    Protect: Cache data from unauthorized access with per-region ACL and tenant isolation
+    Protect: Unit of work operations from tampering via audit trail of all change set modifications
+
+# Level 10: Native
+CSharp
+{
+using System;
+using System.Collections.Generic;
+using System.Linq.Expressions;
+using System.Threading.Tasks;
+
+public interface ISpecification<T>
+{
+    Expression<Func<T, bool>> ToExpression();
+    List<string> Includes { get; }
+    bool IsCacheable { get; }
+    string CacheKey { get; }
+}
+
+public class AndSpecification<T> : ISpecification<T>
+{
+    private readonly ISpecification<T> _left;
+    private readonly ISpecification<T> _right;
+
+    public AndSpecification(ISpecification<T> left, ISpecification<T> right)
+    {
+        _left = left;
+        _right = right;
+        Includes = new List<string>(_left.Includes);
+        foreach (var inc in _right.Includes)
+            if (!Includes.Contains(inc)) Includes.Add(inc);
+    }
+
+    public Expression<Func<T, bool>> ToExpression()
+    {
+        var leftExpr = _left.ToExpression();
+        var rightExpr = _right.ToExpression();
+        var param = Expression.Parameter(typeof(T));
+        var body = Expression.AndAlso(
+            Expression.Invoke(leftExpr, param),
+            Expression.Invoke(rightExpr, param)
+        );
+        return Expression.Lambda<Func<T, bool>>(body, param);
+    }
+
+    public List<string> Includes { get; }
+    public bool IsCacheable => _left.IsCacheable && _right.IsCacheable;
+    public string CacheKey => $"{_left.CacheKey}&{_right.CacheKey}";
+}
+
+public interface IRepository<T> where T : class
+{
+    Task<T?> FindByIdAsync(Guid id);
+    Task<QueryResult<T>> FindBySpecificationAsync(ISpecification<T> spec);
+    Task AddAsync(T aggregate, IUnitOfWork uow);
+    Task UpdateAsync(T aggregate, IUnitOfWork uow);
+    Task DeleteAsync(T aggregate, IUnitOfWork uow);
+}
+
+public interface IUnitOfWork : IDisposable
+{
+    string UnitOfWorkId { get; }
+    Task CommitAsync();
+    Task RollbackAsync();
+    void Enroll(string repositoryId);
+}
+
+public class QueryResult<T>
+{
+    public List<T> Items { get; set; } = new();
+    public int TotalCount { get; set; }
+    public int PageNumber { get; set; }
+    public int PageSize { get; set; }
+    public bool HasMore { get; set; }
+    public long ExecutionTimeMs { get; set; }
+    public bool CacheHit { get; set; }
+}
+
+public class CacheEntry<T>
+{
+    public string CacheKey { get; set; } = string.Empty;
+    public T? Value { get; set; }
+    public DateTime ExpiresAt { get; set; }
+    public int HitCount { get; set; }
+    public int Version { get; set; }
+}
+
+public class TwoLevelCache<T>
+{
+    private readonly Dictionary<string, CacheEntry<T>> _l1 = new();
+    private readonly Dictionary<string, CacheEntry<T>> _l2 = new();
+    private readonly object _lock = new();
+
+    public bool TryGet(string key, out T? value)
+    {
+        lock (_lock)
+        {
+            if (_l1.TryGetValue(key, out var entry) && entry.ExpiresAt > DateTime.UtcNow)
+            {
+                entry.HitCount++;
+                value = entry.Value;
+                return true;
+            }
+            if (_l2.TryGetValue(key, out entry) && entry.ExpiresAt > DateTime.UtcNow)
+            {
+                entry.HitCount++;
+                _l1[key] = entry;
+                value = entry.Value;
+                return true;
+            }
+        }
+        value = default;
+        return false;
+    }
+
+    public void Set(string key, T value, TimeSpan ttl)
+    {
+        lock (_lock)
+        {
+            var entry = new CacheEntry<T>
+            {
+                CacheKey = key, Value = value,
+                ExpiresAt = DateTime.UtcNow.Add(ttl), Version = 1
+            };
+            _l1[key] = entry;
+            _l2[key] = entry;
+        }
+    }
+
+    public void Invalidate(string key)
+    {
+        lock (_lock) { _l1.Remove(key); _l2.Remove(key); }
+    }
+
+    public void InvalidateRegion(string prefix)
+    {
+        lock (_lock)
+        {
+            var keys = _l1.Keys.Where(k => k.StartsWith(prefix)).ToList();
+            foreach (var k in keys) { _l1.Remove(k); _l2.Remove(k); }
+        }
+    }
+}
+}

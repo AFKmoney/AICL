@@ -1,0 +1,375 @@
+# AICL Example: Smart Home Hub
+# Central smart home hub managing device control, automation rules, voice assistant integration,
+# energy management, and scene management across diverse connected home devices.
+
+Goal: Provide a unified smart home hub that orchestrates device control, automates daily routines,
+    processes voice commands, optimizes energy consumption, and manages scenes across all connected
+    home devices with sub-second response times and reliable offline operation.
+
+Constraint: Hub must maintain local control capability when internet connectivity is lost; all
+    critical automations must execute without cloud dependency.
+
+Constraint: Voice assistant latency from wake word to action execution must not exceed 500ms
+    for local commands and 2 seconds for cloud-dependent commands.
+
+Constraint: Energy management must respect user-defined comfort thresholds and never compromise
+    safety systems including smoke detectors, CO sensors, and security locks.
+
+Constraint: Device pairing must support Zigbee 3.0, Z-Wave, Wi-Fi, Bluetooth LE, and Thread
+    protocols with automatic discovery and secure credential provisioning.
+
+Risk: Cloud connectivity loss prevents remote access and voice assistant functionality
+Recovery: Switch to local-only mode with cached device states; enable local voice command
+    processing with reduced NLP model; queue cloud sync operations for automatic replay
+
+Risk: Automation rule conflict causes devices to oscillate between states rapidly
+Recovery: Detect oscillation pattern within 3 cycles and lock conflicting devices to
+    last stable state; notify user of rule conflict with suggested resolution
+
+Risk: Compromised device attempts unauthorized control of safety-critical systems
+Recovery: Immediately isolate compromised device on dedicated VLAN; revoke all control
+    permissions; alert homeowner and security monitoring service within 5 seconds
+
+Risk: Energy optimization overshoots and causes uncomfortable temperature or lighting
+Recovery: Revert to user's last explicit comfort setting; disable automated optimization
+    for the affected zone; log optimization parameters for review and recalibration
+
+Risk: Firmware update bricks a critical home device like a smart lock or thermostat
+Recovery: Maintain dual firmware partition on all critical devices; auto-rollback to
+    previous partition on boot failure; require manual confirmation for lock firmware updates
+
+Risk: Scene activation fails partially leaving home in inconsistent state
+Recovery: Implement scene transaction log with rollback capability; reverse all successfully
+    executed scene actions on partial failure; notify user with specific failure details
+
+Layer: SmartHomeHub
+    SubLayer: DeviceControl
+    SubLayer: AutomationEngine
+    SubLayer: VoiceAssistant
+    SubLayer: EnergyManagement
+    SubLayer: SceneManager
+
+Validation: Every device command must receive acknowledgment within 2 seconds or trigger retry
+Validation: Automation rules must be validated for conflicts before activation
+Validation: Energy optimization must never adjust temperature beyond user comfort bounds
+Validation: Voice commands affecting security devices require secondary confirmation
+Validation: Scene transitions must complete atomically or fully rollback within 10 seconds
+Validation: All device state changes must be logged with timestamp, source, and authorization
+Validation: Hub must maintain heartbeat with all paired devices at intervals not exceeding 60 seconds
+
+# Level 2: Entities
+
+Entity HomeDevice
+    device_id: string
+    device_name: string
+    device_type: string
+    protocol: string
+    room_id: string
+    state: dict
+    firmware_version: string
+    is_online: boolean
+    last_command: datetime
+    battery_level: float
+
+Entity AutomationRule
+    rule_id: string
+    rule_name: string
+    trigger_type: string
+    trigger_config: dict
+    conditions: list
+    actions: list
+    priority: integer
+    is_active: boolean
+    created_by: string
+
+Entity VoiceCommand
+    command_id: string
+    transcript: string
+    intent: string
+    entities: list
+    confidence: float
+    is_local: boolean
+    execution_status: string
+    timestamp: datetime
+
+Entity EnergyProfile
+    profile_id: string
+    zone_id: string
+    comfort_min_temp: float
+    comfort_max_temp: float
+    comfort_min_light: float
+    comfort_max_light: float
+    peak_hours: list
+    target_daily_kwh: float
+
+Entity Scene
+    scene_id: string
+    scene_name: string
+    room_id: string
+    device_states: dict
+    transition_duration: integer
+    icon: string
+    is_favorite: boolean
+    last_activated: datetime
+
+Entity Room
+    room_id: string
+    room_name: string
+    floor: integer
+    area_sqft: float
+    devices: list
+    current_temperature: float
+    current_humidity: float
+    occupancy_count: integer
+
+# Level 3: Behaviors
+
+Behavior ControlDevice
+    Input:
+        device_id: string
+        command: dict
+        source: string
+    Output:
+        success: boolean
+        new_state: dict
+    Action:
+        Validate command against device capability schema
+        Check authorization for the command source
+        Translate command to device-specific protocol format
+        Execute command with timeout and retry logic
+        Update device state cache and emit state change event
+
+Behavior EvaluateAutomation
+    Input:
+        trigger_event: dict
+        rule_set: list
+    Output:
+        actions_to_execute: list
+        conflicts_detected: list
+    Action:
+        Match trigger event against active automation rules
+        Evaluate rule conditions with current device states
+        Detect conflicting actions across matched rules
+        Resolve conflicts using rule priority and recency
+        Return ordered list of actions to execute
+
+Behavior ProcessVoiceCommand
+    Input:
+        audio_stream: bytes
+        wake_word: string
+    Output:
+        response_text: string
+        executed_actions: list
+    Action:
+        Validate wake word detection confidence threshold
+        Transcribe audio using local or cloud ASR based on connectivity
+        Extract intent and entities using NLU model
+        Resolve ambiguous commands using device context and room occupancy
+        Execute resolved intent and generate natural language response
+
+Behavior OptimizeEnergy
+    Input:
+        zone_id: string
+        energy_profile: dict
+        current_states: dict
+    Output:
+        adjustments: list
+        estimated_savings_kwh: float
+    Action:
+        Analyze current energy consumption by zone and device type
+        Identify optimization opportunities within comfort bounds
+        Schedule device adjustments for off-peak hours
+        Apply gradual transitions to avoid occupant discomfort
+        Monitor actual consumption against optimization targets
+
+Behavior ActivateScene
+    Input:
+        scene_id: string
+        transition_duration: integer
+    Output:
+        success: boolean
+        devices_adjusted: integer
+        failed_devices: list
+    Action:
+        Load scene definition and target device states
+        Validate all target devices are online and reachable
+        Execute device state transitions in dependency order
+        Track completion of each device transition
+        Rollback all completed transitions on partial failure
+
+# Level 4: Conditions
+
+Condition: ComfortThresholdViolation
+    When energy optimization adjusts temperature beyond comfort_min_temp or comfort_max_temp
+    Then immediately revert temperature to nearest comfort bound and disable
+        automated optimization for the affected zone for 30 minutes
+
+Condition: SecurityDeviceOverride
+    When voice command targets a security device such as lock or alarm
+    Then require secondary authentication confirmation before executing
+        the command and log the authorization attempt with full audit trail
+
+Condition: DeviceUnresponsive
+    When home_device fails to respond to 3 consecutive commands within timeout
+    Then mark device as offline, attempt protocol-specific reconnection,
+        and substitute with alternative device if available in the same room
+
+Condition: PeakEnergyDemand
+    When real-time power consumption exceeds 80 percent of circuit capacity
+    Then defer non-essential device activations and reduce HVAC output by
+        10 percent while maintaining minimum comfort thresholds
+
+Condition: OccupancyChange
+    When room occupancy_count transitions from zero to non-zero or vice versa
+    Then adjust lighting, HVAC, and entertainment systems to match occupancy
+        state with appropriate transition delays to avoid abrupt changes
+
+# Level 5: Events
+
+Event: DeviceStateChanged
+    On device_state_update_received
+    Action: Propagate state change to all dependent automation rules, update
+        room aggregate state, and refresh dashboard display in real-time
+
+Event: AutomationTriggered
+    On automation_rule_condition_met
+    Action: Log rule execution with trigger context, execute resolved actions,
+        and notify user if the automation significantly alters home state
+
+Event: EnergyThresholdExceeded
+    On daily_energy_consumption_exceeds_target
+    Action: Generate energy report with breakdown by device and room, suggest
+        optimization adjustments, and offer to activate eco-mode scene
+
+Event: SecurityAlert
+    On security_device_state_anomaly_detected
+    Action: Activate security scene, send push notification to homeowner,
+        contact monitoring service, and record security camera footage
+
+# Level 6: Concurrency
+
+Parallel:
+    Device state monitoring and health checking across all rooms
+    Voice command processing with wake word detection
+    Automation rule evaluation on state change events
+    Energy consumption tracking and optimization calculation
+    Scene transition execution with transaction management
+    Protocol bridge maintenance for multi-standard devices
+
+# Level 7: Optimization
+
+Optimize: Home energy consumption while maintaining occupant comfort
+    Priority: Safety device responsiveness takes absolute precedence over all optimization
+    Priority: Comfort maintenance takes precedence over energy savings within comfort bounds
+    Priority: Scene transitions optimized for smoothness over speed to avoid jarring changes
+    Priority: Voice command processing latency minimized for local intents over cloud processing
+
+# Level 8: Learning
+
+Learn: Occupancy patterns per room and time of day
+    Goal: Predict room occupancy to pre-condition environment before arrival
+    Adapt: HVAC and lighting schedules for each room
+        Based: Motion sensor data, door open/close events, and manual override frequency
+
+Learn: User comfort preferences from manual overrides
+    Goal: Reduce manual overrides to fewer than 2 per week per room
+    Adapt: Comfort thresholds in energy profiles
+        Based: Frequency and direction of manual temperature and lighting adjustments
+
+Learn: Energy consumption patterns by season and occupancy
+    Goal: Achieve 15% energy reduction without increasing manual overrides
+    Adapt: Energy optimization parameters and peak-hour scheduling
+        Based: Historical consumption data, weather forecasts, and utility rate schedules
+
+# Level 9: Security
+
+Security:
+    Encrypt: All device communication using end-to-end encryption with device-specific keys
+    Encrypt: Voice audio streams using TLS 1.3 with certificate pinning to cloud services
+    Protect: Home network access with VLAN segmentation for IoT devices
+    Protect: Automation rule storage with integrity verification and signed rule definitions
+    Protect: Device pairing process with secure key exchange and device attestation
+    Encrypt: Local data cache on hub using AES-256 with hardware-backed key storage
+
+# Level 10: Native
+
+Native: Rust
+{
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct DeviceState {
+    device_id: String,
+    is_online: bool,
+    state: HashMap<String, serde_json::Value>,
+    last_updated: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SceneDefinition {
+    scene_id: String,
+    scene_name: String,
+    device_states: HashMap<String, HashMap<String, serde_json::Value>>,
+    transition_duration_ms: u32,
+}
+
+struct SmartHomeHub {
+    devices: Arc<RwLock<HashMap<String, DeviceState>>>,
+    scenes: Arc<RwLock<HashMap<String, SceneDefinition>>>,
+    rooms: Arc<RwLock<HashMap<String, RoomState>>>,
+}
+
+#[derive(Debug, Clone)]
+struct RoomState {
+    room_id: String,
+    temperature: f64,
+    humidity: f64,
+    occupancy: u32,
+    device_ids: Vec<String>,
+}
+
+impl SmartHomeHub {
+    pub fn new() -> Self {
+        Self {
+            devices: Arc::new(RwLock::new(HashMap::new())),
+            scenes: Arc::new(RwLock::new(HashMap::new())),
+            rooms: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    pub async fn activate_scene(&self, scene_id: &str) -> Result<u32, String> {
+        let scenes = self.scenes.read().await;
+        let scene = scenes.get(scene_id)
+            .ok_or_else(|| format!("Scene {} not found", scene_id))?;
+        let mut devices = self.devices.write().await;
+        let mut adjusted: u32 = 0;
+        let mut rollback_stack: Vec<(String, HashMap<String, serde_json::Value>)> = Vec::new();
+
+        for (device_id, target_state) in &scene.device_states {
+            if let Some(device) = devices.get_mut(device_id) {
+                if !device.is_online {
+                    for (rb_id, rb_state) in rollback_stack {
+                        if let Some(d) = devices.get_mut(&rb_id) {
+                            d.state = rb_state;
+                        }
+                    }
+                    return Err(format!("Device {} offline, scene rolled back", device_id));
+                }
+                rollback_stack.push((device_id.clone(), device.state.clone()));
+                device.state = target_state.clone();
+                device.last_updated = chrono::Utc::now();
+                adjusted += 1;
+            }
+        }
+        Ok(adjusted)
+    }
+
+    pub async fn get_room_status(&self, room_id: &str) -> Option<RoomState> {
+        let rooms = self.rooms.read().await;
+        rooms.get(room_id).cloned()
+    }
+}
+}

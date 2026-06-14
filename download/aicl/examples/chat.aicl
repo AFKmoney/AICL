@@ -1,0 +1,182 @@
+# AICL Example: Chat Application
+# A multiplayer chat application
+
+Goal:
+Create a multiplayer chat application
+
+Constraint:
+Must support at least 100 concurrent users
+
+Constraint:
+Maximum memory usage 512 MB
+
+Constraint:
+Messages must be delivered in order
+
+Risk:
+Server becomes unavailable
+
+Recovery:
+Reconnect automatically with exponential backoff
+
+Risk:
+Network latency exceeds threshold
+
+Recovery:
+Enable offline mode with message queue
+
+Risk:
+User disconnects unexpectedly
+
+Recovery:
+Retry connection three times then show status
+
+Risk:
+Message delivery failure
+
+Recovery:
+Store locally and retry on reconnect
+
+Layer:
+User Interface
+    Sublayer:
+    Message display
+    Sublayer:
+    Input field
+    Sublayer:
+    User list
+    Sublayer:
+    Status indicators
+
+Layer:
+Networking
+    Sublayer:
+    WebSocket client
+    Sublayer:
+    Message serialization
+    Sublayer:
+    Heartbeat system
+
+Layer:
+Chat Logic
+    Sublayer:
+    Message routing
+    Sublayer:
+    User management
+    Sublayer:
+    Channel management
+
+Layer:
+Persistence
+    Sublayer:
+    Message history
+    Sublayer:
+    User preferences
+    Sublayer:
+    Offline queue
+
+Entity User
+    name: string
+    id: integer
+    status: string
+    avatar_url: string
+
+Entity Message
+    content: string
+    timestamp: datetime
+    sender: User
+
+Entity Channel
+    name: string
+    id: integer
+    members: list
+
+Behavior SendMessage
+
+Input:
+    User Message
+
+Output:
+    DeliveredMessage
+
+Action:
+    transmit message to server and broadcast to channel
+
+Behavior JoinChannel
+
+Input:
+    User Channel
+
+Action:
+    add user to channel and notify members
+
+Condition:
+
+When server unavailable
+
+Then enable offline mode
+
+Condition:
+
+When network restored
+
+Then sync offline messages
+
+Event:
+
+On message received
+
+Action:
+    display message in channel
+
+Event:
+
+On user join
+
+Action:
+    update user list
+
+Event:
+
+On user leave
+
+Action:
+    remove from user list and notify
+
+Parallel:
+
+User Interface
+Networking
+
+Optimize:
+Memory usage
+
+Optimize:
+Network latency
+
+Security:
+
+Encrypt:
+    message content
+
+Protect:
+    user credentials
+
+Learn:
+
+User behavior
+
+Goal:
+    improve message suggestions
+
+Validation:
+Send and receive messages successfully
+
+Validation:
+Average latency below 100 ms
+
+Validation:
+No data loss after reconnect
+
+Validation:
+100 concurrent users can chat without errors

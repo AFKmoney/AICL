@@ -154,8 +154,17 @@ export default function AICLEditor() {
   const [testCode, setTestCode] = useState('');
 
   // --- AI Chat state ---
-  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
-    { role: 'assistant', content: 'Hello! I\'m the AICL AI Assistant. I can help you write AICL specifications, understand concepts like the No-Orphan Property and Proof of Origin, and guide you through the editor. Ask me anything!' },
+  interface AICLFileBlock {
+    filename: string;
+    code: string;
+  }
+  interface ChatMsg {
+    role: 'user' | 'assistant';
+    content: string;
+    aiclFiles?: AICLFileBlock[]; // parsed :::AICL_FILE blocks
+  }
+  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([
+    { role: 'assistant', content: 'Hello! I\'m the AICL AI Assistant. I can help you write AICL specifications, understand concepts like the No-Orphan Property and Proof of Origin, and guide you through the editor.\n\nTry asking me: "Describe a todo app in AICL" or "Write a chat server specification"' },
   ]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
@@ -840,11 +849,23 @@ export default function AICLEditor() {
   }, [activeExercise, activeFile]);
 
   // --- AI Chat ---
+  // Parse :::AICL_FILE blocks from AI response
+  const parseAICLFiles = (text: string): { cleanText: string; files: { filename: string; code: string }[] } => {
+    const files: { filename: string; code: string }[] = [];
+    const regex = /:::AICL_FILE\s+(\S+)\n([\s\S]*?):::END_FILE/g;
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      files.push({ filename: match[1], code: match[2].trim() });
+    }
+    const cleanText = text.replace(regex, '').trim();
+    return { cleanText, files };
+  };
+
   const sendChatMessage = useCallback(async () => {
     const msg = chatInput.trim();
     if (!msg || chatLoading) return;
 
-    const userMessage = { role: 'user' as const, content: msg };
+    const userMessage: ChatMsg = { role: 'user', content: msg };
     setChatMessages(prev => [...prev, userMessage]);
     setChatInput('');
     setChatLoading(true);
@@ -859,12 +880,91 @@ export default function AICLEditor() {
         }),
       });
       const data = await res.json();
-      setChatMessages(prev => [...prev, { role: 'assistant', content: data.message || 'Sorry, I could not generate a response.' }]);
+      const rawMessage = data.message || 'Sorry, I could not generate a response.';
+      const { cleanText, files } = parseAICLFiles(rawMessage);
+
+      const assistantMessage: ChatMsg = {
+        role: 'assistant',
+        content: files.length > 0 ? cleanText : rawMessage,
+        aiclFiles: files.length > 0 ? files : undefined,
+      };
+      setChatMessages(prev => [...prev, assistantMessage]);
     } catch {
       setChatMessages(prev => [...prev, { role: 'assistant', content: 'Connection error. Please try again.' }]);
     }
     setChatLoading(false);
   }, [chatInput, chatLoading, chatMessages, activeFile.content]);
+
+  // Chat action: create file from AICL block
+  const chatCreateFile = useCallback((filename: string, code: string) => {
+    const id = `chat-${Date.now()}`;
+    setFiles(prev => [...prev, { id, name: filename, content: code, modified: false }]);
+    setActiveFileId(id);
+    setFileCounter(prev => prev + 1);
+    addOutput('info', `Created file from AI: ${filename}`);
+    toast({ title: 'File Created', description: `${filename} has been created from the AI response.` });
+  }, [addOutput]);
+
+  // Chat action: create file AND compile
+  const chatCreateAndCompile = useCallback(async (filename: string, code: string) => {
+    chatCreateFile(filename, code);
+    // Small delay to ensure state is updated, then compile
+    setTimeout(async () => {
+      setIsRunning(true);
+      addOutput('info', `Compiling ${filename} → ${targetLang}...`);
+      try {
+        const res = await fetch('/api/compile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source: code, target: targetLang }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          addOutput('success', `Compilation successful! (${data.stages_completed?.length || 0} stages)`);
+          addOutput('info', `Audit coverage: ${((data.audit_coverage || 0) * 100).toFixed(0)}%`);
+          if (data.proof_valid) addOutput('success', 'Proof of Origin: Valid ✓');
+          setCompiledCode(data.main_code || '');
+          setTestCode(data.test_code || '');
+          if (data.tree) setTreeData(data.tree);
+          setRightPanelContent('code');
+        } else {
+          addOutput('error', 'Compilation failed!');
+          data.errors?.forEach((e: string) => addOutput('error', e));
+        }
+      } catch (err) {
+        addOutput('error', `Compile error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
+      setIsRunning(false);
+    }, 200);
+  }, [chatCreateFile, targetLang, addOutput]);
+
+  // Chat action: create file AND verify
+  const chatCreateAndVerify = useCallback(async (filename: string, code: string) => {
+    chatCreateFile(filename, code);
+    setTimeout(async () => {
+      setIsRunning(true);
+      addOutput('info', `Verifying ${filename}...`);
+      try {
+        const res = await fetch('/api/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source: code }),
+        });
+        const data = await res.json();
+        addOutput(data.overall === 'PASS' ? 'success' : data.overall === 'ERROR' ? 'error' : 'warning',
+          `Verification: ${data.overall} (${data.passed || 0} passed, ${data.warnings || 0} warnings, ${data.failed || 0} failed)`);
+        data.checks?.forEach((c: VerifyCheck) => {
+          const icon = c.status === 'PASS' ? '✓' : c.status === 'FAIL' ? '✗' : '⚠';
+          addOutput(c.status === 'PASS' ? 'success' : c.status === 'FAIL' ? 'error' : 'warning',
+            `${icon} ${c.name}: ${c.message}`);
+        });
+        setRightPanelContent('output');
+      } catch (err) {
+        addOutput('error', `Verify error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
+      setIsRunning(false);
+    }, 200);
+  }, [chatCreateFile, addOutput]);
 
   // Auto-scroll chat to bottom
   useEffect(() => {
@@ -1258,12 +1358,54 @@ export default function AICLEditor() {
                                 <Bot className="h-3.5 w-3.5 text-white" />
                               </div>
                             )}
-                            <div className={`max-w-[85%] px-3 py-2 rounded-lg text-xs leading-relaxed ${
+                            <div className={`max-w-[85%] rounded-lg text-xs leading-relaxed ${
                               msg.role === 'user'
-                                ? 'bg-[#cd2d48] text-white rounded-br-sm'
+                                ? 'bg-[#cd2d48] text-white rounded-br-sm px-3 py-2'
                                 : 'bg-[#2d2d30] text-[#d4d4d4] rounded-bl-sm'
                             }`}>
-                              <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                              {msg.role === 'user' ? (
+                                <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                              ) : (
+                                <div>
+                                  {msg.content && (
+                                    <div className="whitespace-pre-wrap break-words px-3 py-2">{msg.content}</div>
+                                  )}
+                                  {msg.aiclFiles?.map((file, fi) => (
+                                    <div key={fi} className="border-t border-[#3c3c3c] mt-1">
+                                      <div className="flex items-center gap-2 px-3 py-1.5 bg-[#1e1e1e]">
+                                        <FileText className="h-3.5 w-3.5 text-[#4ec9b0]" />
+                                        <span className="text-[#4ec9b0] font-mono text-[11px]">{file.filename}</span>
+                                      </div>
+                                      <pre className="px-3 py-2 text-[11px] font-mono text-[#d4d4d4] whitespace-pre overflow-x-auto max-h-40 bg-[#1e1e1e]">{file.code}</pre>
+                                      <div className="flex items-center gap-1.5 px-3 py-2 bg-[#1e1e1e]">
+                                        <Button
+                                          size="sm"
+                                          className="h-6 text-[10px] px-2 bg-[#4ec9b0] hover:bg-[#3ba890] text-[#1e1e1e]"
+                                          onClick={() => chatCreateFile(file.filename, file.code)}
+                                        >
+                                          <Plus className="h-3 w-3 mr-1" />Create File
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          className="h-6 text-[10px] px-2 bg-[#cd2d48] hover:bg-[#a8233b] text-white"
+                                          onClick={() => chatCreateAndCompile(file.filename, file.code)}
+                                          disabled={isRunning}
+                                        >
+                                          <Play className="h-3 w-3 mr-1" />Create + Compile
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          className="h-6 text-[10px] px-2 bg-[#569cd6] hover:bg-[#4a8bc2] text-white"
+                                          onClick={() => chatCreateAndVerify(file.filename, file.code)}
+                                          disabled={isRunning}
+                                        >
+                                          <ShieldCheck className="h-3 w-3 mr-1" />Verify
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                             {msg.role === 'user' && (
                               <div className="w-6 h-6 rounded-full bg-[#3c3c3c] flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -1289,7 +1431,7 @@ export default function AICLEditor() {
                       <input
                         ref={chatInputRef}
                         className="flex-1 bg-[#3c3c3c] border border-[#4f4f4f] rounded px-2 py-1.5 text-xs text-[#d4d4d4] focus:outline-none focus:border-[#cd2d48]"
-                        placeholder="Ask about AICL, the editor, or your code..."
+                        placeholder='Try "Describe a todo app in AICL"...'
                         value={chatInput}
                         onChange={(e) => setChatInput(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } }}

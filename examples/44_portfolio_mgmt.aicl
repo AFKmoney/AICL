@@ -1,0 +1,453 @@
+# AICL Example: Portfolio Management System
+# Comprehensive portfolio management platform with asset allocation, risk analysis, rebalancing automation, performance reporting, and regulatory compliance for institutional and wealth management operations
+
+Goal: Deliver a portfolio management system that optimizes asset allocation across strategies and asset classes, provides real-time risk analytics with multi-factor decomposition, automates portfolio rebalancing with tax-aware execution, generates compliant performance reporting, and ensures regulatory compliance across investment advisory and fiduciary operations
+
+Constraint: All portfolio constructions must respect client investment policy statement constraints including risk tolerance and time horizon
+Constraint: Risk calculations must use approved methodology with validated data sources and reconcile to independent risk vendor
+Constraint: Rebalancing trades must generate best execution documentation with transaction cost analysis
+Constraint: Performance calculations must comply with GIPS standards with verified composite construction
+Constraint: Client data must be segregated with role-based access preventing cross-client visibility
+
+Risk: Portfolio drift beyond IPS-mandated thresholds causing client risk exposure mismatch
+Recovery: Trigger automated rebalancing alert; calculate required trades to restore target allocation; apply tax-loss harvesting if applicable; generate rebalancing proposal for advisor review; execute upon approval; document drift cause and correction
+
+Risk: Risk model failure producing inaccurate VaR or factor exposure calculations
+Recovery: Switch to backup risk model with simpler methodology; flag affected portfolios for manual review; reconcile with independent risk vendor; notify risk management; investigate model failure root cause; recalibrate model before reactivation
+
+Risk: Rebalancing trade execution error causing unintended position sizes or wrong instruments
+Recovery: Halt all pending rebalancing orders; reconcile actual positions vs target; generate correction orders; notify trading desk; review order generation logic; implement pre-trade validation enhancement; document error for compliance
+
+Risk: Client data leakage exposing portfolio holdings or personal financial information
+Recovery: Revoke compromised access immediately; audit access logs for unauthorized viewing; notify affected clients per regulatory requirements; implement additional access controls; conduct security review; report to compliance officer
+
+Risk: Performance calculation error in composite reporting affecting marketing materials and client statements
+Recovery: Recalculate performance from source data; identify affected composites and time periods; issue corrected performance to clients; notify GIPS verifier; update marketing materials; audit calculation methodology for root cause; implement validation checkpoint
+
+Risk: Regulatory compliance breach from improper portfolio construction or missing disclosures
+Recovery: Isolate non-compliant portfolios; generate required disclosures; notify compliance officer; engage legal counsel if necessary; implement corrective controls; file regulatory notification if required; document remediation actions
+
+Layer: AssetAllocation
+    SubLayer: StrategicAllocation
+    SubLayer: TacticalOverlay
+    SubLayer: FactorExposure
+    SubLayer: CurrencyManagement
+
+Layer: RiskAnalysis
+    SubLayer: ValueAtRisk
+    SubLayer: StressTesting
+    SubLayer: FactorDecomposition
+    SubLayer: LiquidityAnalysis
+
+Layer: Rebalancing
+    SubLayer: DriftDetection
+    SubLayer: TaxAwareOptimization
+    SubLayer: TradeGeneration
+    SubLayer: ExecutionManagement
+
+Layer: Reporting
+    SubLayer: PerformanceMeasurement
+    SubLayer: CompositeConstruction
+    SubLayer: AttributionAnalysis
+    SubLayer: ClientReporting
+
+Layer: Compliance
+    SubLayer: IPSMonitoring
+    SubLayer: RegulatoryChecks
+    SubLayer: DisclosureManagement
+    SubLayer: AuditTrail
+
+Validation: Portfolio allocations must not exceed IPS-mandated maximum weight for any asset class
+Validation: Risk metrics must reconcile with independent risk vendor within 2 percent tolerance
+Validation: Rebalancing trades must pass pre-trade compliance checks before order submission
+Validation: Performance returns must pass GIPS verification checks before composite inclusion
+Validation: Client-facing reports must include all required regulatory disclosures
+Validation: Model portfolio changes must receive compliance sign-off before propagation to client accounts
+
+Entity Portfolio
+    portfolioId: string
+    clientId: string
+    portfolioName: string
+    strategy: string
+    inceptionDate: datetime
+    totalValue: float
+    currencyCode: string
+    benchmark: string
+    riskProfile: string
+    targetAllocation: dict
+    currentAllocation: dict
+    ipsReference: string
+    status: string
+
+Entity Position
+    positionId: string
+    portfolioId: string
+    instrumentId: string
+    instrumentType: string
+    quantity: float
+    marketValue: float
+    costBasis: float
+    unrealizedPnl: float
+    weight: float
+    sector: string
+    country: string
+    currencyCode: string
+    lastPricedDate: datetime
+
+Entity RiskMetrics
+    metricId: string
+    portfolioId: string
+    calculationDate: datetime
+    var95: float
+    var99: float
+    trackingError: float
+    sharpeRatio: float
+    maxDrawdown: float
+    beta: float
+    factorExposures: dict
+    liquidityScore: float
+    concentrationRisk: dict
+    methodology: string
+
+Entity RebalancingOrder
+    orderId: string
+    portfolioId: string
+    instrumentId: string
+    direction: string
+    quantity: float
+    estimatedValue: float
+    reason: string
+    taxImpact: float
+    executionPriority: integer
+    complianceStatus: string
+    executionStatus: string
+    createdAt: datetime
+    executedAt: datetime
+
+Entity PerformanceRecord
+    recordId: string
+    portfolioId: string
+    compositeId: string
+    periodStart: datetime
+    periodEnd: datetime
+    grossReturn: float
+    netReturn: float
+    benchmarkReturn: float
+    alpha: float
+    contributionByAsset: dict
+    gipsCompliant: boolean
+    verificationStatus: string
+    calculationMethod: string
+
+Entity ClientProfile
+    clientId: string
+    clientName: string
+    clientType: string
+    riskTolerance: string
+    investmentHorizon: string
+    taxBracket: float
+    restrictedInstruments: list
+    esgPreferences: dict
+    liquidityNeeds: dict
+    ipsDocument: string
+    relationshipManager: string
+    complianceFlags: list
+
+Behavior ConstructPortfolio
+    Input: clientId: string, strategy: string, targetAllocation: dict, riskProfile: string, ipsReference: string
+    Output: portfolio: Portfolio
+    Action: Validate client profile and IPS; verify allocation weights sum to 100 percent; check instrument availability; apply restricted instrument filter; validate against risk tolerance; generate initial position set; create portfolio record; emit portfolio constructed event; schedule initial risk calculation
+
+Behavior CalculateRiskMetrics
+    Input: portfolioId: string, methodology: string, calculationDate: datetime
+    Output: riskMetrics: RiskMetrics
+    Action: Load portfolio positions and market data; compute value at risk using approved methodology; calculate factor exposures and betas; run stress test scenarios; assess liquidity risk; compute concentration metrics; validate against independent vendor; persist risk metrics; emit risk calculated event; flag threshold breaches
+
+Behavior DetectRebalancingNeed
+    Input: portfolioId: string
+    Output: rebalancingAnalysis: dict
+    Action: Compare current allocation against IPS targets; calculate drift percentages; identify positions exceeding drift tolerance; evaluate tax impact of potential trades; apply tax-loss harvesting logic; generate rebalancing proposal; rank trades by impact and tax efficiency; emit rebalancing analysis event; queue for advisor review
+
+Behavior GeneratePerformanceReport
+    Input: portfolioId: string, periodStart: datetime, periodEnd: datetime, reportType: string
+    Output: performanceReport: dict
+    Action: Retrieve portfolio returns for period; calculate gross and net performance; compute attribution by asset class and factor; compare against benchmark; apply GIPS methodology; verify composite inclusion criteria; generate required disclosures; format client-facing report; emit report generated event; archive for record retention
+
+Behavior ExecuteRebalancingTrade
+    Input: orderId: string, executionInstruction: dict
+    Output: executionResult: dict
+    Action: Validate order against compliance checks; check pre-trade risk limits; route to execution venue; apply best execution requirements; capture execution details; update position records; recalculate portfolio allocation; generate transaction cost analysis; emit trade executed event; update performance calculations
+
+Behavior MonitorCompliance
+    Input: portfolioId: string, ruleSet: string
+    Output: complianceResult: dict
+    Action: Load IPS constraints and regulatory rules; check allocation limits; verify restricted instrument compliance; assess concentration limits; validate suitability; check required disclosures; generate compliance report; flag violations; emit compliance event; escalate material violations
+
+Condition:
+    When portfolio.currentAllocation deviates from portfolio.targetAllocation by more than IPS-mandated drift tolerance
+    Then trigger rebalancing alert; calculate required adjustment trades; generate rebalancing proposal; notify portfolio manager; document drift cause; schedule review
+
+Condition:
+    When riskMetrics.var99 exceeds portfolio risk budget by more than 10 percent
+    Then trigger risk limit breach notification; require portfolio manager review; generate risk reduction proposal; notify risk management; restrict new position additions; document breach and remediation plan
+
+Condition:
+    When rebalancingOrder.taxImpact exceeds taxEfficiencyThreshold AND portfolio has unrealized losses available for harvesting
+    Then apply tax-loss harvesting optimization; pair loss realization with rebalancing trades; recalculate after-tax impact; generate modified order set; document tax optimization for compliance; proceed with optimized execution
+
+Condition:
+    When performanceRecord.gipsCompliant is false OR verificationStatus is "failed"
+    Then exclude from composite calculation; flag for GIPS verification review; notify performance measurement team; recalculate composite without affected record; update marketing materials; document exclusion reason
+
+Condition:
+    When clientProfile.complianceFlags contains active sanctions or restricted party matches
+    Then freeze portfolio transactions; notify compliance officer immediately; engage legal counsel; conduct enhanced due diligence; report to regulatory authorities if required; document all actions taken
+
+Event:
+    On PortfolioConstructed
+    Action: Schedule initial risk calculation; set up drift monitoring; configure compliance rules; generate welcome report; notify relationship manager; create performance tracking baseline; emit to client portal
+
+Event:
+    On RiskThresholdBreached
+    Action: Notify portfolio manager and risk management; generate risk reduction options; flag for compliance review; update risk dashboard; document breach in audit trail; schedule follow-up review
+
+Event:
+    On RebalancingExecuted
+    Action: Update portfolio positions and allocation; recalculate risk metrics; update performance records; generate transaction confirmation; update client portal; document execution quality; emit to accounting
+
+Event:
+    On ComplianceViolationDetected
+    Action: Notify compliance officer and portfolio manager; generate violation report; restrict further transactions if required; create remediation task; update compliance dashboard; log for regulatory reporting; document in audit trail
+
+Event:
+    On PerformanceReportGenerated
+    Action: Archive report for record retention; update composite calculations; refresh client portal; notify relationship manager; schedule next reporting cycle; verify GIPS compliance; update marketing materials if needed
+
+Parallel:
+    - Multi-portfolio risk metric calculation across strategies
+    - Real-time drift monitoring and rebalancing detection
+    - Performance measurement and attribution computation
+    - Compliance rule evaluation across all client portfolios
+    - Market data processing and position pricing updates
+
+Optimize: Risk-adjusted returns and tax-efficient portfolio management
+    Priority: Compliance and risk management over return maximization
+    Priority: Tax efficiency over rebalancing precision
+    Priority: Client IPS adherence over model portfolio consistency
+    Priority: Best execution quality over transaction speed
+
+Learn: Portfolio drift pattern prediction
+    Goal: Predict portfolio drift exceeding IPS tolerance 5 market days in advance with 70 percent accuracy
+    Adapt: Drift monitoring frequency and rebalancing trigger thresholds
+    Based: Historical drift velocity, market volatility regimes, and factor exposure sensitivity
+
+Learn: Tax-loss harvesting opportunity identification
+    Goal: Increase tax alpha by 50 basis points through proactive loss harvesting
+    Adapt: Tax-aware rebalancing optimization parameters
+    Based: Short-term vs long-term gain distribution patterns, wash rule period tracking, and loss carryforward utilization
+
+Learn: Risk factor exposure prediction
+    Goal: Forecast next-period factor exposures within 5 percent of actual with 80 percent confidence
+    Adapt: Factor model parameters and scenario weights
+    Based: Factor return momentum, regime change indicators, and cross-asset correlation shifts
+
+Learn: Client risk tolerance evolution
+    Goal: Detect risk tolerance drift 90 days before client expresses concern with 65 percent recall
+    Adapt: Portfolio risk budgeting and communication triggers
+    Based: Portfolio behavior during drawdowns, cash flow pattern changes, and engagement metric shifts
+
+Security:
+    Encrypt: All client personal and financial information including portfolio holdings and performance
+    Encrypt: Trading instructions and order data in transit with end-to-end encryption
+    Encrypt: Risk model parameters and proprietary factor data
+    Protect: Portfolio construction and rebalancing with multi-level approval workflow
+    Protect: Performance reporting generation with GIPS compliance verification gate
+    Protect: Client data with strict cross-client segregation and role-based access
+    Protect: Trading execution with pre-trade compliance and post-trade surveillance
+
+Native: python
+{
+from datetime import datetime, date, timedelta
+from typing import Dict, List, Optional, Tuple
+from decimal import Decimal
+import math
+
+class PortfolioRiskEngine:
+    """Multi-methodology risk calculation with factor decomposition."""
+
+    def __init__(self, factor_model: Dict, stress_scenarios: List[Dict]):
+        self.factor_model = factor_model
+        self.stress_scenarios = stress_scenarios
+
+    def calculate_risk(self, portfolio: Dict, positions: List[Dict],
+                       market_data: Dict) -> Dict:
+        factor_exp = self._calculate_factor_exposures(positions, market_data)
+        var_95, var_99 = self._calculate_var(portfolio, positions, market_data)
+        stress_results = self._run_stress_tests(positions, market_data)
+        liquidity = self._assess_liquidity(positions, market_data)
+
+        return {
+            "portfolio_id": portfolio["portfolio_id"],
+            "calculation_date": datetime.utcnow().isoformat(),
+            "var_95": var_95,
+            "var_99": var_99,
+            "factor_exposures": factor_exp,
+            "stress_test_results": stress_results,
+            "liquidity_score": liquidity,
+            "methodology": "parametric_var_with_factor_model"
+        }
+
+    def _calculate_factor_exposures(self, positions: List[Dict],
+                                     market_data: Dict) -> Dict:
+        total_value = sum(p["market_value"] for p in positions)
+        exposures = {}
+        for factor, loadings in self.factor_model.items():
+            factor_exposure = 0.0
+            for pos in positions:
+                weight = pos["market_value"] / total_value if total_value > 0 else 0
+                instrument_loading = loadings.get(pos["instrument_id"], 0.0)
+                factor_exposure += weight * instrument_loading
+            exposures[factor] = round(factor_exposure, 4)
+        return exposures
+
+    def _calculate_var(self, portfolio: Dict, positions: List[Dict],
+                       market_data: Dict) -> Tuple[float, float]:
+        total_value = sum(p["market_value"] for p in positions)
+        if total_value == 0:
+            return 0.0, 0.0
+
+        portfolio_variance = 0.0
+        weights = {p["instrument_id"]: p["market_value"] / total_value for p in positions}
+
+        for i, pos_i in enumerate(positions):
+            for j, pos_j in enumerate(positions):
+                w_i = weights[pos_i["instrument_id"]]
+                w_j = weights[pos_j["instrument_id"]]
+                cov = market_data.get("covariance", {}).get(
+                    f"{pos_i['instrument_id']}_{pos_j['instrument_id']}", 0
+                )
+                portfolio_variance += w_i * w_j * cov
+
+        portfolio_vol = math.sqrt(portfolio_variance) if portfolio_variance > 0 else 0
+        var_95 = total_value * portfolio_vol * 1.645
+        var_99 = total_value * portfolio_vol * 2.326
+        return round(var_95, 2), round(var_99, 2)
+
+    def _run_stress_tests(self, positions: List[Dict],
+                          market_data: Dict) -> List[Dict]:
+        results = []
+        for scenario in self.stress_scenarios:
+            impact = 0.0
+            for pos in positions:
+                shock = scenario["shocks"].get(pos["instrument_type"], 0)
+                factor_adjustment = 1.0
+                for factor, shock_val in scenario.get("factor_shocks", {}).items():
+                    loading = self.factor_model.get(factor, {}).get(pos["instrument_id"], 0)
+                    factor_adjustment += loading * shock_val
+                impact += pos["market_value"] * shock * factor_adjustment
+            results.append({
+                "scenario_name": scenario["name"],
+                "portfolio_impact": round(impact, 2),
+                "impact_percent": round(impact / sum(p["market_value"] for p in positions) * 100, 2) if positions else 0
+            })
+        return results
+
+    def _assess_liquidity(self, positions: List[Dict], market_data: Dict) -> float:
+        if not positions:
+            return 1.0
+        total_value = sum(p["market_value"] for p in positions)
+        weighted_liquidity = 0.0
+        for pos in positions:
+            weight = pos["market_value"] / total_value
+            adv = market_data.get("adv", {}).get(pos["instrument_id"], 1e9)
+            days_to_liquidate = pos["market_value"] / (adv * 0.1) if adv > 0 else 30
+            liquidity_score = max(0, 1 - days_to_liquidate / 30)
+            weighted_liquidity += weight * liquidity_score
+        return round(weighted_liquidity, 4)
+
+
+class TaxAwareRebalancer:
+    """Tax-aware portfolio rebalancing with loss harvesting optimization."""
+
+    def __init__(self, tax_rates: Dict, wash_rule_days: int = 30):
+        self.tax_rates = tax_rates
+        self.wash_rule_days = wash_rule_days
+
+    def generate_rebalance_plan(self, current: Dict, target: Dict,
+                                 positions: List[Dict],
+                                 tax_lots: List[Dict]) -> Dict:
+        trades = []
+        tax_impact = {"realized_gains": 0.0, "realized_losses": 0.0, "tax_cost": 0.0}
+
+        for asset, target_weight in target.items():
+            current_weight = current.get(asset, 0.0)
+            drift = target_weight - current_weight
+            if abs(drift) < 0.005:
+                continue
+
+            position = next((p for p in positions if p["instrument_id"] == asset), None)
+            if not position:
+                continue
+
+            trade_value = drift * sum(p["market_value"] for p in positions)
+            direction = "buy" if drift > 0 else "sell"
+            trade_tax_impact = 0.0
+
+            if direction == "sell":
+                trade_tax_impact = self._calculate_sell_tax_impact(
+                    abs(trade_value), position, tax_lots
+                )
+                tax_impact["tax_cost"] += trade_tax_impact
+
+            trades.append({
+                "instrument_id": asset,
+                "direction": direction,
+                "trade_value": abs(trade_value),
+                "target_weight": target_weight,
+                "current_weight": current_weight,
+                "drift": drift,
+                "tax_impact": trade_tax_impact
+            })
+
+        loss_harvesting = self._identify_loss_harvesting_opportunities(positions, tax_lots)
+
+        return {
+            "trades": sorted(trades, key=lambda t: abs(t["drift"]), reverse=True),
+            "tax_impact": tax_impact,
+            "loss_harvesting_opportunities": loss_harvesting,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+
+    def _calculate_sell_tax_impact(self, trade_value: float, position: Dict,
+                                    tax_lots: List[Dict]) -> float:
+        cost_basis = position.get("cost_basis", 0)
+        market_value = position.get("market_value", 0)
+        if market_value == 0 or cost_basis == 0:
+            return 0
+        gain_ratio = (market_value - cost_basis) / market_value
+        realized_gain = trade_value * gain_ratio
+        if realized_gain > 0:
+            return realized_gain * self.tax_rates.get("long_term", 0.20)
+        return realized_gain * self.tax_rates.get("loss_deduction", 0.20) * -1
+
+    def _identify_loss_harvesting_opportunities(self, positions: List[Dict],
+                                                  tax_lots: List[Dict]) -> List[Dict]:
+        opportunities = []
+        for lot in tax_lots:
+            if lot.get("unrealized_pnl", 0) < 0:
+                position = next(
+                    (p for p in positions if p["instrument_id"] == lot["instrument_id"]), None
+                )
+                if position:
+                    tax_savings = abs(lot["unrealized_pnl"]) * self.tax_rates.get("short_term", 0.37)
+                    opportunities.append({
+                        "instrument_id": lot["instrument_id"],
+                        "lot_id": lot["lot_id"],
+                        "unrealized_loss": lot["unrealized_pnl"],
+                        "potential_tax_savings": round(tax_savings, 2),
+                        "wash_rule_period_end": (
+                            datetime.utcnow() + timedelta(days=self.wash_rule_days)
+                        ).isoformat()
+                    })
+        return sorted(opportunities, key=lambda x: x["potential_tax_savings"], reverse=True)
+}

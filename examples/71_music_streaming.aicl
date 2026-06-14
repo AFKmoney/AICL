@@ -1,0 +1,478 @@
+# AICL Example: Music Streaming Service
+# Audio processing, playlist management, recommendation engine, licensing/royalties, and offline mode
+
+Goal
+    Build a music streaming service that delivers lossless and compressed audio to millions
+    of listeners, manages complex playlist ecosystems with collaborative features, provides
+    AI-powered personalized recommendations, handles music licensing and royalty distribution
+    across multiple territories, and supports seamless offline playback with synchronization.
+
+Constraint
+    Audio stream startup must occur within 200ms of play command
+    Playlist operations must be consistent across all user devices within 5 seconds
+    Recommendation engine must process user signals within 10 seconds of action
+    Royalty calculations must be accurate to 0.001 cents per stream
+    Offline sync must not consume more than 150% of track storage size
+    Audio transcoding must preserve perceptual quality above -1 LUFS deviation from source
+
+Risk
+    Licensing agreement changes remove popular content from catalog
+Recovery
+    Maintain 30-day grace period for removed content with active listeners; cache licensed
+    content locally during grace period; notify affected users with alternative suggestions;
+    negotiate retention extensions for top-streamed tracks in each territory
+
+Risk
+    Recommendation algorithm creates echo chamber reducing content discovery
+Recovery
+    Inject diversity factor into recommendation scoring; enforce minimum novelty ratio
+    per session; periodically surface genre-exploration playlists; track and optimize
+    for discovery metrics alongside engagement metrics
+
+Risk
+    Offline sync conflicts when user modifies playlists on multiple devices
+Recovery
+    Implement last-write-wins with conflict resolution UI; preserve both versions as
+    alternative playlist states; sync conflict resolution favors additions over deletions;
+    maintain operation log for manual conflict resolution
+
+Risk
+    Royalty calculation discrepancies due to territory-specific rate complexity
+Recovery
+    Implement double-entry royalty accounting with automated reconciliation; run daily
+    consistency checks comparing calculated vs. expected payouts; flag variances above
+    0.1% for manual review; maintain complete audit trail per stream event
+
+Risk
+    Audio transcoding pipeline produces artifacts or quality degradation
+Recovery
+    Run automated perceptual evaluation (PEAQ) on transcoded outputs; reject outputs
+    scoring below quality threshold; fall back to alternative codec configuration;
+    alert transcoding team with audio samples for investigation
+
+Risk
+    Peak load during new album releases overwhelms streaming infrastructure
+Recovery
+    Pre-cache highly anticipated releases to edge nodes 24 hours before launch;
+    auto-scale streaming capacity based on pre-save counts; implement virtual waiting
+    room for extreme demand; degrade gracefully to lower quality tiers
+
+Layer
+    SubLayer: AudioLayer
+        Audio processing, transcoding, format conversion, loudness normalization, gapless playback
+    SubLayer: PlaylistLayer
+        Playlist CRUD, collaboration, ordering, smart playlists, import/export
+    SubLayer: RecommendationLayer
+        User profiling, audio feature extraction, collaborative filtering, exploration/exploitation
+    SubLayer: LicensingLayer
+        Territory management, royalty calculation, rights verification, payout processing
+    SubLayer: OfflineLayer
+        Download management, sync coordination, storage management, cache eviction
+    SubLayer: PlaybackLayer
+        Stream delivery, buffer management, crossfade, equalizer, device handoff
+
+Validation
+    All audio streams must be normalized to -14 LUFS integrated loudness
+    Playlist track order must be consistent across all synced devices
+    Royalty calculations must be reproducible from stream event logs
+    Offline tracks must have valid DRM licenses cached before download
+    Recommendation results must include at least 20% unfamiliar content per session
+    Audio transcoding quality must pass PEAQ objective difference grade threshold
+    Stream events must be durably logged before royalty calculation proceeds
+
+Entity Track
+    trackId: string
+    title: string
+    artistId: string
+    albumId: string
+    duration: float
+    isrc: string
+    audioFormat: string
+    loudness: float
+    genreTags: list
+    moodTags: list
+    audioFeatures: dict
+    licensingTerritories: dict
+
+Entity Playlist
+    playlistId: string
+    ownerId: string
+    name: string
+    description: string
+    trackIds: list
+    isCollaborative: boolean
+    collaboratorIds: list
+    isPublic: boolean
+    followerCount: integer
+    lastModified: datetime
+
+Entity UserProfile
+    userId: string
+    listeningHistory: list
+    favoriteGenres: dict
+    skipRates: dict
+    sessionDurations: dict
+    discoveryScore: float
+    audioFeaturePreferences: dict
+    lastRecommendationUpdate: datetime
+
+Entity RoyaltyAccount
+    rightsholderId: string
+    territory: string
+    totalStreams: integer
+    totalRevenue: float
+    pendingPayout: float
+    lastPayoutDate: datetime
+    payoutMethod: string
+    streamBreakdown: dict
+    taxWithholding: float
+
+Entity OfflineCache
+    userId: string
+    deviceId: string
+    cachedTrackIds: list
+    totalStorageUsed: float
+    maxStorage: float
+    pendingSyncs: list
+    lastSyncTime: datetime
+    drmLicenseCache: dict
+
+Entity StreamEvent
+    eventId: string
+    userId: string
+    trackId: string
+    eventType: string
+    timestamp: datetime
+    territory: string
+    streamQuality: string
+    deviceType: string
+    completionRate: float
+    royaltyEligible: boolean
+
+Entity AudioTranscode
+    transcodeId: string
+    sourceTrackId: string
+    targetCodec: string
+    targetBitrate: integer
+    qualityScore: float
+    luDeviation: float
+    status: string
+    createdAt: datetime
+
+Behavior StreamTrack
+    Input:
+        userId: string
+        trackId: string
+        quality: string
+        deviceId: string
+    Output:
+        streamUrl: string
+        drmLicense: dict
+        metadata: dict
+    Action:
+        Validate user subscription and territory access
+        Check if track is available in requested quality
+        Generate time-limited streaming URL from CDN
+        Retrieve or generate DRM license for device
+        Record stream event with timestamp and quality
+        Update user listening history and recommendation signals
+        Pre-buffer next tracks based on current playback context
+        Return stream URL, license, and track metadata
+
+Behavior ManagePlaylist
+    Input:
+        playlistId: string
+        operation: string
+        userId: string
+        payload: dict
+    Output:
+        updatedPlaylist: dict
+        syncNotification: dict
+    Action:
+        Validate user permissions for playlist operation
+        Apply operation (create, add_track, remove_track, reorder, update_metadata)
+        If collaborative, validate collaborator permissions
+        Update playlist with optimistic concurrency control
+        Generate sync notification for all connected devices
+        If track added, update recommendation signals
+        If playlist made public, index for search and discovery
+        Return updated playlist state with sync version number
+
+Behavior ComputeRecommendations
+    Input:
+        userId: string
+        context: dict
+        count: integer
+    Output:
+        trackRecommendations: list
+        artistRecommendations: list
+        playlistRecommendations: list
+    Action:
+        Retrieve user profile with listening history and preferences
+        Extract audio feature preferences from recent listening patterns
+        Generate candidate pool from collaborative and content-based sources
+        Score candidates using multi-factor ranking model
+        Apply diversity injection: minimum 20% genre-exploration tracks
+        Filter for territory availability and licensing compliance
+        Rank by expected engagement weighted with discovery bonus
+        Cache results with user-activity-based TTL
+        Return recommendations with explanation tags
+
+Behavior CalculateRoyalties
+    Input:
+        periodStart: datetime
+        periodEnd: datetime
+        territory: string
+    Output:
+        royaltyReport: dict
+        payoutSchedule: dict
+        discrepancies: list
+    Action:
+        Aggregate all eligible stream events for the period and territory
+        Apply territory-specific per-stream rate based on subscription tier
+        Calculate pro-rata share for each rightsholder based on stream share
+        Apply mechanical royalty rates and performance royalty rates
+        Deduct applicable tax withholdings per rightsholder territory
+        Cross-check calculated totals against expected revenue pool
+        Flag discrepancies exceeding 0.1% variance
+        Generate detailed royalty report per rightsholder
+        Schedule payout according to rightsholder payment terms
+
+Behavior SyncOfflineContent
+    Input:
+        userId: string
+        deviceId: string
+        requestedTrackIds: list
+    Output:
+        syncResult: dict
+        storageReport: dict
+    Action:
+        Check DRM license availability for all requested tracks
+        Calculate total storage requirement for requested quality
+        Evict least-recently-played cached tracks if storage exceeded
+        Queue track downloads with priority ordering
+        Download audio segments with integrity verification
+        Cache DRM licenses for offline validity period
+        Update offline cache metadata and storage tracking
+        Return sync result with per-track download status
+
+Behavior ProcessAudio
+    Input:
+        sourceTrackId: string
+        targetFormats: list
+    Output:
+        transcodeJobs: list
+        qualityReport: dict
+    Action:
+        Analyze source audio for format, loudness, and dynamic range
+        Normalize loudness to -14 LUFS integrated target
+        Create transcoding jobs for each target format and bitrate
+        Apply codec-specific optimizations (codec delay, gapless metadata)
+        Run PEAQ quality assessment on transcoded outputs
+        Reject outputs below quality threshold and retry with adjusted params
+        Register all valid outputs with CDN for streaming
+        Generate quality report with metrics per format
+
+Condition
+    When user skips a track within first 30 seconds consistently
+    Then reduce similar track weight in recommendations, update user preference
+         model, adjust radio algorithm to avoid similar audio features
+
+Condition
+    When DRM license for offline track is within 48 hours of expiration
+    Then attempt silent license renewal in background; if renewal fails, notify
+         user to go online; mark tracks with expiring licenses in offline view
+
+Condition
+    When collaborative playlist has conflicting edits from simultaneous users
+    Then merge additions from both parties; apply last-write-wins for removals;
+         generate conflict notification to playlist owner; preserve operation log
+
+Condition
+    When stream event volume for a territory exceeds expected rate by 50%
+    Then flag for potential royalty anomaly; activate enhanced stream verification;
+         sample and validate stream events for legitimacy before royalty processing
+
+Condition
+    When new album pre-save count exceeds 100000
+    Then trigger pre-caching to edge nodes in all relevant territories; allocate
+         additional streaming capacity for release window; prepare royalty
+         calculation pipelines for high-volume processing
+
+Event
+    On TrackPlayed
+    Action: Record stream event, update listening history, adjust recommendation
+            model, increment play count, trigger royalty accrual, update trending
+
+Event
+    On PlaylistFollowed
+    Action: Increment follower count, update playlist discovery ranking, add to
+            follower's sidebar, notify playlist owner, track social signal
+
+Event
+    On LicenseExpiring
+    Action: Queue license renewal, notify user if online renewal needed, mark
+            offline content status, prepare grace period display logic
+
+Event
+    On RoyaltyDiscrepancy
+    Action: Flag for manual review, freeze affected payouts, generate detailed
+            discrepancy report, notify rights management team, log for audit
+
+Event
+    On NewReleaseAvailable
+    Action: Notify pre-savers, update editorial playlists, trigger recommendation
+            inclusion, update artist page, begin streaming analytics tracking
+
+Parallel
+    Audio transcoding across multiple formats and bitrates simultaneously
+    Recommendation model updates across user segments
+    Offline content synchronization across multiple user devices
+    Royalty calculation aggregation across territories
+    Stream event processing and real-time analytics
+    CDN cache management and prefetch operations
+
+Optimize
+    Target: Stream startup latency
+    Priority: CDN edge selection first; pre-buffer ahead of play command for likely
+              tracks; use persistent connections; minimize license acquisition time
+
+Optimize
+    Target: Recommendation engagement rate
+    Priority: Optimize for listen-through rate over click-through rate; balance
+              exploitation of known preferences with exploration of new content;
+              diversity and novelty weighted higher for discovery-focused sessions
+
+Learn
+    Target: Personalized audio feature preferences
+    Goal: Predict track skip probability with >80% accuracy for cold-start tracks
+    Adapt
+        Based: Listening completion rates correlated with audio features (tempo,
+               energy, valence, acousticness), time-of-day patterns, and context signals
+
+Learn
+    Target: Optimal pre-caching strategy for edge nodes
+    Goal: Achieve 99% cache hit ratio while minimizing storage costs
+    Adapt
+        Based: Listening velocity of new releases, regional popularity curves,
+               playlist add rates, and search query trending patterns
+
+Learn
+    Target: Royalty anomaly detection thresholds
+    Goal: Detect fraudulent streaming patterns with >90% precision and <1% false positive rate
+    Adapt
+        Based: Historical stream event patterns, seasonal listening variations,
+               device-type distributions, and geographic listening patterns
+
+Security
+    Encrypt: Audio stream content, DRM encryption keys, user listening history,
+             royalty payout information, licensing agreement terms
+    Protect: Stream authentication tokens, offline DRM license cache,
+             royalty calculation integrity, territory restriction enforcement,
+             content fingerprinting database
+
+Security
+    Encrypt: Cross-device sync payloads, playlist collaboration messages,
+             recommendation personalization data, payment processing tokens
+    Protect: Anti-ripper stream protection, concurrent stream limit enforcement,
+             offline content tampering detection, royalty fraud prevention,
+             rights holder data access controls
+
+Native Python
+{
+import hashlib
+import time
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional
+from enum import Enum
+
+class StreamQuality(Enum):
+    LOW = "low_96k"
+    MEDIUM = "medium_160k"
+    HIGH = "high_320k"
+    LOSSLESS = "lossless_flac"
+
+@dataclass
+class Track:
+    track_id: str
+    title: str
+    artist_id: str
+    album_id: str
+    duration: float
+    isrc: str
+    loudness_lufs: float
+    genre_tags: List[str]
+    audio_features: Dict[str, float]
+    available_territories: Dict[str, bool]
+
+@dataclass
+class PlaylistEntry:
+    track_id: str
+    added_by: str
+    added_at: float
+    position: int
+
+@dataclass
+class Playlist:
+    playlist_id: str
+    owner_id: str
+    name: str
+    entries: List[PlaylistEntry] = field(default_factory=list)
+    is_collaborative: bool = False
+    collaborators: List[str] = field(default_factory=list)
+    version: int = 0
+
+    def add_track(self, track_id: str, user_id: str) -> None:
+        entry = PlaylistEntry(
+            track_id=track_id,
+            added_by=user_id,
+            added_at=time.time(),
+            position=len(self.entries),
+        )
+        self.entries.append(entry)
+        self.version += 1
+
+    def remove_track(self, track_id: str) -> bool:
+        for i, entry in enumerate(self.entries):
+            if entry.track_id == track_id:
+                self.entries.pop(i)
+                self._reindex()
+                self.version += 1
+                return True
+        return False
+
+    def _reindex(self) -> None:
+        for i, entry in enumerate(self.entries):
+            entry.position = i
+
+@dataclass
+class RoyaltyCalculator:
+    territory_rates: Dict[str, Dict[str, float]]
+    subscription_tier_multipliers: Dict[str, float]
+
+    def calculate_per_stream(
+        self,
+        territory: str,
+        subscription_tier: str,
+        stream_duration_ratio: float,
+    ) -> float:
+        base_rate = self.territory_rates.get(territory, {}).get("base", 0.003)
+        tier_mult = self.subscription_tier_multipliers.get(subscription_tier, 1.0)
+        return base_rate * tier_mult * stream_duration_ratio
+
+    def aggregate_period(
+        self,
+        streams: List[dict],
+        territory: str,
+    ) -> Dict[str, float]:
+        payouts: Dict[str, float] = {}
+        for stream in streams:
+            rightsholder = stream["rightsholder_id"]
+            amount = self.calculate_per_stream(
+                territory,
+                stream.get("tier", "free"),
+                stream.get("completion_rate", 0.5),
+            )
+            payouts[rightsholder] = payouts.get(rightsholder, 0.0) + amount
+        return payouts
+}

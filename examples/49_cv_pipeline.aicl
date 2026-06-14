@@ -1,0 +1,416 @@
+# AICL Example: Computer Vision Pipeline
+# Production computer vision pipeline covering image classification, object detection, semantic
+# segmentation, face recognition, and video analysis with real-time and batch processing support.
+
+Goal Build a comprehensive computer vision pipeline that provides image classification, object detection, segmentation, face recognition, and video analysis capabilities with real-time inference support and production-grade reliability
+
+Constraint Image classification must achieve top-1 accuracy above 0.90 on ImageNet-scale benchmarks
+Constraint Object detection must achieve mAP above 0.45 on COCO benchmark at 30+ FPS
+Constraint Face recognition must maintain false positive rate below 0.001 at 99% true positive rate
+Constraint Video analysis must process streams at minimum 30 FPS with frame-level inference
+Constraint All biometric data must comply with GDPR and local privacy regulations with automatic deletion policies
+
+Risk Model adversarial attack causing misclassification of manipulated images
+Recovery Implement adversarial robustness training; deploy input perturbation detection; maintain ensemble of models for consensus-based classification
+
+Risk Face recognition bias across demographic groups
+Recovery Conduct regular fairness audits across skin tone and gender groups; enforce equalized odds constraints; deploy demographic-specific calibration
+
+Risk GPU memory overflow during high-resolution image or video processing
+Recovery Implement dynamic resolution scaling with tiling strategy; apply gradient checkpointing for training; enforce memory budget with graceful degradation to lower resolution
+
+Risk Object detection failure in low-light or occluded conditions
+Recovery Train on augmented data including low-light and occlusion scenarios; deploy multi-scale feature pyramid networks; use temporal aggregation for video frames
+
+Risk Video stream processing lag causing frame drops during peak load
+Recovery Implement frame sampling and priority queue; deploy adaptive quality reduction; maintain buffer with skip-frame fallback strategy
+
+Risk Privacy violation from storing biometric face embeddings without consent
+Recovery Implement automatic TTL-based deletion for face embeddings; enforce consent verification before storage; apply differential privacy to embedding vectors
+
+Layer VisionCore
+    SubLayer: ImagePreprocessing
+    SubLayer: FeatureExtraction
+    SubLayer: ModelInference
+Layer VisionTasks
+    SubLayer: Classification
+    SubLayer: ObjectDetection
+    SubLayer: Segmentation
+    SubLayer: FaceRecognition
+    SubLayer: VideoAnalysis
+Layer VisionInfrastructure
+    SubLayer: ModelServing
+    SubLayer: GPUResourceManager
+    SubLayer: StorageManager
+
+Validation Image classification top-1 accuracy must exceed 0.90 on held-out test set
+Validation Object detection mAP must exceed 0.45 on COCO-format evaluation
+Validation Segmentation mIoU must exceed 0.65 on benchmark dataset
+Validation Face recognition must achieve TAR above 0.99 at FAR below 0.001
+Validation Video processing throughput must maintain 30 FPS minimum
+Validation Adversarial robustness must pass FGSM and PGD attack benchmarks
+Validation Face recognition fairness must show equalized odds difference below 0.1 across demographic groups
+Validation GPU memory utilization must remain below 90% during peak inference load
+
+# Level 2 - Entities
+
+Entity ImageAsset
+    imageId: string
+    storageUri: string
+    width: integer
+    height: integer
+    channels: integer
+    format: string
+    fileSizeBytes: integer
+    captureTimestamp: datetime
+    sourceDevice: string
+    checksumHash: string
+    metadata: dict
+
+Entity DetectionResult
+    resultId: string
+    imageId: string
+    detections: list
+    boundingBoxes: list
+    classLabels: list
+    confidenceScores: list
+    modelVersion: string
+    inferenceTimeMs: float
+    processedAt: datetime
+
+Entity SegmentationMap
+    mapId: string
+    imageId: string
+    segmentLabels: list
+    segmentMasks: list
+    segmentConfidences: list
+    mIoUScore: float
+    modelVersion: string
+    processedAt: datetime
+
+Entity FaceEmbedding
+    embeddingId: string
+    faceRegion: dict
+    embeddingVector: list
+    qualityScore: float
+    demographicTags: dict
+    consentStatus: boolean
+    expirationTimestamp: datetime
+    modelVersion: string
+    createdAt: datetime
+
+Entity VideoStream
+    streamId: string
+    sourceUri: string
+    resolution: dict
+    frameRate: float
+    codec: string
+    startTime: datetime
+    endTime: datetime
+    processingStatus: string
+    frameBuffer: dict
+
+Entity VisionModelConfig
+    modelId: string
+    taskType: string
+    architecture: string
+    inputResolution: dict
+    batchSize: integer
+    precision: string
+    calibrationData: dict
+    version: string
+    performanceMetrics: dict
+
+# Level 3 - Behaviors
+
+Behavior ClassifyImage
+    Input:
+        image: ImageAsset
+        modelConfig: VisionModelConfig
+    Output:
+        classification: dict
+        confidence: float
+    Action:
+        Load and preprocess image to model input resolution
+        Apply normalization using ImageNet statistics
+        Run forward pass through classification model
+        Apply softmax to obtain class probabilities
+        Return top-K predictions with confidence scores
+
+Behavior DetectObjects
+    Input:
+        image: ImageAsset
+        modelConfig: VisionModelConfig
+        confidenceThreshold: float
+    Output:
+        detectionResult: DetectionResult
+    Action:
+        Preprocess image with letterbox resizing
+        Run object detection model forward pass
+        Apply non-maximum suppression to filter overlapping boxes
+        Filter detections by confidence threshold
+        Map class indices to human-readable labels
+        Return all detections with bounding boxes and scores
+
+Behavior SegmentImage
+    Input:
+        image: ImageAsset
+        modelConfig: VisionModelConfig
+    Output:
+        segmentationMap: SegmentationMap
+    Action:
+        Preprocess image and run through segmentation model
+        Resize output logits to original image dimensions
+        Apply argmax to obtain per-pixel class predictions
+        Generate instance masks for each segment
+        Compute mIoU if ground truth is available
+        Return segmentation map with all labels and masks
+
+Behavior RecognizeFace
+    Input:
+        image: ImageAsset
+        faceRegion: dict
+        modelConfig: VisionModelConfig
+    Output:
+        faceEmbedding: FaceEmbedding
+        matchResult: dict
+    Action:
+        Align face using detected landmarks
+        Crop and normalize face region to model input size
+        Compute face embedding vector
+        Search embedding against gallery for matches
+        Apply distance threshold for identity verification
+        Check consent status before storing or returning match
+        Return embedding and match result with confidence
+
+Behavior AnalyzeVideoStream
+    Input:
+        videoStream: VideoStream
+        analysisConfig: dict
+    Output:
+        frameResults: list
+        streamSummary: dict
+    Action:
+        Initialize frame buffer and sampling strategy
+        Process frames at target FPS through appropriate models
+        Aggregate temporal information across frames
+        Track objects across frames using optical flow
+        Generate stream-level summary with key events
+        Return frame-by-frame results and stream summary
+
+Behavior PreprocessImage
+    Input:
+        image: ImageAsset
+        preprocessingConfig: dict
+    Output:
+        processedImage: ImageAsset
+        preprocessingReport: dict
+    Action:
+        Decode image from storage format
+        Apply EXIF orientation correction
+        Resize to target dimensions maintaining aspect ratio
+        Apply color space normalization
+        Detect and handle corrupted pixel regions
+        Return preprocessed image ready for inference
+
+# Level 4 - Conditions
+
+Condition: AdversarialInputSuspected
+    When input perturbation detection score exceeds threshold
+    Then flag image for manual review; run ensemble models for consensus; log adversarial detection event with image metadata
+
+Condition: FaceQualityBelowThreshold
+    When face quality score falls below 0.6 due to blur, occlusion, or angle
+    Then reject face recognition attempt; return quality failure reason; log low-quality face detection for model improvement
+
+Condition: GPUMemoryPressure
+    When GPU memory utilization exceeds 85% during inference
+    Then reduce batch size dynamically; enable model offloading to CPU; queue excess requests with priority scheduling
+
+Condition: VideoFrameDropDetected
+    When frame processing latency exceeds frame interval causing dropped frames
+    Then activate frame skip strategy; reduce analysis resolution; alert monitoring system of throughput degradation
+
+Condition: BiometricConsentMissing
+    When face embedding is requested for storage but consent status is false
+    Then discard embedding immediately; return privacy-compliant response; log consent violation attempt for audit
+
+# Level 5 - Events
+
+Event: ImageSubmitted
+    On new image received for processing
+    Action: validate image format and integrity; enqueue for preprocessing; log submission metadata
+
+Event: DetectionCompleted
+    On object detection inference completed
+    Action: publish results to downstream consumers; update detection statistics; cache results for similar images
+
+Event: FaceMatchFound
+    On face recognition returning identity match above threshold
+    Action: verify consent for identity disclosure; log match with audit trail; notify access control system if required
+
+Event: VideoStreamStarted
+    On video stream connected and frame processing initiated
+    Action: initialize frame buffer; allocate GPU resources; start temporal tracking; emit stream health metrics
+
+Event: AdversarialAlert
+    On adversarial input detected by robustness module
+    Action: quarantine image for review; alert security team; update adversarial example database; block similar inputs
+
+Event: ModelPerformanceDegraded
+    On inference metrics falling below SLA thresholds
+    Action: trigger model health check; activate fallback model; alert on-call engineer; initiate performance investigation
+
+# Level 6 - Concurrency
+
+Parallel:
+    Image preprocessing across multiple input images simultaneously
+    Classification, detection, and segmentation inference on different GPU streams
+    Face alignment and embedding computation concurrently
+    Video frame decoding and inference pipeline overlap
+    Model serving across multiple GPU devices
+    Feature extraction backbone shared across task heads concurrently
+
+# Level 7 - Optimization
+
+Optimize: Inference throughput and latency
+    Priority: Maximize FPS for object detection; use TensorRT optimization and INT8 quantization; batch similar-sized images
+
+Optimize: GPU memory utilization
+    Priority: Dynamic batching with padding optimization; model weight sharing across tasks; gradient checkpointing during training
+
+Optimize: Video stream processing efficiency
+    Priority: Adaptive frame sampling based on scene change detection; temporal model reuse for static scenes; priority-based frame scheduling
+
+# Level 8 - Learning
+
+Learn: Optimal preprocessing parameters per image domain
+    Goal: Maximize downstream task accuracy through adaptive preprocessing
+    Adapt: Normalization parameters, resize strategy, augmentation pipeline
+    Based: Task-specific performance metrics across different image domains
+
+Learn: Face recognition threshold calibration
+    Goal: Equalize false positive and false negative rates across demographic groups
+    Adapt: Distance thresholds and quality score cutoffs per demographic segment
+    Based: Fairness audit results and cross-demographic matching performance data
+
+Learn: Video frame sampling strategy
+    Goal: Process minimum frames while maintaining detection quality
+    Adapt: Sampling rate, scene change sensitivity, keyframe selection criteria
+    Based: Comparison of full-frame vs sampled analysis quality metrics
+
+Learn: Adversarial robustness through attack simulation
+    Goal: Improve model resilience against adversarial perturbations
+    Adapt: Model weights through adversarial training with projected gradient descent
+    Based: Performance on generated adversarial examples and robustness benchmarks
+
+# Level 9 - Security
+
+Security:
+    Encrypt: Face embedding vectors at rest using AES-256 with per-tenant key management
+    Encrypt: All image data in transit with TLS 1.3 and certificate pinning
+    Protect: Biometric data with automatic TTL expiration and consent-gated access
+    Protect: Model weights with signed artifact verification before loading
+    Protect: Video stream access with IP allowlisting and token-based authentication
+    Encrypt: Detection results containing sensitive content with field-level encryption
+    Protect: Adversarial detection logs from tampering via append-only audit trail
+
+# Level 10 - Native
+
+Native: python
+{
+import numpy as np
+from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+
+@dataclass
+class ImagePreprocessor:
+    target_size: Tuple[int, int] = (224, 224)
+    normalize_mean: List[float] = field(default_factory=lambda: [0.485, 0.456, 0.406])
+    normalize_std: List[float] = field(default_factory=lambda: [0.229, 0.224, 0.225])
+    max_pixel_value: float = 255.0
+
+    def preprocess(self, image: np.ndarray, maintain_aspect: bool = True) -> np.ndarray:
+        if maintain_aspect:
+            h, w = image.shape[:2]
+            scale = min(self.target_size[0] / h, self.target_size[1] / w)
+            new_h, new_w = int(h * scale), int(w * scale)
+            image = self._resize(image, new_h, new_w)
+            image = self._pad_to_size(image, self.target_size)
+        else:
+            image = self._resize(image, self.target_size[0], self.target_size[1])
+
+        image = image.astype(np.float32) / self.max_pixel_value
+        image = (image - np.array(self.normalize_mean)) / np.array(self.normalize_std)
+        image = np.transpose(image, (2, 0, 1))
+        return image
+
+    def _resize(self, image: np.ndarray, h: int, w: int) -> np.ndarray:
+        from PIL import Image
+        pil_image = Image.fromarray(image)
+        pil_image = pil_image.resize((w, h), Image.BILINEAR)
+        return np.array(pil_image)
+
+    def _pad_to_size(self, image: np.ndarray, target_size: Tuple[int, int]) -> np.ndarray:
+        h, w = image.shape[:2]
+        pad_h = max(0, target_size[0] - h)
+        pad_w = max(0, target_size[1] - w)
+        if pad_h > 0 or pad_w > 0:
+            image = np.pad(image, ((0, pad_h), (0, pad_w), (0, 0)), mode='constant')
+        return image[:target_size[0], :target_size[1]]
+
+@dataclass
+class FaceQualityAssessor:
+    min_resolution: int = 80
+    max_yaw: float = 30.0
+    max_pitch: float = 30.0
+    min_sharpness: float = 0.3
+
+    def assess(self, face_crop: np.ndarray, landmarks: Dict) -> Dict:
+        h, w = face_crop.shape[:2]
+        resolution_score = min(1.0, min(h, w) / self.min_resolution)
+        sharpness = self._compute_sharpness(face_crop)
+        sharpness_score = min(1.0, sharpness / self.min_sharpness) if self.min_sharpness > 0 else 1.0
+        pose_scores = self._estimate_pose(landmarks)
+        overall = (resolution_score * 0.3 + sharpness_score * 0.3 +
+                   pose_scores["yaw_score"] * 0.2 + pose_scores["pitch_score"] * 0.2)
+        return {
+            "overall_quality": overall,
+            "resolution_score": resolution_score,
+            "sharpness_score": sharpness_score,
+            "pose_scores": pose_scores,
+            "passes_threshold": overall >= 0.6
+        }
+
+    def _compute_sharpness(self, image: np.ndarray) -> float:
+        gray = np.mean(image, axis=2) if len(image.shape) == 3 else image
+        laplacian_var = np.var(np.array([[0, -1, 0], [-1, 4, -1], [0, -1, 0]]))
+        return float(laplacian_var)
+
+    def _estimate_pose(self, landmarks: Dict) -> Dict:
+        yaw_score = 1.0 - min(1.0, abs(landmarks.get("yaw", 0)) / self.max_yaw)
+        pitch_score = 1.0 - min(1.0, abs(landmarks.get("pitch", 0)) / self.max_pitch)
+        return {"yaw_score": yaw_score, "pitch_score": pitch_score}
+
+@dataclass
+class FrameSampler:
+    target_fps: float = 30.0
+    scene_change_threshold: float = 0.3
+    max_skip_frames: int = 5
+
+    def should_process_frame(self, current_frame: np.ndarray,
+                             previous_frame: Optional[np.ndarray],
+                             frame_count: int) -> bool:
+        if frame_count == 0:
+            return True
+        if previous_frame is None:
+            return True
+        diff = np.mean(np.abs(
+            current_frame.astype(float) - previous_frame.astype(float)
+        )) / 255.0
+        if diff > self.scene_change_threshold:
+            return True
+        skip_interval = max(1, int(30.0 / self.target_fps))
+        return frame_count % skip_interval == 0
+}

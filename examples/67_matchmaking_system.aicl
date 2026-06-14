@@ -1,0 +1,427 @@
+# AICL Example: Matchmaking System
+# Skill-based matchmaking with ELO rating, queue management, party grouping, region selection, and dynamic balancing
+
+Goal
+    Build a real-time matchmaking system that pairs players into fair and competitive
+    matches using skill-based rating algorithms, supports party grouping with rating
+    aggregation, manages queues across multiple game modes and regions, and ensures
+    wait times remain under 90 seconds for 95th percentile of players.
+
+Constraint
+    Match skill disparity must not exceed 200 ELO between highest and lowest rated player
+    Queue wait time must not exceed 120 seconds before expanding search radius
+    Party rating must use weighted average with party-size penalty coefficient
+    Region selection must respect player ping tolerance (default 100ms threshold)
+    Pre-made parties of 5 must never be matched against 5 solo players
+    Match cancellation rate must stay below 3% of all formed matches
+
+Risk
+    High-skill players experience excessively long queue times due to small population
+Recovery
+    Gradually expand search radius after 30 seconds; after 60 seconds, enable cross-region
+    matching with ping warning; after 90 seconds, create bot-filler match with rewards
+
+Risk
+    Party rating manipulation via smurfing or deliberate deranking
+Recovery
+    Detect rating anomalies using statistical outlier detection; flag suspicious accounts
+    for review; apply provisional rating with accelerated convergence for new accounts
+
+Risk
+    Queue starvation for niche game modes with low player population
+Recovery
+    Dynamically merge compatible game mode queues; offer mode-specific incentives;
+    schedule featured rotations to concentrate player population in time windows
+
+Risk
+    Match dissolution when players decline or fail to connect after match formation
+Recovery
+    Implement ready-check phase with 15-second timeout; hold partial matches in warm
+    state and backfill from queue; track and penalize repeated match dodgers
+
+Risk
+    Regional server overload during peak hours causing matchmaking delays
+Recovery
+    Pre-allocate server instances based on forecasted demand; enable cross-region overflow
+    with latency compensation; queue priority for players on underloaded regions
+
+Risk
+    ELO rating inflation or deflation across the player population over time
+Recovery
+    Apply periodic rating normalization using zero-sum redistribution; implement seasonal
+    soft reset with placement matches; monitor rating distribution percentiles weekly
+
+Layer
+    SubLayer: QueueLayer
+        Queue insertion, priority management, search expansion, timeout handling
+    SubLayer: RatingLayer
+        ELO calculation, MMR tracking, rating convergence, provisional ratings
+    SubLayer: PartyLayer
+        Party formation, rating aggregation, role validation, size constraints
+    SubLayer: RegionLayer
+        Region detection, ping measurement, server selection, cross-region routing
+    SubLayer: MatchLayer
+        Match formation, ready-check, team balancing, match finalization
+    SubLayer: AnalyticsLayer
+        Queue metrics, match quality scoring, population forecasting, anomaly detection
+
+Validation
+    Every formed match must have skill disparity within configured ELO threshold
+    All players in a match must have passed ready-check within the timeout window
+    Party aggregated rating must reflect all member contributions and size penalty
+    Regional server assignment must respect maximum ping tolerance per player
+    Match quality score must meet minimum threshold before finalization
+    Rating updates after match must be zero-sum across all participants
+    Queue wait time metrics must be tracked and alertable at 90th percentile
+
+Entity PlayerRating
+    playerId: string
+    elo: float
+    mmr: float
+    provisionalGamesRemaining: integer
+    peakElo: float
+    seasonElo: float
+    winCount: integer
+    lossCount: integer
+    ratingHistory: list
+    lastMatchTime: datetime
+
+Entity MatchQueue
+    queueId: string
+    gameMode: string
+    region: string
+    currentSize: integer
+    maxSize: integer
+    skillRange: dict
+    averageWaitTime: float
+    priorityBoost: boolean
+    activeSearchRadius: float
+
+Entity Party
+    partyId: string
+    leaderId: string
+    memberIds: list
+    aggregatedElo: float
+    sizePenalty: float
+    requiredRoles: list
+    filledRoles: list
+    region: string
+    status: string
+
+Entity Match
+    matchId: string
+    gameMode: string
+    region: string
+    teamA: list
+    teamB: list
+    teamAElo: float
+    teamBElo: float
+    qualityScore: float
+    status: string
+    createdAt: datetime
+    serverAssignment: string
+
+Entity RegionServer
+    serverId: string
+    region: string
+    currentLoad: float
+    maxCapacity: integer
+    activeMatches: integer
+    averagePing: float
+    status: string
+    lastHealthCheck: datetime
+
+Entity QueueMetrics
+    metricId: string
+    gameMode: string
+    region: string
+    averageWaitTime: float
+    p95WaitTime: float
+    matchQualityAvg: float
+    queuePopulation: integer
+    timestamp: datetime
+    dodgeRate: float
+
+Behavior EnqueuePlayer
+    Input:
+        playerId: string
+        gameMode: string
+        region: string
+        partyId: string
+    Output:
+        queuePosition: integer
+        estimatedWaitTime: float
+        queueId: string
+    Action:
+        Validate player is not already in an active queue
+        Retrieve player ELO/MMR and determine skill bracket
+        If party, validate party composition and compute aggregated rating
+        Select optimal region based on player ping measurements
+        Insert into appropriate queue with skill-based ordering
+        Calculate estimated wait time using historical queue data
+        Return queue position and estimated wait time
+
+Behavior FindMatch
+    Input:
+        queueId: string
+        searchRadius: float
+    Output:
+        matchCandidates: list
+        qualityScore: float
+    Action:
+        Retrieve all players/parties in queue within search radius
+        Score potential match combinations using skill proximity and team balance
+        Apply constraints: party vs solo ratios, role requirements, region compatibility
+        Select highest quality match formation from candidate set
+        Verify ping thresholds for all proposed participants
+        Return match candidates with quality assessment
+
+Behavior CalculateElo
+    Input:
+        winnerIds: list
+        loserIds: list
+        wasDraw: boolean
+        gameMode: string
+    Output:
+        ratingDeltas: dict
+        newRatings: dict
+    Action:
+        Retrieve current ELO ratings for all participants
+        Calculate expected outcome for each player pairing
+        Apply K-factor based on player rating tier and provisional status
+        Compute rating deltas using standard ELO formula with adjustments
+        Apply party-size penalty coefficient to party member deltas
+        Ensure zero-sum property across all rating changes
+        Update and persist new ratings with match reference
+
+Behavior AggregatePartyRating
+    Input:
+        partyId: string
+    Output:
+        aggregatedElo: float
+        sizePenalty: float
+        effectiveRating: float
+    Action:
+        Retrieve individual ELO ratings for all party members
+        Compute weighted average with higher weight on highest-rated member
+        Apply size penalty coefficient (increases with party size)
+        Adjust for role coverage (complete roles reduce penalty)
+        Calculate effective rating used for matchmaking
+        Return aggregated values with breakdown
+
+Behavior ExecuteReadyCheck
+    Input:
+        matchId: string
+    Output:
+        readyPlayers: list
+        failedPlayers: list
+        matchConfirmed: boolean
+    Action:
+        Send ready-check prompt to all matched players
+        Start 15-second countdown timer
+        Collect ready confirmations as they arrive
+        On timeout, mark unresponsive players as failed
+        If minimum player threshold met, confirm match with partial roster
+        Backfill empty slots from queue if needed
+        Return ready status and match confirmation
+
+Behavior ExpandSearch
+    Input:
+        queueId: string
+        currentRadius: float
+        waitTime: float
+    Output:
+        newRadius: float
+        crossRegionEnabled: boolean
+    Action:
+        Calculate search radius expansion based on wait time thresholds
+        At 30s: expand ELO range by 25%
+        At 60s: expand ELO range by 50% and enable cross-region
+        At 90s: expand ELO range by 75% and enable bot-fill eligibility
+        Apply smooth expansion to prevent sudden matchmaking quality drops
+        Update queue search parameters
+        Return new search configuration
+
+Condition
+    When player has been in queue for more than 30 seconds
+    Then progressively expand search radius by 25% increments every 15 seconds,
+         enable cross-region search after 60 seconds, enable bot-fill after 90 seconds
+
+Condition
+    When a party of 4+ players enters the queue
+    Then prioritize matching against other large parties; if no parties available
+         within 30 seconds, allow matching against solo players with ELO compensation
+
+Condition
+    When match quality score falls below minimum threshold after search expansion
+    Then abort match formation, return players to queue with priority boost,
+         and log low-quality match prevention event for analytics
+
+Condition
+    When player dodges three matches within 24 hours
+    Then apply queue penalty: 5-minute lockout for first offense, 15-minute for
+         second, 30-minute for third; reset dodge counter daily
+
+Condition
+    When regional server load exceeds 85% capacity
+    Then redirect new queue entries to alternate regions with acceptable ping;
+         pre-warm additional server instances; prioritize high-skill players for
+         remaining capacity
+
+Event
+    On PlayerQueueJoin
+    Action: Record queue entry timestamp, update queue population metrics,
+            trigger immediate match search if complementary players exist in queue
+
+Event
+    On MatchFormed
+    Action: Send match notification to all participants, start ready-check timer,
+            reserve server resources, update queue metrics with formation time
+
+Event
+    On MatchReadyCheckComplete
+    Action: Finalize match, assign server, distribute team information to players,
+            remove confirmed players from all other queues, begin match countdown
+
+Event
+    On RatingUpdated
+    Action: Update player profile with new rating, check for rank tier changes,
+            notify player of rating delta, update leaderboard if tier changed
+
+Event
+    On QueuePopulationLow
+    Action: Trigger population balancing algorithm, schedule incentive bonuses,
+            evaluate game mode merge compatibility, alert operations team
+
+Parallel
+    Queue search operations across all game modes and regions
+    ELO calculation and rating persistence for completed matches
+    Ready-check processing for multiple concurrent match formations
+    Party rating aggregation for newly formed parties
+    Queue metrics collection and analytics processing
+    Region server health monitoring and load balancing
+
+Optimize
+    Target: Average queue wait time
+    Priority: Minimize wait time while maintaining match quality; skill proximity
+              weighted higher than wait time for competitive modes; wait time weighted
+              higher for casual modes; party matching takes precedence over solo speed
+
+Optimize
+    Target: Match quality score
+    Priority: ELO proximity is primary factor; team balance (aggregate ELO difference)
+              is secondary; role coverage is tertiary; region homogeneity is quaternary
+
+Learn
+    Target: Optimal search radius expansion timing
+    Goal: Minimize average wait time while maintaining match quality above 0.7 score
+    Adapt
+        Based: Historical queue wait times, match quality outcomes, and player
+               satisfaction surveys correlated with search radius parameters
+
+Learn
+    Target: Party size penalty coefficients
+    Goal: Achieve parity in win rates between party and solo compositions
+    Adapt
+        Based: Win rate analysis of party vs solo matches segmented by party
+               size, skill tier, and game mode
+
+Learn
+    Target: Regional demand forecasting
+    Goal: Pre-allocate server capacity within 10% of actual demand 1 hour ahead
+    Adapt
+        Based: Historical player login patterns, event schedules, seasonal trends,
+               and real-time queue population growth rates
+
+Security
+    Encrypt: Player ELO/MMR data in transit, party communication channels,
+             match assignment payloads, rating calculation inputs
+    Protect: Rating calculation integrity, queue position manipulation prevention,
+             ready-check response validation, anti-smurf detection signals
+
+Security
+    Encrypt: Cross-region data transfers, server assignment credentials,
+             player identity tokens, match quality scoring inputs
+    Protect: Queue injection attacks, rating manipulation via match fixing,
+             region spoofing for queue priority, dodge rate gaming
+
+Native Go
+{
+package matchmaking
+
+import (
+    "math"
+    "sync"
+    "time"
+)
+
+type PlayerRating struct {
+    PlayerID               string
+    Elo                    float64
+    MMR                    float64
+    ProvisionalGamesLeft   int
+    WinCount               int
+    LossCount              int
+    LastMatchTime          time.Time
+}
+
+type MatchQueue struct {
+    QueueID        string
+    GameMode       string
+    Region         string
+    Players        []*QueueEntry
+    SearchRadius   float64
+    mu             sync.RWMutex
+}
+
+type QueueEntry struct {
+    PlayerID    string
+    PartyID     string
+    Elo         float64
+    EnqueueTime time.Time
+    Priority    float64
+}
+
+type MatchResult struct {
+    MatchID      string
+    TeamA        []string
+    TeamB        []string
+    TeamAElo     float64
+    TeamBElo     float64
+    QualityScore float64
+}
+
+func CalculateEloDelta(winnerElo, loserElo float64, kFactor float64) (float64, float64) {
+    expectedWin := 1.0 / (1.0 + math.Pow(10, (loserElo-winnerElo)/400.0))
+    winnerDelta := kFactor * (1.0 - expectedWin)
+    loserDelta := kFactor * (0.0 - (1.0 - expectedWin))
+    return winnerDelta, loserDelta
+}
+
+func AggregatePartyRating(members []PlayerRating, sizePenaltyCoeff float64) float64 {
+    if len(members) == 0 {
+        return 0
+    }
+    var totalWeight, weightedSum float64
+    for i, m := range members {
+        weight := 1.0
+        if i == 0 {
+            weight = 1.3 // highest-rated member weighted more
+        }
+        weightedSum += m.Elo * weight
+        totalWeight += weight
+    }
+    avg := weightedSum / totalWeight
+    sizePenalty := float64(len(members)) * sizePenaltyCoeff
+    return avg + sizePenalty
+}
+
+func (mq *MatchQueue) FindMatch(searchRadius float64) *MatchResult {
+    mq.mu.RLock()
+    defer mq.mu.RUnlock()
+    // Binary search for candidates within ELO range
+    // Score and rank candidate matches
+    // Return best quality match
+    return nil
+}
+}

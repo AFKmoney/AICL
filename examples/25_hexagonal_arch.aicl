@@ -1,0 +1,460 @@
+# AICL Example: Hexagonal Architecture
+# Implements a hexagonal (ports and adapters) architecture with clean domain core isolation,
+# inbound and outbound ports, infrastructure adapters, and comprehensive testability guarantees.
+
+# Level 1: Architecture
+Goal: Build a hexagonal architecture that isolates the domain core from all infrastructure concerns,
+    defines explicit ports for inbound (driving) and outbound (driven) interactions,
+    provides swappable adapters for each port, and guarantees the domain is fully testable
+    without any infrastructure dependency.
+
+Constraint: Domain core must have zero imports from infrastructure or framework packages.
+Constraint: All external interactions must flow through declared ports with defined interfaces.
+Constraint: Adapters must depend on ports; ports must never depend on adapters.
+Constraint: Each port must have at least one production adapter and one test adapter.
+Constraint: Domain events must be defined in the domain and published through an outbound port.
+
+Risk: Domain logic leaks into adapter implementation
+Recovery: Enforce dependency rule via architectural fitness functions in CI; auto-fail builds on violation
+
+Risk: Port interface too generic reduces domain expressiveness
+Recovery: Design ports with domain-specific method names; avoid generic CRUD-style port interfaces
+
+Risk: Adapter state inconsistency during domain operation
+Recovery: Wrap multi-port operations in unit of work; ensure atomic commit across adapters
+
+Risk: Test adapter diverges from production adapter behavior
+Recovery: Run contract tests against both adapters; validate output equivalence for same inputs
+
+Risk: Infrastructure exception propagates into domain core
+Recovery: Adapter must catch and translate all infrastructure exceptions to domain error types at port boundary
+
+Risk: Missing adapter for required port at startup
+Recovery: Validate all ports have registered adapters at application bootstrap; fail fast with missing list
+
+Layer: Domain
+    SubLayer: DomainModel
+    SubLayer: DomainService
+    SubLayer: DomainEvent
+    SubLayer: ValueObject
+Layer: Application
+    SubLayer: InboundPort
+    SubLayer: UseCase
+    SubLayer: OutboundPort
+    SubLayer: PortRegistry
+Layer: Infrastructure
+    SubLayer: PersistenceAdapter
+    SubLayer: MessagingAdapter
+    SubLayer: ExternalServiceAdapter
+    SubLayer: TestAdapter
+
+Validation: Domain package must have no imports from infrastructure or adapter packages
+Validation: Every outbound port must have at least one adapter implementation
+Validation: Every inbound port must have at least one driving adapter
+Validation: Adapter must not expose infrastructure types through port interface
+Validation: Domain model invariants must hold after any use case execution
+Validation: Test adapter must pass same contract tests as production adapter
+
+# Level 2: Entities
+Entity Port
+    portId: string
+    portName: string
+    direction: string
+    interfaceSignature: dict
+    methods: list
+    adapterCount: integer
+    isActive: boolean
+    domainArea: string
+
+Entity Adapter
+    adapterId: string
+    adapterName: string
+    portName: string
+    adapterType: string
+    technology: string
+    config: dict
+    isPrimary: boolean
+    healthStatus: string
+    registeredAt: datetime
+
+Entity DomainModel
+    modelId: string
+    modelName: string
+    aggregateType: string
+    invariants: list
+    methods: list
+    events: list
+    dependencies: list
+    isImmutable: boolean
+
+Entity UseCase
+    useCaseId: string
+    useCaseName: string
+    inboundPort: string
+    outboundPorts: list
+    preconditions: list
+    postconditions: list
+    errorCases: list
+    transactionBoundary: string
+
+Entity DomainEvent
+    eventId: string
+    eventType: string
+    aggregateId: string
+    payload: dict
+    occurredAt: datetime
+    publishedVia: string
+    schemaVersion: string
+    isImmutable: boolean
+
+Entity PortContract
+    contractId: string
+    portName: string
+    testCases: list
+    invariantChecks: list
+    lastValidatedAt: datetime
+    productionPassRate: float
+    testAdapterPassRate: float
+    driftDetected: boolean
+
+# Level 3: Behaviors
+Behavior RegisterAdapter
+    Input:
+        adapter: Adapter
+        portName: string
+    Output:
+        registrationId: string
+    Action:
+        Validate adapter implements port interface fully
+        Run contract test suite against adapter
+        Compare results with existing adapter for drift
+        Register adapter with port in port registry
+        Mark as primary if no other adapter is primary
+        Validate port now has at least one adapter
+        Return registration confirmation
+
+Behavior ExecuteUseCase
+    Input:
+        useCaseName: string
+        inputPayload: dict
+    Output:
+        result: dict
+        events: list
+    Action:
+        Resolve use case from registry
+        Validate preconditions against input
+        Begin transaction boundary
+        Execute domain logic through inbound port
+        Persist state changes via outbound port
+        Publish domain events via outbound port
+        Validate postconditions
+        Commit transaction
+        Return result and emitted events
+
+Behavior TranslateException
+    Input:
+        adapterId: string
+        infrastructureException: any
+        portMethod: string
+    Output:
+        domainError: dict
+    Action:
+        Catch infrastructure exception at adapter boundary
+        Map exception type to domain error category
+        Preserve root cause in domain error details
+        Strip infrastructure-specific stack frames
+        Log translation event for debugging
+        Return domain-appropriate error type
+
+Behavior ValidateArchitecture
+    Input:
+        applicationRoot: string
+    Output:
+        valid: boolean
+        violations: list
+    Action:
+        Scan all import dependencies in domain package
+        Flag any import from infrastructure or adapter package
+        Verify all declared ports have adapter implementations
+        Check inbound ports are only called from adapters
+        Check domain events are only published through outbound ports
+        Return validation result with any violations
+
+Behavior RunContractTest
+    Input:
+        portName: string
+        adapterId: string
+    Output:
+        passRate: float
+        failures: list
+    Action:
+        Load contract test suite for port
+        Execute each test case against adapter
+        Compare output with expected results
+        Detect behavioral drift from reference adapter
+        Record pass rate and failure details
+        Alert if drift exceeds threshold
+        Return test results
+
+Behavior PublishDomainEvent
+    Input:
+        event: DomainEvent
+        portName: string
+    Output:
+        published: boolean
+    Action:
+        Validate event schema matches declared type
+        Resolve outbound port for event publishing
+        Translate event to adapter-specific format
+        Publish via adapter without blocking use case
+        Handle publish failure with retry or dead letter
+        Return publication status
+
+# Level 4: Conditions
+Condition: ArchitectureViolationDetected
+    When domain package imports from infrastructure or adapter package
+    Then fail CI build with violation report listing illegal dependencies and suggested fixes
+
+Condition: AdapterContractDrift
+    When test adapter and production adapter produce different results for same input
+    Then flag drift in port contract and require review before next deployment
+
+Condition: MissingAdapterAtStartup
+    When port has no registered adapter at application initialization
+    Then fail application startup with error listing all ports missing adapters
+
+# Level 5: Events
+Event: OnAdapterRegistered
+    On new adapter registered for a port
+    Action: Run contract tests, update port registry, notify dependent use cases
+
+Event: OnDomainEventPublished
+    On domain event published through outbound port
+    Action: Log event for audit trail, trigger any registered side-effect handlers
+
+Event: OnArchitectureViolation
+    On fitness function detects domain leaking infrastructure dependency
+    Action: Block deployment, create architectural debt ticket, notify team lead
+
+Event: OnContractTestFailed
+    On adapter fails contract test against port specification
+    Action: Alert adapter owner, prevent adapter from being marked as primary
+
+# Level 6: Concurrency
+Parallel:
+    Contract test execution across multiple adapters simultaneously
+    Domain event publishing to multiple outbound port adapters
+    Architecture validation scanning across all packages
+    Use case execution with independent port interactions
+    Adapter health monitoring for all registered adapters
+
+# Level 7: Optimization
+Optimize: Adapter resolution latency
+    Priority: Cache adapter lookup per port; pre-instantiate stateless adapters; pool stateful ones
+
+Optimize: Contract test execution time
+    Priority: Run contract tests in parallel per adapter; incremental testing on changed adapters only
+
+# Level 8: Learning
+Learn: Adapter performance characteristics
+    Goal: Select optimal adapter per port based on operation profile and performance requirements
+    Adapt: Primary adapter selection per port
+    Based: Adapter latency, throughput, and error rate metrics across different operation types
+
+Learn: Domain model complexity trends
+    Goal: Identify domain areas growing too complex and suggest decomposition
+    Adapt: Use case and aggregate boundary recommendations
+    Based: Method count, dependency depth, and invariant complexity per domain model
+
+# Level 9: Security
+Security:
+    Encrypt: All data crossing port boundaries with TLS for network adapters and AES-256 for persistence
+    Encrypt: Domain event payloads containing PII before passing to outbound port adapters
+    Protect: Domain core from injection attacks by validating all inputs at inbound port boundary
+    Protect: Port interfaces from unauthorized access with role-based guards at driving adapter layer
+    Protect: Adapter credentials with vault-managed secrets and automatic rotation
+
+# Level 10: Native
+Python
+{
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Type
+from enum import Enum
+import time
+from contextlib import contextmanager
+
+# ===================== DOMAIN CORE =====================
+
+@dataclass(frozen=True)
+class OrderId:
+    value: str
+
+@dataclass(frozen=True)
+class Money:
+    amount: float
+    currency: str
+
+class OrderStatus(Enum):
+    DRAFT = "draft"
+    CONFIRMED = "confirmed"
+    SHIPPED = "shipped"
+    CANCELLED = "cancelled"
+
+@dataclass
+class LineItem:
+    product_id: str
+    quantity: int
+    unit_price: Money
+
+class Order:
+    def __init__(self, order_id: OrderId, customer_id: str):
+        self._order_id = order_id
+        self._customer_id = customer_id
+        self._items: List[LineItem] = []
+        self._status = OrderStatus.DRAFT
+        self._events: List['DomainEvent'] = []
+
+    @property
+    def order_id(self) -> OrderId:
+        return self._order_id
+
+    @property
+    def status(self) -> OrderStatus:
+        return self._status
+
+    @property
+    def total(self) -> Money:
+        if not self._items:
+            return Money(0.0, "USD")
+        total = sum(i.quantity * i.unit_price.amount for i in self._items)
+        return Money(total, self._items[0].unit_price.currency)
+
+    def add_item(self, item: LineItem) -> None:
+        self._validate_status(OrderStatus.DRAFT)
+        self._items.append(item)
+
+    def confirm(self) -> None:
+        self._validate_status(OrderStatus.DRAFT)
+        if not self._items:
+            raise ValueError("Cannot confirm empty order")
+        self._status = OrderStatus.CONFIRMED
+        self._events.append(OrderConfirmedEvent(
+            aggregate_id=self._order_id.value,
+            total=self.total.amount
+        ))
+
+    def cancel(self) -> None:
+        if self._status == OrderStatus.SHIPPED:
+            raise ValueError("Cannot cancel shipped order")
+        self._status = OrderStatus.CANCELLED
+
+    def _validate_status(self, expected: OrderStatus) -> None:
+        if self._status != expected:
+            raise ValueError(f"Expected {expected.value}, got {self._status.value}")
+
+    def pop_events(self) -> List['DomainEvent']:
+        events = self._events[:]
+        self._events.clear()
+        return events
+
+@dataclass
+class DomainEvent:
+    event_type: str
+    aggregate_id: str
+    payload: Dict[str, Any]
+    occurred_at: float = field(default_factory=time.time)
+
+@dataclass
+class OrderConfirmedEvent(DomainEvent):
+    aggregate_id: str
+    total: float
+    event_type: str = "order.confirmed"
+    payload: Dict[str, Any] = field(default_factory=dict)
+
+# ===================== PORTS =====================
+
+class OrderRepositoryPort(ABC):
+    @abstractmethod
+    def find_by_id(self, order_id: OrderId) -> Optional[Order]:
+        pass
+
+    @abstractmethod
+    def save(self, order: Order) -> None:
+        pass
+
+class EventPublisherPort(ABC):
+    @abstractmethod
+    def publish(self, events: List[DomainEvent]) -> None:
+        pass
+
+class NotificationPort(ABC):
+    @abstractmethod
+    def send_order_confirmation(self, customer_id: str, order_id: str, total: float) -> None:
+        pass
+
+# ===================== USE CASES =====================
+
+class ConfirmOrderUseCase:
+    def __init__(self, repo: OrderRepositoryPort, publisher: EventPublisherPort,
+                 notifier: NotificationPort):
+        self._repo = repo
+        self._publisher = publisher
+        self._notifier = notifier
+
+    def execute(self, order_id: str) -> Dict[str, Any]:
+        oid = OrderId(order_id)
+        order = self._repo.find_by_id(oid)
+        if not order:
+            raise ValueError(f"Order {order_id} not found")
+
+        order.confirm()
+        self._repo.save(order)
+
+        events = order.pop_events()
+        self._publisher.publish(events)
+
+        for event in events:
+            if isinstance(event, OrderConfirmedEvent):
+                self._notifier.send_order_confirmation(
+                    order._customer_id, order_id, event.total
+                )
+
+        return {"order_id": order_id, "status": order.status.value}
+
+# ===================== ADAPTERS =====================
+
+class InMemoryOrderRepository(OrderRepositoryPort):
+    def __init__(self):
+        self._store: Dict[str, Order] = {}
+
+    def find_by_id(self, order_id: OrderId) -> Optional[Order]:
+        return self._store.get(order_id.value)
+
+    def save(self, order: Order) -> None:
+        self._store[order.order_id.value] = order
+
+class ConsoleEventPublisher(EventPublisherPort):
+    def publish(self, events: List[DomainEvent]) -> None:
+        for event in events:
+            print(f"[EVENT] {event.event_type}: {event.aggregate_id}")
+
+class ConsoleNotification(NotificationPort):
+    def send_order_confirmation(self, customer_id: str, order_id: str, total: float) -> None:
+        print(f"[NOTIFY] Customer {customer_id}: Order {order_id} confirmed, total: ${total:.2f}")
+
+# ===================== WIRED APPLICATION =====================
+
+repo = InMemoryOrderRepository()
+publisher = ConsoleEventPublisher()
+notifier = ConsoleNotification()
+use_case = ConfirmOrderUseCase(repo, publisher, notifier)
+
+order = Order(OrderId("ORD-001"), "CUST-42")
+order.add_item(LineItem("PROD-A", 2, Money(29.99, "USD")))
+order.add_item(LineItem("PROD-B", 1, Money(49.99, "USD")))
+repo.save(order)
+
+result = use_case.execute("ORD-001")
+print(f"Result: {result}")
+}

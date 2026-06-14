@@ -1,0 +1,631 @@
+# AICL Example: Energy Trading Platform
+# A comprehensive energy trading platform with spot trading, futures, settlement,
+# grid balancing, regulatory compliance, and renewable energy certificate management
+# Demonstrates ALL 10 AICL language levels
+
+# =============================================================================
+# LEVEL 1 — Architecture (Mandatory)
+# =============================================================================
+
+Goal:
+Create an energy trading platform supporting spot market trading, futures contracts, day-ahead and intraday auctions, settlement and clearing, grid balancing services, and regulatory compliance across multiple jurisdictions
+
+Constraint:
+All trades must comply with FERC and European energy market regulations
+
+Constraint:
+Trade execution latency must not exceed 50 milliseconds
+
+Constraint:
+Settlement must be completed within T+2 business days
+
+Constraint:
+System must handle at least 50000 transactions per hour during peak trading
+
+Constraint:
+All pricing data must be accurate to 4 decimal places per MWh
+
+Constraint:
+Renewable energy certificates must be tracked with full provenance chain
+
+Risk:
+Market data feed interruption
+
+Recovery:
+Switch to backup data provider and halt automated trading strategies
+
+Risk:
+Settlement failure due to insufficient collateral
+
+Recovery:
+Liquidate positions to cover shortfall and notify risk management team
+
+Risk:
+Grid frequency deviation beyond safe limits
+
+Recovery:
+Activate emergency balancing reserves and notify grid operator
+
+Risk:
+Counterparty default on futures contract
+
+Recovery:
+Trigger margin call and invoke clearing house guarantee fund
+
+Risk:
+Regulatory investigation triggered
+
+Recovery:
+Freeze affected accounts and compile full audit trail within 24 hours
+
+Risk:
+Price manipulation detection
+
+Recovery:
+Suspend suspicious accounts and report to market surveillance authority
+
+Layer:
+Market Data
+    SubLayer:
+    Price feeds
+    SubLayer:
+    Weather data
+    SubLayer:
+    Grid status
+    SubLayer:
+    Historical analytics
+    SubLayer:
+    Forecasting models
+
+Layer:
+Trading Engine
+    SubLayer:
+    Order management
+    SubLayer:
+    Matching engine
+    SubLayer:
+    Price discovery
+    SubLayer:
+    Auction platform
+    SubLayer:
+    Strategy execution
+
+Layer:
+Risk Management
+    SubLayer:
+    Position limits
+    SubLayer:
+    Margin calculation
+    SubLayer:
+    Exposure monitoring
+    SubLayer:
+    Stress testing
+    SubLayer:
+    Credit assessment
+
+Layer:
+Settlement
+    SubLayer:
+    Trade clearing
+    SubLayer:
+    Invoice generation
+    SubLayer:
+    Payment processing
+    SubLayer:
+    Reconciliation
+    SubLayer:
+    Collateral management
+
+Layer:
+Grid Integration
+    SubLayer:
+    Balancing services
+    SubLayer:
+    Capacity market
+    SubLayer:
+    Congestion management
+    SubLayer:
+    Reserve allocation
+    SubLayer:
+    Frequency regulation
+
+Layer:
+Compliance
+    SubLayer:
+    Regulatory reporting
+    SubLayer:
+    Market surveillance
+    SubLayer:
+    Audit trail
+    SubLayer:
+    REMIT compliance
+    SubLayer:
+    Position reporting
+
+Layer:
+Portfolio
+    SubLayer:
+    Position management
+    SubLayer:
+    PnL calculation
+    SubLayer:
+    Hedging strategies
+    SubLayer:
+    Certificate tracking
+    SubLayer:
+    Carbon accounting
+
+# =============================================================================
+# LEVEL 2 — Entities
+# =============================================================================
+
+Entity TradeOrder
+    order_id: string
+    trader_id: string
+    market_type: string
+    direction: string
+    commodity: string
+    quantity_mwh: float
+    price_per_mwh: float
+    delivery_start: datetime
+    delivery_end: datetime
+    order_type: string
+    status: string
+    created_at: datetime
+
+Entity Trade
+    trade_id: string
+    buy_order_id: string
+    sell_order_id: string
+    commodity: string
+    quantity_mwh: float
+    price_per_mwh: float
+    delivery_start: datetime
+    delivery_end: datetime
+    settlement_date: datetime
+    status: string
+    cleared_at: datetime
+
+Entity FuturesContract
+    contract_id: string
+    commodity: string
+    delivery_month: datetime
+    contract_size_mwh: float
+    strike_price: float
+    initial_margin: float
+    maintenance_margin: float
+    last_price: float
+    open_interest: float
+    expiry_date: datetime
+
+Entity MarketParticipant
+    participant_id: string
+    company_name: string
+    role: string
+    credit_rating: string
+    trading_limit: float
+    collateral_deposited: float
+    status: string
+    registration_date: datetime
+    jurisdiction: string
+
+Entity SettlementEntry
+    settlement_id: string
+    trade_id: string
+    buyer_id: string
+    seller_id: string
+    amount: float
+    currency: string
+    settlement_date: datetime
+    status: string
+    clearing_house_ref: string
+    reconciled_at: datetime
+
+Entity RenewableCertificate
+    certificate_id: string
+    energy_source: string
+    generation_plant: string
+    quantity_mwh: float
+    issuance_date: datetime
+    expiry_date: datetime
+    origin_country: string
+    status: string
+    owner_id: string
+    verification_hash: string
+
+Entity GridBalancingOrder
+    balancing_id: string
+    direction: string
+    volume_mw: float
+    price_per_mw: float
+    activation_time: datetime
+    duration_minutes: integer
+    status: string
+    provider_id: string
+
+# =============================================================================
+# LEVEL 3 — Behaviors
+# =============================================================================
+
+Behavior PlaceOrder
+
+Input:
+    MarketParticipant commodity direction quantity price order_type delivery_period
+
+Output:
+    TradeOrder
+
+Action:
+    validate participant limits and create order in matching engine with risk checks
+
+Behavior MatchOrders
+
+Input:
+    TradeOrder buy TradeOrder sell
+
+Output:
+    Trade
+
+Action:
+    match compatible buy and sell orders and execute trade at agreed price
+
+Behavior CalculateMargin
+
+Input:
+    FuturesContract position current_price
+
+Output:
+    float
+
+Action:
+    compute initial and variation margin based on position size and price movement
+
+Behavior SettleTrade
+
+Input:
+    Trade settlement_date
+
+Output:
+    SettlementEntry
+
+Action:
+    calculate settlement amount and initiate clearing through clearing house
+
+Behavior IssueCertificate
+
+Input:
+    RenewableCertificate generation_data verification_proof
+
+Output:
+    RenewableCertificate
+
+Action:
+    verify generation data and issue renewable energy certificate with provenance chain
+
+Behavior SubmitBalancingBid
+
+Input:
+    MarketParticipant direction volume price duration
+
+Output:
+    GridBalancingOrder
+
+Action:
+    validate capacity availability and submit bid to grid balancing market
+
+Behavior RunStressTest
+
+Input:
+    portfolio scenario_parameters
+
+Output:
+    dict
+
+Action:
+    simulate extreme market conditions and calculate portfolio exposure and margin impact
+
+Behavior GenerateRegulatoryReport
+
+Input:
+    participant report_type period
+
+Output:
+    dict
+
+Action:
+    compile trade data and positions into regulatory format and submit to authority
+
+# =============================================================================
+# LEVEL 4 — Conditions
+# =============================================================================
+
+Condition:
+
+When participant position exceeds authorized trading limit
+
+Then reject new orders and notify risk management and require position reduction
+
+Condition:
+
+When margin coverage falls below maintenance margin level
+
+Then issue margin call and start position liquidation timer and notify participant
+
+Condition:
+
+When grid frequency deviates more than 0.2 Hz from nominal
+
+Then trigger emergency balancing activation and notify all balancing service providers
+
+Condition:
+
+When renewable certificate is transferred to non-compliant jurisdiction
+
+Then block transfer and flag for compliance review and notify regulatory body
+
+Condition:
+
+When trading volume spike detected that exceeds 3 standard deviations
+
+Then enable enhanced market surveillance and temporarily increase margin requirements
+
+Condition:
+
+When settlement amount exceeds counterparty credit limit
+
+Then require pre-funding and hold settlement until collateral is posted
+
+# =============================================================================
+# LEVEL 5 — Events
+# =============================================================================
+
+Event:
+
+On market price reaches stop-loss level
+
+Action:
+    automatically close position and notify trader and record audit entry
+
+Event:
+
+On futures contract approaching expiry
+
+Action:
+    notify position holders and initiate physical or financial settlement procedure
+
+Event:
+
+On grid operator issues balancing request
+
+Action:
+    activate available balancing reserves and confirm activation within 30 seconds
+
+Event:
+
+On renewable certificate ownership transfer
+
+Action:
+    update provenance chain and verify compliance and notify both parties
+
+Event:
+
+On counterparty credit rating downgrade
+
+Action:
+    recalculate exposure limits and increase margin requirements and notify risk team
+
+Event:
+
+On regulatory reporting deadline
+
+Action:
+    compile required data and validate completeness and submit to regulator portal
+
+Event:
+
+On trade execution completed
+
+Action:
+    update position book and recalculate PnL and trigger settlement workflow
+
+# =============================================================================
+# LEVEL 6 — Concurrency
+# =============================================================================
+
+Parallel:
+
+Order Matching Engine
+Market Data Processor
+Risk Calculator
+Settlement Engine
+
+Parallel:
+
+Spot Market
+Futures Market
+Balancing Market
+Certificate Market
+
+# =============================================================================
+# LEVEL 7 — Optimization
+# =============================================================================
+
+Optimize:
+Trade matching throughput
+
+Optimize:
+Settlement processing latency
+
+Optimize:
+Price discovery accuracy
+
+Priority:
+Real-time grid balancing over batch settlement processing
+
+# =============================================================================
+# LEVEL 8 — Learning
+# =============================================================================
+
+Learn:
+
+Energy demand patterns
+
+Goal:
+    predict peak demand periods and optimize trading strategy timing
+
+Learn:
+
+Price volatility clusters
+
+Goal:
+    identify volatility regimes and adjust risk parameters automatically
+
+Adapt:
+
+Margin requirements
+
+Based on:
+    market volatility index and counterparty risk score
+
+Adapt:
+
+Trading strategy parameters
+
+Based on:
+    historical performance and market regime classification
+
+# =============================================================================
+# LEVEL 9 — Security
+# =============================================================================
+
+Security:
+
+Encrypt:
+    trading credentials and API keys
+
+Encrypt:
+    settlement bank account details
+
+Encrypt:
+    participant personal and financial data
+
+Protect:
+    order flow data from front-running
+
+Protect:
+    grid critical infrastructure information
+
+Protect:
+    market surveillance algorithms and thresholds
+
+Protect:
+    certificate provenance chain integrity
+
+# =============================================================================
+# LEVEL 10 — Native Code
+# =============================================================================
+
+Native: python
+{
+import hashlib
+import time
+from dataclasses import dataclass
+from enum import Enum
+
+class OrderSide(Enum):
+    BUY = "BUY"
+    SELL = "SELL"
+
+class OrderType(Enum):
+    LIMIT = "LIMIT"
+    MARKET = "MARKET"
+    STOP = "STOP"
+
+@dataclass
+class OrderBookEntry:
+    price: float
+    quantity: float
+    timestamp: float
+    order_id: str
+
+class OrderBook:
+    def __init__(self, commodity: str):
+        self.commodity = commodity
+        self.bids: list[OrderBookEntry] = []
+        self.asks: list[OrderBookEntry] = []
+
+    def add_bid(self, entry: OrderBookEntry):
+        self.bids.append(entry)
+        self.bids.sort(key=lambda x: (-x.price, x.timestamp))
+
+    def add_ask(self, entry: OrderBookEntry):
+        self.asks.append(entry)
+        self.asks.sort(key=lambda x: (x.price, x.timestamp))
+
+    def best_bid(self) -> float:
+        return self.bids[0].price if self.bids else 0.0
+
+    def best_ask(self) -> float:
+        return self.asks[0].price if self.asks else float('inf')
+
+    def spread(self) -> float:
+        if not self.bids or not self.asks:
+            return float('inf')
+        return self.best_ask() - self.best_bid()
+
+    def match(self) -> list[tuple]:
+        trades = []
+        while (self.bids and self.asks
+               and self.best_bid() >= self.best_ask()):
+            bid = self.bids[0]
+            ask = self.asks[0]
+            matched_qty = min(bid.quantity, ask.quantity)
+            trade_price = ask.price
+            trades.append((bid.order_id, ask.order_id,
+                          matched_qty, trade_price))
+            bid.quantity -= matched_qty
+            ask.quantity -= matched_qty
+            if bid.quantity == 0:
+                self.bids.pop(0)
+            if ask.quantity == 0:
+                self.asks.pop(0)
+        return trades
+
+def calculate_var_margin(position_size: float, entry_price: float,
+                         current_price: float, var_percent: float
+                         ) -> float:
+    pnl = (current_price - entry_price) * position_size
+    var = abs(pnl) * var_percent
+    return max(0.0, var)
+}
+
+# =============================================================================
+# Validations
+# =============================================================================
+
+Validation:
+Orders are matched correctly based on price-time priority
+
+Validation:
+Margin calls are triggered when coverage falls below maintenance level
+
+Validation:
+Settlement completes within T+2 business days
+
+Validation:
+Renewable certificates maintain full provenance chain
+
+Validation:
+Grid balancing activation responds within 30 seconds
+
+Validation:
+Market surveillance detects potential manipulation patterns
+
+Validation:
+All trades produce immutable audit entries
+
+Validation:
+Stress tests correctly calculate portfolio exposure under extreme scenarios
+
+Validation:
+Regulatory reports are generated and submitted on time

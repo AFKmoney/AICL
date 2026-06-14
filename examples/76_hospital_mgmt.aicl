@@ -1,0 +1,462 @@
+# AICL Example: Hospital Management System
+# Comprehensive hospital management covering patient records, appointments, billing, pharmacy, lab results, and staff scheduling
+
+# === LEVEL 1: ARCHITECTURE ===
+
+Goal: Provide an integrated hospital management system that unifies patient records, appointment scheduling, billing, pharmacy operations, laboratory results, and staff management to deliver efficient, safe, and high-quality healthcare services.
+
+Constraint: System must comply with HIPAA regulations, ensure 99.9% uptime for critical patient data, and maintain sub-2-second response time for clinical queries.
+
+Constraint: All patient data must remain within jurisdictional boundaries and support audit trails for every data access event.
+
+Constraint: Billing must integrate with insurance providers via HL7/FHIR standards and support multiple payment methods.
+
+Risk: System downtime during peak emergency hours could delay critical patient care and treatment decisions.
+Recovery: Deploy active-active redundant infrastructure with automatic failover; maintain read-only cached patient records on edge nodes for emergency access during outages.
+
+Risk: Unauthorized access to patient health information could result in HIPAA violations and privacy breaches.
+Recovery: Implement zero-trust architecture with multi-factor authentication; activate real-time access anomaly detection; automatically revoke compromised credentials and notify compliance officers within 15 minutes.
+
+Risk: Pharmacy dispensing errors due to incorrect medication orders could cause patient harm or death.
+Recovery: Implement barcode verification and three-point cross-check system; alert pharmacist and prescribing physician immediately upon discrepancy detection; auto-quarantine flagged prescriptions until verified.
+
+Risk: Billing discrepancies from insurance claim rejections could cause revenue cycle disruption.
+Recovery: Maintain automated claim scrubbing with pre-submission validation; escrow contested claims for manual review; generate corrective claim resubmission within 24 hours.
+
+Risk: Staff scheduling gaps during surge periods could compromise patient-to-staff ratios and care quality.
+Recovery: Deploy predictive staffing models with float pool activation; enable automated shift-swap system with minimum coverage guarantees; trigger agency staff requests when ratios fall below threshold.
+
+Risk: Lab result delivery delays could postpone critical diagnoses and treatment decisions.
+Recovery: Implement priority result routing for critical values; establish direct lab-to-physician notification pipeline with 15-minute SLA; maintain backup manual reporting protocol for system failures.
+
+Layer: HospitalManagementSystem
+    SubLayer: ClinicalServices
+        # Patient management, clinical workflows, order entry
+    SubLayer: AdministrativeServices
+        # Billing, insurance, scheduling, reporting
+    SubLayer: PharmacyServices
+        # Medication management, dispensing, inventory
+    SubLayer: LaboratoryServices
+        # Lab orders, results, specimen tracking
+    SubLayer: StaffServices
+        # Scheduling, credentials, payroll integration
+
+Validation: Patient record integrity verified via checksum comparison on every read/write operation.
+Validation: Appointment scheduling conflicts detected and prevented before confirmation.
+Validation: Billing calculations validated against insurance fee schedules with zero-tolerance for overcharges.
+Validation: Medication dispensing verified against active prescriptions and allergy profiles.
+Validation: Staff credentials and certifications verified before shift assignment.
+Validation: Lab result critical values trigger automatic physician notification within 15 minutes.
+Validation: System access logs audited daily for unauthorized access patterns.
+
+# === LEVEL 2: ENTITIES ===
+
+Entity Patient
+    patientId: string
+    firstName: string
+    lastName: string
+    dateOfBirth: datetime
+    gender: string
+    contactPhone: string
+    email: string
+    address: dict
+    insuranceProviderId: string
+    insurancePolicyNumber: string
+    emergencyContact: dict
+    allergies: list
+    bloodType: string
+    primaryPhysicianId: string
+    admissionStatus: string
+    registrationDate: datetime
+
+Entity Appointment
+    appointmentId: string
+    patientId: string
+    physicianId: string
+    departmentId: string
+    scheduledDateTime: datetime
+    durationMinutes: integer
+    appointmentType: string
+    status: string
+    reasonForVisit: string
+    roomNumber: string
+    copayAmount: float
+    insurancePreAuthCode: string
+    notes: string
+    createdDateTime: datetime
+    modifiedDateTime: datetime
+
+Entity Bill
+    billId: string
+    patientId: string
+    encounterId: string
+    lineItems: list
+    totalAmount: float
+    insuranceCoveredAmount: float
+    patientResponsibilityAmount: float
+    paymentStatus: string
+    insuranceClaimId: string
+    claimStatus: string
+    paymentMethod: string
+    billingDate: datetime
+    dueDate: datetime
+    adjustments: list
+    auditTrail: list
+
+Entity MedicationOrder
+    orderId: string
+    patientId: string
+    prescribingPhysicianId: string
+    medicationId: string
+    dosage: string
+    frequency: string
+    route: string
+    startDate: datetime
+    endDate: datetime
+    refillsRemaining: integer
+    pharmacyId: string
+    dispenseStatus: string
+    interactions: list
+    priorAuthRequired: boolean
+    notes: string
+
+Entity LabOrder
+    labOrderId: string
+    patientId: string
+    orderingPhysicianId: string
+    testCode: string
+    testName: string
+    specimenType: string
+    collectionDateTime: datetime
+    resultDateTime: datetime
+    resultValue: any
+    referenceRange: string
+    criticalFlag: boolean
+    status: string
+    interpretingPhysicianId: string
+    notes: string
+
+Entity StaffMember
+    staffId: string
+    firstName: string
+    lastName: string
+    role: string
+    departmentId: string
+    certifications: list
+    scheduleAssignments: list
+    availability: dict
+    hireDate: datetime
+    credentialExpiryDate: datetime
+    supervisorId: string
+    contactPhone: string
+    email: string
+    isActive: boolean
+
+Entity Department
+    departmentId: string
+    name: string
+    floorNumber: integer
+    wingLocation: string
+    headPhysicianId: string
+    bedCount: integer
+    occupiedBeds: integer
+    operatingHours: dict
+    phoneExtension: string
+    costCenter: string
+    isActive: boolean
+
+# === LEVEL 3: BEHAVIORS ===
+
+Behavior RegisterPatient
+    Input: patientData: dict, registrationSource: string, insuranceInfo: dict
+    Output: patientRecord: dict, registrationConfirmation: string
+    Action:
+        Validate patient demographic data against required fields
+        Verify insurance eligibility via payer portal integration
+        Check for duplicate patient records using fuzzy matching algorithm
+        Create patient record in master patient index
+        Assign unique patient identifier with checksum
+        Generate registration confirmation and welcome packet
+        Notify primary physician of new patient registration
+
+Behavior ScheduleAppointment
+    Input: patientId: string, physicianId: string, preferredDateTime: datetime, appointmentType: string, reason: string
+    Output: appointmentConfirmation: dict, conflictAlerts: list
+    Action:
+        Query physician availability calendar for requested time slot
+        Check room and equipment availability for appointment type
+        Validate insurance pre-authorization requirements
+        Detect scheduling conflicts with existing appointments
+        Apply priority scheduling rules for urgent cases
+        Confirm appointment and send notifications to all parties
+        Update physician workload tracking and department census
+
+Behavior ProcessBillingClaim
+    Input: encounterId: string, serviceCodes: list, diagnosisCodes: list, insuranceId: string
+    Output: claimId: string, submissionStatus: string, estimatedReimbursement: float
+    Action:
+        Validate CPT and ICD-10 code combinations for medical necessity
+        Calculate charges based on fee schedule and contracted rates
+        Apply insurance rules for copay, coinsurance, and deductible
+        Scrub claim for common rejection reasons before submission
+        Submit electronic claim to insurance payer via EDI 837
+        Track claim status and generate appeals for denials
+        Post payment to patient account upon adjudication
+
+Behavior DispenseMedication
+    Input: orderId: string, pharmacyId: string, pharmacistId: string, verificationCode: string
+    Output: dispenseConfirmation: dict, interactionWarnings: list
+    Action:
+        Retrieve and validate medication order against active prescriptions
+        Perform drug-drug and drug-allergy interaction screening
+        Verify dosage and frequency against clinical guidelines
+        Cross-reference patient weight, renal function, and age for dose appropriateness
+        Generate barcode for medication tracking
+        Record dispense event with pharmacist verification
+        Update inventory levels and trigger reorder if below threshold
+
+Behavior ManageLabResults
+    Input: labOrderId: string, resultData: dict, technicianId: string
+    Output: resultConfirmation: dict, criticalAlerts: list, physicianNotification: string
+    Action:
+        Validate result data against expected ranges and quality controls
+        Apply critical value thresholds and trigger immediate alerts
+        Compare current results with patient historical values for delta checks
+        Route results to ordering physician with interpretation assistance
+        Update patient record with verified lab results
+        Generate quality assurance metrics for laboratory accreditation
+        Archive results in compliance with retention requirements
+
+Behavior GenerateStaffSchedule
+    Input: departmentId: string, periodStart: datetime, periodEnd: datetime, staffingRules: dict
+    Output: schedule: dict, coverageGaps: list, overtimeAlerts: list
+    Action:
+        Analyze historical patient volume patterns for staffing prediction
+        Apply minimum staffing ratios per department and shift
+        Respect staff availability preferences and constraints
+        Validate credential requirements for each assignment
+        Distribute shifts equitably considering overtime limits
+        Identify coverage gaps and generate float pool requests
+        Publish schedule and send notifications to affected staff
+
+Behavior AdmitPatient
+    Input: patientId: string, admittingPhysicianId: string, departmentId: string, admissionType: string, diagnosisCodes: list
+    Output: admissionRecord: dict, bedAssignment: string, ordersGenerated: list
+    Action:
+        Verify patient identity and insurance coverage
+        Determine bed availability and assign appropriate room
+        Generate standard admission order set based on diagnosis
+        Notify nursing station and pharmacy of new admission
+        Initiate nursing assessment workflow
+        Create encounter record linking all subsequent activities
+        Begin real-time location tracking for patient safety
+
+# === LEVEL 4: CONDITIONS ===
+
+Condition: CriticalLabResultAlert
+    When lab result value exceeds critical threshold defined for test code and patient demographics
+    Then escalate result to ordering physician via secure page, SMS, and in-app alert within 5 minutes; log escalation timestamp; if no acknowledgment within 15 minutes, escalate to department chief and on-call supervisor
+
+Condition: AppointmentOverbooking
+    When appointment demand exceeds physician capacity by more than 10% for any given day
+    Then activate overflow scheduling protocol; open additional time slots with covering physician; notify scheduling team of capacity breach; generate report for resource planning review
+
+Condition: InsuranceClaimDenial
+    When insurance claim is denied with reason code indicating medical necessity or authorization issues
+    Then automatically generate appeal letter with supporting clinical documentation; route to billing specialist for review; set 48-hour SLA for appeal submission; flag account for patient balance hold pending resolution
+
+Condition: MedicationInteractionDetected
+    When drug interaction screening identifies severe or contraindicated interaction between prescribed medications
+    Then halt dispensing process immediately; alert prescribing physician and pharmacist simultaneously; display interaction details with clinical evidence; require documented override justification for continued dispensing
+
+Condition: StaffingRatioViolation
+    When patient-to-nurse ratio exceeds mandated limits for any unit and shift
+    Then trigger emergency staffing protocol; notify charge nurse and nursing supervisor; activate float pool and agency staff request; document ratio violation for regulatory compliance reporting; restrict new admissions until ratio is restored
+
+Condition: PharmacyInventoryCritical
+    When medication inventory level falls below safety stock threshold for critical medications
+    Then generate emergency purchase order to primary distributor; identify alternative therapeutic equivalents; notify pharmacy director and clinical staff of potential shortage; activate conservation protocol for affected medications
+
+# === LEVEL 5: EVENTS ===
+
+Event: PatientAdmitted
+    On patient admission confirmed and bed assigned
+    Action: Send welcome packet to patient room; notify primary care physician; initiate nursing admission assessment; generate standard order set; begin insurance pre-certification for inpatient stay; update department census board
+
+Event: LabResultFinalized
+    On lab result verified and released by pathologist or technician
+    Action: Push result to ordering physician inbox; update patient portal with non-critical results; trigger clinical decision support rules; compare against previous values for trending; generate quality control metrics
+
+Event: InsuranceClaimAdjudicated
+    On insurance payer processes and returns claim determination
+    Action: Post payment or adjustment to patient account; generate patient statement for responsibility amount; update revenue cycle dashboard; trigger denial management workflow if denied; reconcile against expected reimbursement
+
+Event: MedicationDispensed
+    On pharmacy completes medication dispensing with verification
+    Action: Update patient medication administration record; adjust inventory levels and costs; trigger refill reminder scheduling; log dispense event for regulatory compliance; notify nursing station of medication availability
+
+Event: ShiftChangeInitiated
+    On scheduled shift transition at department level
+    Action: Generate shift handoff report with pending tasks and alerts; verify incoming staff credentials and certifications; update real-time staffing dashboard; trigger overtime calculations for outgoing shift; initiate patient safety huddle
+
+Event: EmergencyCodeActivated
+    On emergency code (Code Blue, Code Red, etc.) declared in any department
+    Action: Broadcast code location to all response team members; initiate real-time event logging; notify hospital command center; activate additional staffing protocols; prepare documentation for event review committee
+
+# === LEVEL 6: CONCURRENCY ===
+
+Parallel:
+    Patient registration and insurance eligibility verification execute concurrently to reduce check-in time
+    Lab specimen collection, processing, and result validation pipeline with parallel quality control checks
+    Billing charge capture running concurrently with clinical documentation for real-time claim preparation
+    Pharmacy verification and inventory update executing in parallel during dispensing workflow
+    Staff schedule generation and credential verification running concurrently for faster schedule publication
+    Department census updates and bed management algorithms executing simultaneously
+    Clinical decision support rule evaluation and alert generation running in parallel across all active patients
+
+# === LEVEL 7: OPTIMIZATION ===
+
+Optimize: Patient throughput from admission to discharge
+    Priority: Minimize average length of stay while maintaining quality benchmarks; reduce unnecessary diagnostic delays; optimize bed turnover rate
+
+Optimize: Revenue cycle efficiency from charge capture to payment posting
+    Priority: Reduce claim denial rate below 3%; accelerate days in accounts receivable to under 35; maximize clean claim submission rate above 95%
+
+Optimize: Pharmacy inventory management for cost and availability
+    Priority: Maintain 98% medication availability rate while reducing inventory carrying costs by 15%; minimize waste from expired medications through predictive ordering
+
+Optimize: Staff scheduling for coverage and satisfaction
+    Priority: Achieve 100% compliance with mandated staffing ratios while maintaining staff satisfaction score above 4.2/5.0; reduce overtime expenditure by 20%
+
+Optimize: Appointment utilization and no-show reduction
+    Priority: Achieve physician utilization rate above 85%; reduce patient no-show rate below 8% through predictive outreach and overbooking optimization
+
+# === LEVEL 8: LEARNING ===
+
+Learn: Patient no-show prediction model
+    Goal: Predict appointment no-show probability with greater than 80% accuracy using patient history, weather, time-of-day, and demographic features
+    Adapt: Appointment overbooking strategy
+    Based: No-show prediction confidence score and historical overbooking outcomes to minimize double-booking while filling cancellations
+
+Learn: Disease outbreak pattern recognition
+    Goal: Identify emerging infection patterns from emergency department presentations, lab orders, and admission data for early outbreak detection
+    Adapt: Emergency department staffing and isolation protocol activation
+    Based: Epidemiological indicators including symptom clusters, geographic patterns, and seasonal disease prevalence models
+
+Learn: Medication demand forecasting
+    Goal: Predict pharmacy inventory needs with 90% accuracy using seasonal illness patterns, surgical schedules, and historical dispensing data
+    Adapt: Pharmacy purchasing and inventory allocation
+    Based: Forecasted demand variance, supplier lead times, and critical medication availability requirements
+
+Learn: Length of stay prediction
+    Goal: Predict patient length of stay at admission with 75% accuracy using diagnosis, comorbidities, and clinical indicators
+    Adapt: Discharge planning timeline and resource allocation
+    Based: Predicted discharge date confidence interval and resource availability for post-acute care transitions
+
+Learn: Claim denial pattern analysis
+    Goal: Identify common denial reasons and predict claim denial probability before submission with 70% accuracy
+    Adapt: Pre-submission claim scrubbing rules and clinical documentation improvement priorities
+    Based: Historical denial patterns by payer, procedure, and diagnosis combination
+
+# === LEVEL 9: SECURITY ===
+
+Security:
+    Encrypt: All patient health information at rest using AES-256 encryption and in transit using TLS 1.3
+    Encrypt: Database backups and archive storage using AES-256 with separate key management
+    Encrypt: Lab results and medication orders during inter-system transmission
+    Protect: Patient identity data via tokenization in non-clinical systems and analytics databases
+    Protect: Physician order entry with digital signature verification and tamper detection
+    Protect: Billing and insurance data with field-level encryption and access logging
+    Protect: Staff credential and certification records with role-based access controls
+    Protect: System administrative access with hardware security key requirement and session recording
+    Protect: API endpoints with OAuth 2.0, rate limiting, and request signing
+    Protect: Audit logs with write-once storage and tamper-evident chaining
+
+# === LEVEL 10: NATIVE ===
+
+Native: Python
+{
+import hashlib
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional
+
+class HospitalManagementSystem:
+    def __init__(self, db_connection, encryption_key):
+        self.db = db_connection
+        self.encryption_key = encryption_key
+        self.critical_value_thresholds = {}
+        self.staffing_ratios = {
+            "ICU": {"nurse_to_patient": 2, "min_nurses": 4},
+            "MEDSURG": {"nurse_to_patient": 5, "min_nurses": 3},
+            "ED": {"nurse_to_patient": 4, "min_nurses": 5},
+        }
+
+    def register_patient(self, patient_data: Dict, insurance_info: Dict) -> Dict:
+        required_fields = ["firstName", "lastName", "dateOfBirth", "gender", "contactPhone"]
+        for field in required_fields:
+            if field not in patient_data or not patient_data[field]:
+                raise ValueError(f"Missing required field: {field}")
+
+        checksum = hashlib.sha256(
+            f"{patient_data['firstName']}{patient_data['lastName']}{patient_data['dateOfBirth']}".encode()
+        ).hexdigest()[:8]
+        patient_id = f"PAT-{checksum}-{datetime.now().strftime('%Y%m%d%H%M')}"
+
+        eligibility = self.verify_insurance(insurance_info)
+        if not eligibility["active"]:
+            raise ValueError(f"Insurance not active: {eligibility['reason']}")
+
+        record = {
+            "patientId": patient_id,
+            **patient_data,
+            "insuranceProviderId": insurance_info["providerId"],
+            "insurancePolicyNumber": insurance_info["policyNumber"],
+            "allergies": patient_data.get("allergies", []),
+            "admissionStatus": "OUTPATIENT",
+            "registrationDate": datetime.now().isoformat(),
+        }
+        self.db.insert("patients", record)
+        return {"patientRecord": record, "confirmation": patient_id}
+
+    def verify_insurance(self, insurance_info: Dict) -> Dict:
+        payer_response = self._call_payer_portal(
+            insurance_info["providerId"],
+            insurance_info["policyNumber"],
+            insurance_info.get("subscriberId"),
+        )
+        return {
+            "active": payer_response.get("coverageStatus") == "ACTIVE",
+            "reason": payer_response.get("denialReason", ""),
+            "copayAmount": payer_response.get("copay", 0.0),
+            "deductibleRemaining": payer_response.get("deductibleRemaining", 0.0),
+        }
+
+    def check_critical_lab_value(self, test_code: str, result_value: float, patient: Dict) -> bool:
+        threshold = self.critical_value_thresholds.get(test_code)
+        if not threshold:
+            return False
+        age = (datetime.now() - datetime.fromisoformat(patient["dateOfBirth"])).days / 365.25
+        if threshold.get("age_adjusted"):
+            age_key = "pediatric" if age < 18 else "adult" if age < 65 else "geriatric"
+            bounds = threshold["ranges"].get(age_key, threshold["ranges"].get("adult"))
+        else:
+            bounds = threshold["ranges"]
+        return result_value < bounds["low"] or result_value > bounds["high"]
+
+    def validate_staffing_ratio(self, department: str, current_nurses: int, current_patients: int) -> Dict:
+        ratio_config = self.staffing_ratios.get(department, self.staffing_ratios["MEDSURG"])
+        required_nurses = max(
+            ratio_config["min_nurses"],
+            -(-current_patients // ratio_config["nurse_to_patient"])
+        )
+        is_compliant = current_nurses >= required_nurses
+        return {
+            "compliant": is_compliant,
+            "current_ratio": current_patients / max(current_nurses, 1),
+            "required_nurses": required_nurses,
+            "shortage": max(0, required_nurses - current_nurses),
+        }
+
+    def _call_payer_portal(self, provider_id, policy_number, subscriber_id=None):
+        return {"coverageStatus": "ACTIVE", "copay": 25.0, "deductibleRemaining": 500.0}
+}

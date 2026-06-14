@@ -1,0 +1,385 @@
+# AICL Example: Strategy Pattern Engine
+# Implements a strategy pattern engine with dynamic algorithm selection, runtime strategy switching,
+# performance benchmarking, strategy composition, and fallback mechanisms.
+
+# Level 1: Architecture
+Goal: Build a strategy pattern engine that enables runtime algorithm selection and switching,
+    supports automated benchmarking for strategy comparison, allows strategy composition
+    for complex operations, and provides graceful fallback when strategies fail.
+
+Constraint: Each strategy must implement a common interface with identical input and output contracts.
+Constraint: Strategy selection must be deterministic given the same context and input.
+Constraint: Benchmarking must not affect production strategy execution latency.
+Constraint: Strategy switching must be atomic with no in-flight operations using the old strategy.
+Constraint: Composite strategies must maintain the execution order declared in composition.
+
+Risk: Strategy switch during active execution causes inconsistent results
+Recovery: Complete in-flight operations with old strategy; apply new strategy to subsequent requests only
+
+Risk: Benchmark sample too small produces unreliable comparison
+Recovery: Require minimum sample size of 1000 executions; extend benchmark until confidence interval narrows
+
+Risk: Composite strategy partial failure leaves partial output
+Recovery: Apply compensating actions for completed steps; fall back to simpler non-composite strategy
+
+Risk: Memory leak from accumulated benchmark data
+Recovery: Sliding window of 1 hour for benchmark samples; compress older data into summary statistics
+
+Risk: Strategy selection oscillates between equivalent strategies causing instability
+Recovery: Hysteresis threshold requiring 10% improvement over incumbent before switching
+
+Risk: Custom strategy injection compromises system integrity
+Recovery: Sandbox custom strategies with resource limits; validate against strategy contract at registration
+
+Layer: Core
+    SubLayer: StrategyRegistry
+    SubLayer: StrategySelector
+    SubLayer: StrategyExecutor
+Layer: Benchmarking
+    SubLayer: BenchmarkRunner
+    SubLayer: PerformanceCollector
+    SubLayer: ComparisonEngine
+Layer: Composition
+    SubLayer: CompositeStrategy
+    SubLayer: FallbackChain
+    SubLayer: StrategyMerger
+
+Validation: Strategy must implement required execute method signature
+Validation: Benchmark results must include confidence interval and sample size
+Validation: Strategy context must contain all fields required by candidate strategies
+Validation: Composite strategy steps must form a valid directed acyclic graph
+Validation: Fallback chain must terminate with a guaranteed-success strategy
+Validation: Strategy registration must pass all contract compliance tests
+
+# Level 2: Entities
+Entity Strategy
+    strategyId: string
+    strategyName: string
+    strategyType: string
+    version: string
+    inputSchema: dict
+    outputSchema: dict
+    constraints: dict
+    priority: integer
+    isEnabled: boolean
+
+Entity StrategyContext
+    contextId: string
+    operationType: string
+    inputPayload: dict
+    environment: dict
+    preferences: dict
+    deadline: datetime
+    budget: float
+    qualityRequirement: string
+
+Entity BenchmarkResult
+    benchmarkId: string
+    strategyId: string
+    sampleSize: integer
+    meanLatency: float
+    p50Latency: float
+    p99Latency: float
+    throughput: float
+    errorRate: float
+    confidenceInterval: dict
+    executedAt: datetime
+
+Entity CompositeStrategy
+    compositeId: string
+    name: string
+    steps: list
+    executionOrder: list
+    mergeStrategy: string
+    fallbackStrategy: string
+    timeoutPerStep: integer
+    allowPartialResults: boolean
+
+Entity FallbackChain
+    chainId: string
+    operationType: string
+    strategies: list
+    currentPosition: integer
+    failureThreshold: integer
+    retryCount: integer
+    lastSwitchAt: datetime
+
+Entity PerformanceMetric
+    metricId: string
+    strategyId: string
+    executionTime: float
+    memoryUsed: integer
+    cpuTime: float
+    success: boolean
+    timestamp: datetime
+    inputSize: integer
+    outputSize: integer
+
+# Level 3: Behaviors
+Behavior SelectStrategy
+    Input:
+        context: StrategyContext
+        candidates: list
+    Output:
+        selectedStrategy: Strategy
+        selectionReason: string
+    Action:
+        Filter candidates by enabled status and constraint compatibility
+        Evaluate context preferences against strategy attributes
+        Apply hysteresis to avoid oscillation with incumbent strategy
+        Consider benchmark performance data for tie-breaking
+        Apply priority ordering for final selection
+        Return selected strategy with justification
+
+Behavior ExecuteStrategy
+    Input:
+        strategy: Strategy
+        context: StrategyContext
+    Output:
+        result: dict
+        metrics: PerformanceMetric
+    Action:
+        Validate input against strategy schema
+        Initialize execution timer and resource monitor
+        Execute strategy algorithm with context payload
+        Collect performance metrics during execution
+        Validate output against strategy output schema
+        Handle execution failure with fallback chain
+        Return result and performance metrics
+
+Behavior RunBenchmark
+    Input:
+        strategyIds: list
+        sampleSize: integer
+        context: StrategyContext
+    Output:
+        results: list
+        winner: string
+    Action:
+        Generate representative test inputs for each strategy
+        Execute each strategy for required sample size
+        Collect latency, throughput, and error metrics
+        Calculate statistical confidence intervals
+        Compare strategies using paired statistical test
+        Declare winner with confidence level
+        Return benchmark results and recommendation
+
+Behavior ComposeStrategies
+    Input:
+        stepStrategies: list
+        mergeStrategy: string
+        fallback: string
+    Output:
+        compositeId: string
+    Action:
+        Validate DAG ordering of step dependencies
+        Verify output-input compatibility between adjacent steps
+        Register composite strategy in registry
+        Configure per-step timeout and fallback
+        Set up merge strategy for combining step outputs
+        Return composite strategy identifier
+
+Behavior SwitchStrategy
+    Input:
+        operationType: string
+        fromStrategy: string
+        toStrategy: string
+    Output:
+        switchResult: string
+    Action:
+        Validate target strategy is registered and enabled
+        Wait for in-flight executions to complete
+        Atomically update strategy selector mapping
+        Begin benchmarking new strategy in shadow mode
+        Notify all consumers of strategy change
+        Log switch with justification and timestamp
+
+Behavior ExecuteFallbackChain
+    Input:
+        chain: FallbackChain
+        context: StrategyContext
+    Output:
+        result: dict
+        usedStrategy: string
+    Action:
+        Attempt execution at current chain position
+        If failure, advance to next strategy in chain
+        Track consecutive failures per strategy
+        If terminal strategy fails, return degraded result
+        Reset chain position on success
+        Return result with strategy that succeeded
+
+# Level 4: Conditions
+Condition: StrategyExecutionTimeout
+    When strategy execution exceeds deadline specified in context
+    Then abort execution, record timeout metric, and invoke fallback chain
+
+Condition: BenchmarkConfidenceInsufficient
+    When benchmark confidence interval width exceeds 20% of mean
+    Then extend benchmark by doubling sample size up to maximum limit
+
+Condition: StrategyHealthDegraded
+    When strategy error rate exceeds 5% over last 100 executions
+    Then automatically demote strategy priority and trigger benchmark re-evaluation
+
+# Level 5: Events
+Event: OnStrategyRegistered
+    On new strategy added to the registry
+    Action: Run validation suite against contract; execute preliminary benchmark
+
+Event: OnStrategySwitched
+    On active strategy for an operation type changed
+    Action: Log switch event, update monitoring dashboards, begin shadow benchmarking
+
+Event: OnBenchmarkCompleted
+    On benchmark run finished with statistical results
+    Action: Publish results, trigger auto-switch if improvement exceeds hysteresis threshold
+
+Event: OnFallbackActivated
+    On fallback chain invoked due to strategy failure
+    Action: Alert on-call team, increment fallback metric, schedule root cause investigation
+
+# Level 6: Concurrency
+Parallel:
+    Strategy execution and benchmarking in shadow mode
+    Multiple operation types selecting strategies concurrently
+    Performance metric collection from all active strategy executions
+    Fallback chain execution attempts without blocking main thread
+    Benchmark sample collection across parallel strategy invocations
+
+# Level 7: Optimization
+Optimize: Strategy selection latency
+    Priority: Cache selection results for identical contexts; pre-compute ranking for frequent operations
+
+Optimize: Benchmark accuracy with minimal overhead
+    Priority: Use stratified sampling; adjust sample rate based on variance observed
+
+# Level 8: Learning
+Learn: Optimal strategy per context profile
+    Goal: Automatically discover which strategy performs best for different input characteristics
+    Adapt: Strategy selection weights per operation type and context profile
+    Based: Historical execution performance correlated with input features using multi-armed bandit
+
+Learn: Benchmark sample size requirements
+    Goal: Minimize benchmark overhead while maintaining statistical validity
+    Adapt: Required sample size per strategy and operation type
+    Based: Observed variance in execution times and desired confidence level
+
+# Level 9: Security
+Security:
+    Encrypt: Strategy execution context containing sensitive parameters with field-level encryption
+    Encrypt: Benchmark result payloads transmitted between nodes with TLS 1.3
+    Protect: Strategy registry from unauthorized modifications with admin-only ACL and audit logging
+    Protect: Custom strategy code execution via sandboxed runtime with CPU, memory, and I/O limits
+    Protect: Strategy selection from manipulation by validating all benchmark data against signed sources
+
+# Level 10: Native
+Java
+{
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.function.Function;
+
+public interface Strategy<I, O> {
+    String getId();
+    String getName();
+    O execute(I input) throws StrategyException;
+    boolean canHandle(I input);
+    int getPriority();
+}
+
+public class StrategyException extends Exception {
+    public StrategyException(String msg, Throwable cause) { super(msg, cause); }
+}
+
+public class StrategySelector<I, O> {
+    private final Map<String, Strategy<I, O>> registry = new ConcurrentHashMap<>();
+    private final Map<String, String> activeStrategies = new ConcurrentHashMap<>();
+    private final Map<String, BenchmarkResult> benchmarks = new ConcurrentHashMap<>();
+    private final double hysteresisThreshold = 0.10;
+
+    public void register(Strategy<I, O> strategy) {
+        registry.put(strategy.getId(), strategy);
+    }
+
+    public Strategy<I, O> select(String operationType, I input) {
+        List<Strategy<I, O>> candidates = registry.values().stream()
+            .filter(Strategy::canHandle)
+            .filter(s -> s.canHandle(input))
+            .sorted(Comparator.comparingInt(Strategy::getPriority).reversed())
+            .toList();
+
+        if (candidates.isEmpty()) {
+            throw new IllegalStateException("No strategy available for: " + operationType);
+        }
+
+        String currentId = activeStrategies.get(operationType);
+        Strategy<I, O> best = candidates.get(0);
+
+        if (currentId != null && !currentId.equals(best.getId())) {
+            Strategy<I, O> current = registry.get(currentId);
+            BenchmarkResult currentBench = benchmarks.get(currentId);
+            BenchmarkResult bestBench = benchmarks.get(best.getId());
+            if (currentBench != null && bestBench != null) {
+                double improvement = (currentBench.meanLatency - bestBench.meanLatency)
+                    / currentBench.meanLatency;
+                if (improvement < hysteresisThreshold) {
+                    best = current;
+                }
+            }
+        }
+        activeStrategies.put(operationType, best.getId());
+        return best;
+    }
+
+    public O executeWithFallback(String operationType, I input, List<Strategy<I, O>> fallbacks) {
+        Strategy<I, O> primary = select(operationType, input);
+        try {
+            return primary.execute(input);
+        } catch (StrategyException e) {
+            for (Strategy<I, O> fallback : fallbacks) {
+                try {
+                    return fallback.execute(input);
+                } catch (StrategyException ignored) {}
+            }
+            throw new RuntimeException("All strategies failed", e);
+        }
+    }
+}
+
+public class BenchmarkRunner<I, O> {
+    private final int defaultSampleSize = 1000;
+
+    public BenchmarkResult run(Strategy<I, O> strategy, Function<Void, I> inputGenerator, int sampleSize) {
+        List<Long> latencies = new ArrayList<>();
+        int errors = 0;
+
+        for (int i = 0; i < sampleSize; i++) {
+            I input = inputGenerator.apply(null);
+            long start = System.nanoTime();
+            try {
+                strategy.execute(input);
+            } catch (StrategyException e) {
+                errors++;
+            }
+            latencies.add(System.nanoTime() - start);
+        }
+
+        Collections.sort(latencies);
+        long sum = latencies.stream().mapToLong(Long::longValue).sum();
+        double mean = (double) sum / sampleSize;
+        long p50 = latencies.get((int)(sampleSize * 0.50));
+        long p99 = latencies.get((int)(sampleSize * 0.99));
+
+        return new BenchmarkResult(
+            strategy.getId(), sampleSize, mean, p50, p99,
+            (double) errors / sampleSize
+        );
+    }
+}
+
+record BenchmarkResult(
+    String strategyId, int sampleSize, double meanLatency,
+    long p50Latency, long p99Latency, double errorRate
+) {}
+}

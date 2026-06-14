@@ -1,0 +1,424 @@
+# AICL Example: Autonomous Vehicle System
+# Full autonomous vehicle system stack with perception fusion, motion planning, vehicle control,
+# V2X communication, and multi-layer safety monitoring for SAE Level 4 autonomous driving.
+
+Goal: Implement a complete autonomous vehicle system that provides safe self-driving capability
+    through multi-sensor perception fusion, real-time motion planning, precise vehicle control,
+    V2X communication for cooperative driving, and redundant safety monitoring at SAE Level 4.
+
+Constraint: Perception pipeline must process sensor data and produce object list within 50ms
+    with 99.99% detection rate for safety-critical objects within 100-meter range.
+
+Constraint: Planning and control loop must execute at 50Hz with trajectory recalculation
+    within 20ms and steering/brake command latency below 5ms.
+
+Constraint: V2X communication must support DSRC and C-V2X with message delivery within
+    100ms for safety-critical messages including BSM, CAM, and DENM.
+
+Constraint: Safety monitor must detect any system fault and initiate minimum risk maneuver
+    within 200ms with graceful degradation to safe stop.
+
+Risk: Perception failure misses critical obstacle in vehicle path
+Recovery: Cross-validate detections across sensor modalities with fusion confidence scoring;
+    if disagreement detected, assume obstacle present and execute emergency brake; log event
+
+Risk: Planning generates trajectory that violates safety envelope
+Recovery: Safety monitor validates all planned trajectories against dynamic constraints before
+    execution; reject unsafe trajectory and replan with conservative constraints; emergency stop
+
+Risk: V2X message spoofing provides false cooperative information
+Recovery: Validate V2X messages against certificate chain and plausibility checks; reject
+    messages from unverified sources; ignore conflicting V2X data when local sensors disagree
+
+Risk: Sensor degradation during adverse weather reduces perception accuracy
+Recovery: Detect sensor quality degradation through self-diagnostic metrics; increase safety
+    margins proportionally to degradation level; reduce speed and increase following distance
+
+Risk: Compute platform failure renders autonomous driving inoperable
+Recovery: Activate secondary compute platform with hot-standby readiness; initiate minimum
+    risk maneuver to safe stop; hand off to remote operator if available
+
+Risk: Communication loss with fleet management during autonomous operation
+Recovery: Continue autonomous operation with cached map and rule data; log telemetry locally
+    for batch upload; attempt periodic reconnection with exponential backoff
+
+Layer: AutonomousVehicle
+    SubLayer: Perception
+    SubLayer: Planning
+    SubLayer: Control
+    SubLayer: V2XCommunication
+    SubLayer: SafetyMonitor
+
+Validation: Perception must detect all objects above 10cm height within 100m range in clear weather
+Validation: Planning must never generate trajectory with collision probability above 0.001%
+Validation: Control commands must stay within vehicle dynamic limits at all times
+Validation: Safety monitor must detect and respond to any critical fault within 200ms
+Validation: V2X safety messages must be transmitted within 100ms of event detection
+Validation: System must achieve minimum risk condition within 10 seconds of any failure mode
+Validation: All sensor data must be timestamped with microsecond precision using GPS clock
+
+# Level 2: Entities
+
+Entity SensorSuite
+    vehicle_id: string
+    lidar_count: integer
+    camera_count: integer
+    radar_count: integer
+    imu_id: string
+    gnss_id: string
+    ultrasonic_count: integer
+    calibration_version: string
+    last_calibration: datetime
+
+Entity DetectedObject
+    object_id: string
+    object_type: string
+    position_x: float
+    position_y: float
+    position_z: float
+    velocity_x: float
+    velocity_y: float
+    confidence: float
+    sensor_source: string
+    tracking_id: string
+
+Entity PlannedTrajectory
+    trajectory_id: string
+    waypoints: list
+    target_speed: float
+    target_acceleration: float
+    lane_id: string
+    maneuver_type: string
+    collision_probability: float
+    generated_at: datetime
+
+Entity VehicleCommand
+    command_id: string
+    steering_angle: float
+    throttle: float
+    brake_pressure: float
+    gear: string
+    turn_signal: string
+    timestamp: datetime
+    execution_time_ms: float
+
+Entity V2XMessage
+    message_id: string
+    message_type: string
+    sender_id: string
+    position: dict
+    velocity: dict
+    heading: float
+    timestamp: datetime
+    signature: string
+    confidence: float
+
+Entity SafetyState
+    vehicle_id: string
+    operational_mode: string
+    fault_count: integer
+    last_fault_type: string
+    min_risk_maneuver: string
+    safe_stop_location: dict
+    is_safe: boolean
+    degraded_level: integer
+
+# Level 3: Behaviors
+
+Behavior FusePerception
+    Input:
+        lidar_point_cloud: bytes
+        camera_frames: list
+        radar_detections: list
+        imu_data: dict
+    Output:
+        detected_objects: list
+        occupancy_grid: dict
+        free_space: dict
+    Action:
+        Synchronize sensor data timestamps to common clock
+        Run object detection on each sensor modality independently
+        Fuse detections using probabilistic data association
+        Build occupancy grid from lidar and radar returns
+        Track objects across frames with Kalman filter bank
+        Validate detection consistency across modalities
+
+Behavior PlanMotion
+    Input:
+        detected_objects: list
+        ego_state: dict
+        route_waypoints: list
+        traffic_rules: dict
+    Output:
+        planned_trajectory: dict
+        maneuver_intent: string
+        collision_risk: float
+    Action:
+        Evaluate drivable space from occupancy grid
+        Generate candidate trajectories using lattice planner
+        Score trajectories by safety, comfort, and progress
+        Select optimal trajectory with safety envelope validation
+        Plan speed profile respecting dynamics and traffic rules
+        Signal maneuver intent for V2X broadcast
+
+Behavior ExecuteControl
+    Input:
+        planned_trajectory: dict
+        vehicle_state: dict
+        road_geometry: dict
+    Output:
+        vehicle_command: dict
+        tracking_error: dict
+    Action:
+        Compute tracking error against planned trajectory
+        Apply model predictive control for steering and speed
+        Enforce vehicle dynamic limits on all commands
+        Apply smooth actuator transitions for passenger comfort
+        Monitor command execution latency and feedback
+        Fallback to direct control if MPC computation times out
+
+Behavior ProcessV2X
+    Input:
+        incoming_message: dict
+        ego_position: dict
+        ego_velocity: dict
+    Output:
+        processed_info: dict
+        cooperative_decisions: list
+    Action:
+        Validate message certificate and signature
+        Apply plausibility check against local sensor data
+        Update cooperative perception with received object data
+        Evaluate cooperative maneuver suggestions
+        Broadcast ego status via BSM/CAM at 10Hz
+        Handle emergency notifications via DENM
+
+Behavior MonitorSafety
+    Input:
+        perception_health: dict
+        planning_health: dict
+        control_health: dict
+        vehicle_dynamics: dict
+    Output:
+        safety_state: dict
+        intervention_required: boolean
+        min_risk_maneuver: string
+    Action:
+        Evaluate health of all subsystems against safety criteria
+        Monitor dynamic constraints and environmental conditions
+        Detect faults through watchdog timers and sanity checks
+        Compute minimum risk maneuver for current state
+        Initiate intervention if any critical safety check fails
+        Log all safety evaluations for post-trip analysis
+
+# Level 4: Conditions
+
+Condition: CriticalObstacleAhead
+    When detected object of type pedestrian or vehicle is within 30 meters and on collision course
+    Then execute emergency braking with maximum deceleration, activate hazard lights,
+        and broadcast DENM to surrounding vehicles via V2X
+
+Condition: PerceptionDegraded
+    When perception confidence drops below 70 percent for any safety-critical region
+    Then increase safety margins, reduce maximum speed by 50 percent, expand following
+        distance, and prepare for minimum risk maneuver if degradation continues
+
+Condition: UnsafeTrajectoryGenerated
+    When planned trajectory collision probability exceeds 0.001 percent
+    Then reject trajectory, replan with conservative constraints, and if no safe
+        trajectory found within 100ms initiate emergency stop procedure
+
+Condition: V2XConflictDetected
+    When V2X cooperative message conflicts with local perception by more than 5 meters
+    Then prioritize local perception data, flag V2X source for plausibility review,
+        and reduce reliance on V2X for the conflicting region
+
+Condition: ComputePlatformFault
+    When any critical compute node fails health check or exceeds watchdog timeout
+    Then activate secondary compute platform, initiate minimum risk maneuver, and
+        transition to safe stop at nearest suitable location
+
+# Level 5: Events
+
+Event: EmergencyBrakeActivated
+    On collision_imminent_detected_by_safety_monitor
+    Action: Apply maximum braking, broadcast DENM, activate hazard indicators,
+        notify fleet operations center, and record full sensor snapshot for analysis
+
+Event: ManeuverCompleted
+    On planned_trajectory_execution_finished
+    Action: Validate vehicle is in expected post-maneuver state, update route
+        progress, and prepare next planning cycle with updated context
+
+Event: V2XEmergencyReceived
+    On DENM_message_received_from_surrounding_vehicle
+    Action: Evaluate emergency relevance to ego vehicle trajectory, adjust
+        planning to accommodate emergency zone, and rebroadcast if required
+
+Event: SensorFaultDetected
+    On sensor_self_diagnostic_reports_failure
+    Action: Recalculate perception capabilities with degraded sensor suite,
+        adjust safety margins, and log fault details for maintenance scheduling
+
+Event: SafeStopAchieved
+    On minimum_risk_maneuver_brings_vehicle_to_safe_stop
+    Action: Activate hazard lights and parking brake, notify fleet operations
+        with location and fault details, and await remote operator or tow
+
+# Level 6: Concurrency
+
+Parallel:
+    Multi-sensor perception fusion at sensor frame rate
+    Motion planning recalculation at 50Hz
+    Vehicle control command generation at 50Hz
+    V2X message processing and broadcasting
+    Safety monitor evaluation at 100Hz
+    Sensor health monitoring and diagnostics
+    Telemetry logging to local storage
+
+# Level 7: Optimization
+
+Optimize: Driving safety and passenger comfort
+    Priority: Safety constraints are never violated under any optimization objective
+    Priority: Emergency maneuvers prioritize minimizing collision severity over comfort
+    Priority: Normal driving optimizes for ride smoothness within safety envelope
+    Priority: V2X cooperative decisions weighted by message trust score and recency
+    Priority: Compute resource allocation favors perception and safety over comfort features
+
+# Level 8: Learning
+
+Learn: Driving behavior patterns in complex urban scenarios
+    Goal: Improve planning naturalness to reduce unnecessary interventions
+    Adapt: Trajectory scoring weights for comfort and progress
+        Based: Intervention frequency, passenger comfort metrics, and scenario similarity
+
+Learn: Sensor fusion confidence calibration per environmental condition
+    Goal: Accurately predict perception reliability in adverse conditions
+    Adapt: Fusion confidence weights per sensor modality and condition
+        Based: Detection accuracy against ground truth, weather conditions, and lighting
+
+Learn: V2X message trust scoring per sender
+    Goal: Identify unreliable V2X sources and weight cooperative data appropriately
+    Adapt: Trust scores per V2X sender identity
+        Based: Plausibility check pass rate, message consistency, and conflict frequency
+
+# Level 9: Security
+
+Security:
+    Encrypt: All V2X communication using SCMS certificates with pseudonym rotation
+    Encrypt: Inter-module communication within vehicle using authenticated encryption
+    Protect: Perception data integrity with tamper detection and secure boot
+    Protect: Planning and control commands with message authentication codes
+    Protect: Vehicle firmware with code signing and secure update verification
+    Encrypt: Telemetry data uploaded to fleet using end-to-end encryption with key rotation
+
+# Level 10: Native
+
+Native: C++
+{
+#include <vector>
+#include <cmath>
+#include <chrono>
+#include <mutex>
+#include <atomic>
+#include <algorithm>
+
+struct Vec2d {
+    double x{0.0};
+    double y{0.0};
+    Vec2d operator+(const Vec2d& o) const { return {x+o.x, y+o.y}; }
+    Vec2d operator-(const Vec2d& o) const { return {x-o.x, y-o.y}; }
+    Vec2d operator*(double s) const { return {x*s, y*s}; }
+    double norm() const { return std::sqrt(x*x + y*y); }
+};
+
+struct VehicleState {
+    Vec2d position;
+    double heading{0.0};
+    double speed{0.0};
+    double acceleration{0.0};
+    double steering_angle{0.0};
+    double yaw_rate{0.0};
+    std::chrono::system_clock::time_point timestamp;
+};
+
+struct TrajectoryPoint {
+    Vec2d position;
+    double heading{0.0};
+    double speed{0.0};
+    double acceleration{0.0};
+    double curvature{0.0};
+    double relative_time{0.0};
+};
+
+struct ControlCommand {
+    double steering_angle{0.0};
+    double throttle{0.0};
+    double brake_pressure{0.0};
+    std::chrono::system_clock::time_point timestamp;
+};
+
+class MPCController {
+private:
+    double wheelbase_;
+    double max_steering_;
+    double max_accel_;
+    double max_decel_;
+    int prediction_horizon_;
+    double dt_;
+    std::mutex state_mutex_;
+
+public:
+    MPCController(double wheelbase, double max_steer, double max_a, double max_d,
+                  int horizon, double dt)
+        : wheelbase_(wheelbase), max_steering_(max_steer),
+          max_accel_(max_a), max_decel_(max_d),
+          prediction_horizon_(horizon), dt_(dt) {}
+
+    ControlCommand compute(const VehicleState& state,
+                           const std::vector<TrajectoryPoint>& trajectory) {
+        ControlCommand cmd;
+        if (trajectory.empty()) {
+            cmd.brake_pressure = max_decel_;
+            return cmd;
+        }
+
+        const auto& target = trajectory.front();
+        Vec2d error = target.position - state.position;
+        double lateral_error = -error.x * std::sin(state.heading)
+                              + error.y * std::cos(state.heading);
+        double heading_error = target.heading - state.heading;
+        while (heading_error > M_PI) heading_error -= 2*M_PI;
+        while (heading_error < -M_PI) heading_error += 2*M_PI;
+
+        double curvature = target.curvature;
+        double feedforward_steer = std::atan(wheelbase_ * curvature);
+
+        cmd.steering_angle = std::clamp(
+            feedforward_steer + 0.8 * lateral_error + 2.0 * heading_error,
+            -max_steering_, max_steering_);
+
+        double speed_error = target.speed - state.speed;
+        if (speed_error > 0) {
+            cmd.throttle = std::clamp(speed_error * 0.5, 0.0, max_accel_);
+        } else {
+            cmd.brake_pressure = std::clamp(-speed_error * 0.8, 0.0, max_decel_);
+        }
+
+        cmd.timestamp = std::chrono::system_clock::now();
+        return cmd;
+    }
+};
+
+class SafetyEnvelope {
+public:
+    static bool validate(const ControlCommand& cmd,
+                         const VehicleState& state,
+                         double max_speed) {
+        if (std::abs(cmd.steering_angle) > 0.6) return false;
+        if (state.speed > max_speed && cmd.throttle > 0) return false;
+        if (cmd.throttle > 0 && cmd.brake_pressure > 0) return false;
+        return true;
+    }
+};
+}

@@ -1,0 +1,515 @@
+# AICL Example: Content Management System
+# Content authoring, workflow management, versioning, multilingual support, SEO, and media management
+
+Goal
+    Build an enterprise content management system that supports collaborative authoring
+    with real-time editing, configurable approval workflows with role-based gates, full
+    content versioning with branching and rollback, multilingual content management with
+    translation workflow integration, SEO optimization with automated analysis, and
+    comprehensive media asset management with transformation pipelines.
+
+Constraint
+    Content save operations must be atomic with version creation within 500ms
+    Workflow state transitions must be auditable with full actor and timestamp tracking
+    Content versioning must support at least 1000 versions per document without degradation
+    Multilingual content must maintain referential integrity across all locale variants
+    SEO analysis must complete within 2 seconds for any content page
+    Media transformations must be idempotent and reproducible from original asset
+
+Risk
+    Concurrent editing causes data loss or overwrite conflicts
+Recovery
+    Implement operational transform for real-time collaborative editing; on conflict
+    detection, merge non-overlapping changes automatically; present conflict resolution
+    UI for overlapping edits; maintain complete edit history for manual recovery
+
+Risk
+    Workflow misconfiguration blocks content publication pipeline
+Recovery
+    Validate workflow configurations before activation; provide workflow simulation mode;
+    allow administrator override for stuck workflow states; implement automatic escalation
+    if workflow step exceeds configured time limit
+
+Risk
+    Translation synchronization breaks when source content is updated mid-translation
+Recovery
+    Detect source changes during active translation; flag affected translations for
+    re-translation; preserve completed translation segments; generate diff of source
+    changes for translator review; allow partial translation save with warning
+
+Risk
+    Media asset corruption during transformation pipeline
+Recovery
+    Verify asset integrity after each transformation step using checksum validation;
+    maintain unmodified original in immutable storage; on corruption detection, discard
+    transformed output and retry from original; alert media operations team on repeated failures
+
+Risk
+    SEO metadata manipulation or stale sitemap entries harm search rankings
+Recovery
+    Regenerate sitemaps automatically on any content publication change; validate SEO
+    metadata against schema.org specifications; detect and alert on keyword stuffing or
+    duplicate meta descriptions; maintain redirect map for URL changes
+
+Risk
+    Content version rollback creates orphaned references or broken internal links
+Recovery
+    Scan for broken references before completing rollback; warn editor of affected links;
+    maintain reference graph across versions; offer link repair suggestions; preserve
+    forward compatibility by keeping referenced content accessible
+
+Layer
+    SubLayer: AuthoringLayer
+        Rich text editing, collaborative sessions, autosave, template management
+    SubLayer: WorkflowLayer
+        State machine engine, role-based transitions, escalation rules, parallel approvals
+    SubLayer: VersioningLayer
+        Version creation, diff computation, branching, rollback, merge resolution
+    SubLayer: LocalizationLayer
+        Locale management, translation workflow, synchronization, locale fallback chains
+    SubLayer: SEOLayer
+        Metadata extraction, sitemap generation, schema markup, redirect management, analytics
+    SubLayer: MediaLayer
+        Asset ingestion, transformation pipeline, CDN distribution, metadata extraction
+
+Validation
+    All published content must pass workflow approval gate before becoming publicly accessible
+    Version history must be complete and immutable once created
+    Translated content must reference the same base content version across all locales
+    Media assets must have valid checksums recorded at ingestion and after each transformation
+    SEO metadata must conform to schema.org and Open Graph specifications
+    Internal links must be validated before content publication
+    Content permissions must be verified on every read and write operation
+
+Entity ContentDocument
+    documentId: string
+    title: string
+    slug: string
+    contentType: string
+    currentVersion: integer
+    authorId: string
+    lastEditorId: string
+    status: string
+    locale: string
+    baseDocumentId: string
+    createdAt: datetime
+    publishedAt: datetime
+    scheduledAt: datetime
+    seoMetadata: dict
+
+Entity ContentVersion
+    versionId: string
+    documentId: string
+    versionNumber: integer
+    content: string
+    editorId: string
+    changeDescription: string
+    createdAt: datetime
+    parentVersionId: string
+    checksum: string
+    diffFromParent: bytes
+
+Entity WorkflowDefinition
+    workflowId: string
+    name: string
+    contentType: string
+    states: list
+    transitions: list
+    roles: dict
+    escalationRules: list
+    parallelApprovalGroups: list
+    autoPublishEnabled: boolean
+    version: integer
+
+Entity WorkflowInstance
+    instanceId: string
+    workflowId: string
+    documentId: string
+    currentState: string
+    assignedRoles: list
+    approvalHistory: list
+    pendingApprovals: list
+    createdAt: datetime
+    lastTransitionAt: datetime
+    escalationLevel: integer
+
+Entity LocaleVariant
+    variantId: string
+    baseDocumentId: string
+    locale: string
+    documentId: string
+    translationStatus: string
+    translatorId: string
+    sourceVersionSynced: integer
+    lastSyncedAt: datetime
+    needsUpdate: boolean
+    completionPercentage: float
+
+Entity MediaAsset
+    assetId: string
+    originalFilename: string
+    mimeType: string
+    fileSize: integer
+    width: integer
+    height: integer
+    checksum: string
+    transformations: list
+    cdnUrl: string
+    altText: dict
+    uploadedBy: string
+    uploadedAt: datetime
+    exifData: dict
+
+Entity SEOProfile
+    documentId: string
+    metaTitle: string
+    metaDescription: string
+    canonicalUrl: string
+    ogTags: dict
+    schemaMarkup: dict
+    focusKeywords: list
+    readabilityScore: float
+    keywordDensity: dict
+    internalLinks: list
+    lastAnalyzed: datetime
+
+Behavior AuthorContent
+    Input:
+        documentId: string
+        userId: string
+        content: string
+        changeDescription: string
+    Output:
+        newVersion: integer
+        versionId: string
+        conflictDetected: boolean
+    Action:
+        Retrieve current document and latest version
+        Check for concurrent edit conflicts via version comparison
+        If conflict, attempt automatic merge for non-overlapping changes
+        Create new content version with full content snapshot
+        Compute diff from parent version and store compressed
+        Generate content checksum for integrity verification
+        Update document metadata (last editor, version number)
+        Trigger autosave confirmation to all active editing sessions
+        Return new version number with conflict status
+
+Behavior TransitionWorkflow
+    Input:
+        instanceId: string
+        targetState: string
+        userId: string
+        comment: string
+    Output:
+        transitionResult: dict
+        newState: string
+        pendingActions: list
+    Action:
+        Validate user has required role for this transition
+        Verify target state is a valid transition from current state
+        Check all prerequisite conditions for target state
+        Apply state transition with timestamp and actor recording
+        If target state requires parallel approvals, create approval tasks
+        If target state is publish, trigger publication pipeline
+        Check escalation timer reset for new state
+        Notify assigned roles of state change
+        Return transition result with pending approval list
+
+Behavior ManageLocalization
+    Input:
+        baseDocumentId: string
+        targetLocale: string
+        operation: string
+        payload: dict
+    Output:
+        localizationResult: dict
+        syncStatus: dict
+    Action:
+        Retrieve base document and all locale variants
+        If creating new locale variant, clone structure from base
+        If syncing, compare source version with locale synced version
+        Generate change diff for translator review
+        Update translation status based on sync state
+        Track completion percentage per locale variant
+        If source updated mid-translation, flag needs-update
+        Return localization result with synchronization details
+
+Behavior AnalyzeSEO
+    Input:
+        documentId: string
+        content: string
+        targetKeywords: list
+    Output:
+        seoScore: float
+        recommendations: list
+        metadata: dict
+    Action:
+        Extract and validate meta title (length, keyword inclusion)
+        Analyze meta description quality and length
+        Calculate keyword density and distribution across content
+        Evaluate readability score using Flesch-Kincaid or equivalent
+        Check heading structure (H1 uniqueness, H2-H6 hierarchy)
+        Validate internal and external link quality
+        Generate schema.org markup suggestions based on content type
+        Compute Open Graph tags from content metadata
+        Produce prioritized recommendations with estimated impact
+        Return SEO analysis with score and actionable recommendations
+
+Behavior TransformMedia
+    Input:
+        assetId: string
+        transformationType: string
+        parameters: dict
+    Output:
+        transformedAssetId: string
+        cdnUrl: string
+    Action:
+        Retrieve original asset from immutable storage
+        Validate transformation parameters against allowed operations
+        Check if identical transformation already exists (idempotency)
+        Apply transformation (resize, crop, format convert, watermark, compress)
+        Verify output asset integrity via checksum comparison
+        Upload transformed asset to CDN with cache headers
+        Record transformation in asset metadata for reproducibility
+        Return transformed asset reference with CDN URL
+
+Behavior GenerateSitemap
+    Input:
+        siteId: string
+        locale: string
+    Output:
+        sitemapUrl: string
+        entryCount: integer
+        lastModified: datetime
+    Action:
+        Retrieve all published content documents for site and locale
+        Sort entries by last modified date
+        Generate XML sitemap with proper namespace and schema
+        Include hreflang references for multilingual pages
+        Apply changefreq and priority based on content type and freshness
+        Split into multiple sitemap files if entry count exceeds 50000
+        Generate sitemap index referencing all split files
+        Upload to CDN and ping search engines
+        Return sitemap URL with entry statistics
+
+Condition
+    When content has been in draft state for more than 14 days
+    Then notify author with reminder, suggest scheduling or archiving,
+         escalate to editor if draft remains untouched for 30 days
+
+Condition
+    When workflow approval step exceeds 48 hours without action
+    Then escalate to backup approver or administrator, send reminder to
+         original assignee, update workflow instance escalation level
+
+Condition
+    When base document is published while locale translations are incomplete
+    Then publish available locales, flag incomplete locales with translation
+         pending indicator, queue incomplete locales for priority translation,
+         update locale variant sync status
+
+Condition
+    When media asset upload exceeds maximum allowed file size for its type
+    Then reject upload with descriptive error, suggest compression or
+         alternative format, offer automatic optimization option for images
+
+Condition
+    When SEO analysis detects duplicate meta descriptions across published pages
+    Then flag all affected documents, generate unique meta description suggestions,
+         alert content team, and block publication until resolved
+
+Event
+    On ContentPublished
+    Action: Update sitemap, invalidate CDN cache, trigger SEO analysis, notify
+            subscribers, update search index, generate social media preview
+
+Event
+    On VersionRollback
+    Action: Create new version from target rollback version, update document
+            current version reference, notify editors, validate internal links,
+            regenerate SEO metadata
+
+Event
+    On TranslationCompleted
+    Action: Update locale variant status to ready, trigger localization sync
+            check, schedule for publication if auto-publish enabled, notify
+            translation coordinator
+
+Event
+    On WorkflowStuck
+    Action: Identify blocking step, escalate to administrator, suggest override
+            options, log workflow health metric, trigger workflow health dashboard
+
+Event
+    On MediaAssetCorrupted
+    Action: Quarantine affected asset, attempt recovery from immutable original,
+            alert media operations team, check transformation pipeline health,
+            suspend similar transformations pending investigation
+
+Parallel
+    Content version creation and diff computation
+    Workflow state transitions across multiple documents
+    SEO analysis batch processing for published content
+    Media transformation pipeline for multiple assets concurrently
+    Sitemap generation and search engine notification
+    Translation synchronization across locale variants
+
+Optimize
+    Target: Content save latency
+    Priority: Version creation is write-path critical; diff computation can be
+              deferred; checksum verification must be synchronous; CDN
+              invalidation is asynchronous after save confirmation
+
+Optimize
+    Target: SEO analysis throughput
+    Priority: Published content analyzed first; scheduled content analyzed before
+              publication time; draft content analyzed on-demand only; batch
+              analysis during off-peak for full site audit
+
+Learn
+    Target: Content quality scoring for SEO recommendations
+    Goal: Predict search engine ranking improvement from implemented recommendations
+    Adapt
+        Based: Actual ranking changes after SEO recommendations implemented,
+               correlation between recommendation types and traffic improvements,
+               competitive analysis of similar content
+
+Learn
+    Target: Workflow bottleneck identification and resolution
+    Goal: Reduce average content time-to-publish by 30% through workflow optimization
+    Adapt
+        Based: Workflow step duration analytics, approval delay patterns,
+               content type complexity correlations, and team capacity modeling
+
+Learn
+    Target: Translation cost and quality optimization
+    Goal: Minimize translation cost while maintaining quality score above 95%
+    Adapt
+        Based: Translation quality scores by provider and language pair,
+               source content change frequency patterns, and machine translation
+               improvement tracking over time
+
+Security
+    Encrypt: Content in transit and at rest, version snapshots, translation
+             payloads, workflow state data, SEO credential storage
+    Protect: Content access controls, version integrity, workflow authorization,
+             media asset immutability, sitemap tampering prevention
+
+Security
+    Encrypt: Media transformation pipelines, CDN authentication tokens,
+             search engine API credentials, translation service credentials
+    Protect: Content injection prevention, XSS sanitization for rich content,
+             media asset provenance tracking, unauthorized publication prevention,
+             workflow privilege escalation detection
+
+Native TypeScript
+{
+interface ContentDocument {
+    documentId: string;
+    title: string;
+    slug: string;
+    contentType: string;
+    currentVersion: number;
+    authorId: string;
+    lastEditorId: string;
+    status: 'draft' | 'review' | 'approved' | 'published' | 'archived';
+    locale: string;
+    baseDocumentId: string;
+    createdAt: Date;
+    publishedAt: Date | null;
+    scheduledAt: Date | null;
+    seoMetadata: SEOMetadata;
+}
+
+interface ContentVersion {
+    versionId: string;
+    documentId: string;
+    versionNumber: number;
+    content: string;
+    editorId: string;
+    changeDescription: string;
+    createdAt: Date;
+    parentVersionId: string | null;
+    checksum: string;
+}
+
+interface WorkflowState {
+    stateName: string;
+    allowedRoles: string[];
+    transitions: WorkflowTransition[];
+    timeLimit?: number;
+    escalationTarget?: string;
+}
+
+interface WorkflowTransition {
+    targetState: string;
+    requiredRole: string;
+    conditions?: ((doc: ContentDocument) => boolean)[];
+}
+
+class ContentVersionManager {
+    private versions: Map<string, ContentVersion[]> = new Map();
+
+    createVersion(
+        documentId: string,
+        content: string,
+        editorId: string,
+        description: string
+    ): ContentVersion {
+        const docVersions = this.versions.get(documentId) || [];
+        const versionNumber = docVersions.length + 1;
+        const parentVersion = docVersions[docVersions.length - 1];
+
+        const version: ContentVersion = {
+            versionId: `${documentId}_v${versionNumber}`,
+            documentId,
+            versionNumber,
+            content,
+            editorId,
+            changeDescription: description,
+            createdAt: new Date(),
+            parentVersionId: parentVersion?.versionId || null,
+            checksum: this.computeChecksum(content),
+        };
+
+        docVersions.push(version);
+        this.versions.set(documentId, docVersions);
+        return version;
+    }
+
+    rollback(documentId: string, targetVersion: number): ContentVersion {
+        const docVersions = this.versions.get(documentId) || [];
+        const target = docVersions.find(v => v.versionNumber === targetVersion);
+        if (!target) throw new Error(`Version ${targetVersion} not found`);
+
+        return this.createVersion(
+            documentId,
+            target.content,
+            target.editorId,
+            `Rollback to version ${targetVersion}`
+        );
+    }
+
+    private computeChecksum(content: string): string {
+        let hash = 0;
+        for (let i = 0; i < content.length; i++) {
+            const char = content.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash |= 0;
+        }
+        return hash.toString(16);
+    }
+}
+
+class SEOAnalyzer {
+    analyzeMetaTitle(title: string, keywords: string[]): { score: number; issues: string[] } {
+        const issues: string[] = [];
+        let score = 100;
+        if (title.length < 30) { issues.push('Title too short'); score -= 20; }
+        if (title.length > 60) { issues.push('Title too long'); score -= 15; }
+        const hasKeyword = keywords.some(kw => title.toLowerCase().includes(kw.toLowerCase()));
+        if (!hasKeyword) { issues.push('No target keyword in title'); score -= 25; }
+        return { score: Math.max(0, score), issues };
+    }
+}
+}

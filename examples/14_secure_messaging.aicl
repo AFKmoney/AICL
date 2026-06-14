@@ -1,0 +1,400 @@
+# AICL Example: End-to-End Secure Messaging
+# Comprehensive E2EE messaging platform with group encryption, X3DH key exchange,
+# double ratchet algorithm, forward secrecy, and deniable authentication
+
+Goal Build an end-to-end encrypted messaging platform providing strong forward secrecy through double ratchet key agreement, group messaging with sender keys, multi-device synchronization, deniable authentication, and metadata protection
+
+Constraint All message content must be encrypted end-to-end with no server access to plaintext under any circumstance
+Constraint Forward secrecy must be maintained with new key agreement for every message
+Constraint Group messages must maintain same security guarantees as 1:1 conversations
+Constraint Key exchange must complete within 500ms on mobile devices
+Constraint Metadata must be minimized with sender anonymity through sealed sender design
+
+Risk Device compromise exposes current session keys and decrypts future messages
+Recovery Implement remote wipe capability, force session reset from authenticated backup device, and re-key all active conversations with new ratchet initialization
+Risk Man-in-middle attack during initial key exchange intercepts communications
+Recovery Implement safety number verification with QR code comparison, monitor identity key changes with explicit user confirmation, and support out-of-band key verification channels
+Risk Group messaging key scaling becomes unmanageable for large groups
+Recovery Implement sender key distribution with periodic re-keying, limit group size to 1000 members with sub-group partitioning, and use tree-based group key agreement for large groups
+Risk Server metadata leak reveals communication patterns and relationships
+Recovery Implement sealed sender with server-visible delivery tokens only, use constant-rate cover traffic, and deploy mix network routing for high-security mode
+Risk Key material persistence on device after session enables retroactive decryption
+Recovery Implement secure key deletion with verified memory zeroization, use hardware-backed key storage with automatic purge, and enforce key lifetime limits with automatic destruction
+
+Layer SecureMessaging
+    SubLayer: KeyExchange
+        # X3DH key agreement and identity key management
+    SubLayer: DoubleRatchet
+        # Symmetric key ratchet and Diffie-Hellman ratchet
+    SubLayer: GroupEncryption
+        # Sender keys, group ratchet, and membership management
+    SubLayer: MessageProcessing
+        # Encryption, decryption, ordering, and delivery
+    SubLayer: MetadataProtection
+        # Sealed sender, cover traffic, and anonymous routing
+
+Validation Message authentication must verify sender identity through MAC before decryption
+Validation Each message must use unique message key with no key reuse across sessions
+Validation Safety number must remain consistent between conversation participants
+Validation Group membership changes must trigger re-key with new sender key distribution
+Validation Deleted messages must be cryptographically erased from all device storage
+Validation Out-of-order messages must be decryptable up to maximum skip of 1000 messages
+Validation Identity key changes must require explicit user confirmation before continuing
+
+Entity IdentityKeyPair
+    identity_id: string
+    public_key: bytes
+    signed_prekey: bytes
+    signed_prekey_signature: bytes
+    one_time_prekeys: list
+    prekey_last_rotated: datetime
+    device_id: string
+    user_id: string
+    is_verified: boolean
+    safety_number: string
+
+Entity SessionState
+    session_id: string
+    remote_identity: bytes
+    root_key: bytes
+    chain_key_send: bytes
+    chain_key_recv: bytes
+    ratchet_key_send: bytes
+    ratchet_key_recv: bytes
+    send_count: integer
+    recv_count: integer
+    previous_sending_chain: bytes
+    skipped_keys: dict
+    created_at: datetime
+    last_used: datetime
+
+Entity GroupSession
+    group_id: string
+    group_name: string
+    sender_key: bytes
+    chain_key: bytes
+    iteration: integer
+    members: list
+    distribution_id: string
+    created_at: datetime
+    last_rekey: datetime
+    membership_version: integer
+
+Entity SecureMessage
+    message_id: string
+    sender_device: string
+    recipient: string
+    ciphertext: bytes
+    message_type: string
+    ratchet_header: bytes
+    timestamp: datetime
+    delivery_status: string
+    is_sealed_sender: boolean
+    group_id: string
+
+Entity DeviceRecord
+    device_id: string
+    user_id: string
+    identity_key: bytes
+    signed_prekey: bytes
+    registration_date: datetime
+    last_active: datetime
+    is_primary: boolean
+    capabilities: list
+    push_token: string
+
+Entity PreKeyBundle
+    user_id: string
+    device_id: string
+    identity_key: bytes
+    signed_prekey: bytes
+    prekey_signature: bytes
+    one_time_prekey: bytes
+    bundle_timestamp: datetime
+    bundle_signature: bytes
+
+Entity SafetyNumber
+    local_identity: bytes
+    remote_identity: bytes
+    fingerprint: string
+    qr_code_data: bytes
+    verified: boolean
+    verification_date: datetime
+    verification_method: string
+
+Behavior InitializeSession
+    Input:
+        local_identity: IdentityKeyPair
+        remote_bundle: PreKeyBundle
+    Output:
+        session: SessionState
+        safety_number: SafetyNumber
+    Action:
+        Execute X3DH key agreement with remote prekey bundle
+        Derive initial root key and chain keys from shared secret
+        Initialize double ratchet with DH ratchet step
+        Compute safety number from both identity keys
+        Store session state with forward secrecy guarantees
+        Emit session_created event
+        Return session with safety number for verification
+
+Behavior EncryptMessage
+    Input:
+        session: SessionState
+        plaintext: bytes
+        message_type: string
+    Output:
+        message: SecureMessage
+        updated_session: SessionState
+    Action:
+        Derive message key from current sending chain key
+        Advance sending chain key using HMAC-based derivation
+        Encrypt plaintext using AES-256-GCM with message key
+        Construct message header with current ratchet public key
+        Apply symmetric ratchet step for forward secrecy
+        Include authentication data from session context
+        Return encrypted message with updated session state
+
+Behavior DecryptMessage
+    Input:
+        session: SessionState
+        message: SecureMessage
+    Output:
+        plaintext: bytes
+        updated_session: SessionState
+    Action:
+        Parse message header for ratchet key and chain information
+        Perform DH ratchet step if new ratchet key detected
+        Store skipped message keys for out-of-order handling
+        Derive message key from receiving chain
+        Verify message authentication code before decryption
+        Decrypt ciphertext using AES-256-GCM with derived key
+        Advance receiving chain key
+        Return plaintext with updated session state
+
+Behavior CreateGroup
+    Input:
+        creator: IdentityKeyPair
+        member_identities: list
+        group_name: string
+    Output:
+        group_session: GroupSession
+        distribution_messages: list
+    Action:
+        Generate sender key for group creator
+        Create group session with initial member list
+        Encrypt sender key for each member individually
+        Distribute encrypted sender keys via 1:1 sessions
+        Initialize group chain key and iteration counter
+        Record group metadata and membership version
+        Return group session with distribution messages
+
+Behavior RekeyGroup
+    Input:
+        group_session: GroupSession
+        change_type: string
+        affected_members: list
+    Output:
+        new_group_session: GroupSession
+        distribution_messages: list
+    Action:
+        Generate new sender key for group
+        Increment membership version counter
+        For member addition, encrypt new sender key for all members
+        For member removal, distribute new sender key excluding removed member
+        Update group session state with new key material
+        Archive previous sender key for message history access
+        Emit group_rekeyed event with version update
+
+Behavior SendSealedSender
+    Input:
+        session: SessionState
+        plaintext: bytes
+        server_token: bytes
+    Output:
+        sealed_message: SecureMessage
+    Action:
+        Encrypt message with double ratchet as normal
+        Wrap encrypted message with server delivery token
+        Encrypt sender identity within sealed envelope
+        Remove all plaintext metadata from message envelope
+        Use constant-size message padding to hide length
+        Route through mix network in high-security mode
+        Return sealed message with minimal server-visible data
+
+Behavior VerifySafetyNumber
+    Input:
+        local_identity: IdentityKeyPair
+        remote_identity: bytes
+        verification_method: string
+    Output:
+        safety_number: SafetyNumber
+        is_match: boolean
+    Action:
+        Compute safety number from both identity public keys
+        Format as 60-digit numeric string or QR code
+        Compare with previously stored safety number
+        If new identity, prompt user for explicit verification
+        Record verification method and timestamp
+        Mark safety number as verified upon confirmation
+        Return safety number with match status
+
+Condition:
+    When identity key change detected for existing contact
+    Then require explicit user confirmation before processing messages and display safety number change warning
+
+Condition:
+    When skipped message keys exceed 1000 entries in session
+    Then discard oldest skipped keys and emit message_gap_warning for potentially lost messages
+
+Condition:
+    When group membership exceeds 500 members
+    Then recommend sub-group partitioning and switch to tree-based group key agreement protocol
+
+Condition:
+    When signed prekey age exceeds 7 days without rotation
+    Then automatically rotate signed prekey and upload new bundle to server
+
+Condition:
+    When device has been offline for more than 30 days
+    Then require fresh key exchange and invalidate cached session state
+
+Event:
+    On session_created
+    Action: Store session state, compute safety number, emit session notification, log key exchange completion
+
+Event:
+    On message_decrypted
+    Action: Update session state, advance ratchet, store plaintext locally in encrypted database, emit delivery receipt
+
+Event:
+    On group_rekeyed
+    Action: Distribute new sender keys, update membership version, archive old keys, notify members of key rotation
+
+Event:
+    On identity_key_changed
+    Action: Alert user to key change, pause automatic message processing, require verification, log security event
+
+Event:
+    On sealed_sender_received
+    Action: Decrypt sender identity, verify delivery token, process inner message, strip metadata, emit receipt without sender disclosure
+
+Parallel:
+    Message encryption and decryption across multiple active sessions
+    Group sender key distribution to new and existing members
+    Prekey bundle upload and rotation management
+    Safety number computation and verification cache updates
+
+Optimize: Message encryption latency on mobile devices
+    Priority: Achieve sub-50ms encryption time through hardware-accelerated AES and pre-computed ratchet steps
+
+Optimize: Group message distribution efficiency
+    Priority: Minimize bandwidth for group messages using fan-out optimization and compressed sender key updates
+
+Optimize: Key exchange completion time
+    Priority: Reduce X3DH key exchange to sub-200ms through prekey pre-fetching and session pre-computation
+
+Learn: Optimal prekey pool sizing
+    Goal: Maintain sufficient one-time prekeys to prevent key exhaustion while minimizing storage
+    Adapt: Prekey generation batch size and upload frequency
+    Based: Session initiation rate, device popularity patterns, and prekey consumption trends
+
+Learn: Group rekey timing optimization
+    Goal: Balance security of frequent rekeying against performance cost of key distribution
+    Adapt: Rekey interval and trigger sensitivity for membership changes
+    Based: Group activity patterns, membership change frequency, and message volume correlation with security requirements
+
+Learn: Cover traffic rate calibration
+    Goal: Generate sufficient cover traffic to hide real communication patterns without excessive bandwidth
+    Adapt: Cover message generation rate and timing distribution
+    Based: Real message frequency analysis, traffic analysis resistance metrics, and network overhead constraints
+
+Security:
+    Encrypt: All message content using AES-256-GCM with unique message keys derived from double ratchet
+    Encrypt: Sender key distribution messages using 1:1 session encryption with forward secrecy
+    Protect: Session keys against memory dump using secure enclave storage and memory locking
+    Protect: Metadata against traffic analysis using sealed sender, cover traffic, and constant-rate padding
+    Protect: Group membership against server enumeration using encrypted member lists with server-blind access control
+    Protect: Key material against device extraction using hardware-backed keystore with biometric access requirements
+
+Native: rust
+    {
+    use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
+    use aes_gcm::aead::Aead;
+    use hkdf::Hkdf;
+    use sha2::Sha256;
+    use x25519_dalek::{EphemeralSecret, PublicKey, SharedSecret};
+
+    fn x3dh_key_agreement(
+        my_identity: &PrivateKey,
+        my_ephemeral: &EphemeralSecret,
+        their_identity: &PublicKey,
+        their_signed_prekey: &PublicKey,
+        their_one_time_prekey: Option<&PublicKey>,
+    ) -> ([u8; 32], [u8; 32]) {
+        let dh1 = my_identity.diffie_hellman(their_identity);
+        let dh2 = my_identity.diffie_hellman(their_signed_prekey);
+        let dh3 = my_ephemeral.diffie_hellman(their_signed_prekey);
+
+        let mut shared_secret = Vec::new();
+        shared_secret.extend_from_bytes(dh1.as_bytes());
+        shared_secret.extend_from_bytes(dh2.as_bytes());
+        shared_secret.extend_from_bytes(dh3.as_bytes());
+
+        if let Some(otpk) = their_one_time_prekey {
+            let dh4 = my_ephemeral.diffie_hellman(otpk);
+            shared_secret.extend_from_bytes(dh4.as_bytes());
+        }
+
+        let hkdf = Hkdf::<Sha256>::new(None, &shared_secret);
+        let mut root_key = [0u8; 32];
+        let mut chain_key = [0u8; 32];
+        hkdf.expand(b"root", &mut root_key).unwrap();
+        hkdf.expand(b"chain", &mut chain_key).unwrap();
+
+        (root_key, chain_key)
+    }
+
+    fn ratchet_step(
+        root_key: &[u8; 32],
+        dh_output: &[u8; 32],
+    ) -> ([u8; 32], [u8; 32]) {
+        let hkdf = Hkdf::<Sha256>::new(Some(root_key), dh_output);
+        let mut new_root = [0u8; 32];
+        let mut new_chain = [0u8; 32];
+        hkdf.expand(b"root", &mut new_root).unwrap();
+        hkdf.expand(b"chain", &mut new_chain).unwrap();
+        (new_root, new_chain)
+    }
+
+    fn encrypt_message(
+        chain_key: &[u8; 32],
+        plaintext: &[u8],
+    ) -> (Vec<u8>, [u8; 32]) {
+        let hkdf = Hkdf::<Sha256>::new(None, chain_key);
+        let mut message_key = [0u8; 32];
+        let mut next_chain = [0u8; 32];
+        hkdf.expand(b"msg", &mut message_key).unwrap();
+        hkdf.expand(b"next", &mut next_chain).unwrap();
+
+        let cipher = Aes256Gcm::new_from_slice(&message_key).unwrap();
+        let nonce = Nonce::from_slice(b"unique nonce"); // Simplified
+        let ciphertext = cipher.encrypt(nonce, plaintext).unwrap();
+
+        (ciphertext, next_chain)
+    }
+
+    fn compute_safety_number(identity_a: &[u8], identity_b: &[u8]) -> String {
+        use sha2::Digest;
+        let mut hasher = sha2::Sha512::new();
+        let (first, second) = if identity_a < identity_b {
+            (identity_a, identity_b)
+        } else {
+            (identity_b, identity_a)
+        };
+        hasher.update(first);
+        hasher.update(second);
+        let hash = hasher.finalize();
+        format!("{:060}", u64::from_be_bytes(hash[..8].try_into().unwrap()) % 1000000000000000000)
+    }
+    }

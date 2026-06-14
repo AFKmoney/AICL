@@ -1,0 +1,462 @@
+# AICL Example: Data Lakehouse
+# Production data lakehouse implementing batch and streaming ingestion, schema evolution,
+# ACID transactions, time travel queries, and query optimization with unified batch and streaming.
+
+Goal Build a production data lakehouse that unifies batch and streaming data processing with ACID transaction guarantees, schema evolution support, time travel capabilities, and optimized query performance for both analytical and machine learning workloads
+
+Constraint ACID transactions must guarantee serializable isolation for all write operations
+Constraint Schema evolution must be backward compatible; breaking changes require explicit migration
+Constraint Time travel queries must support lookback of at least 30 days with configurable retention
+Constraint Streaming ingestion must support exactly-once semantics with sub-second latency
+Constraint Query performance must meet SLA of 30-second p99 for standard analytical queries on terabyte-scale data
+
+Risk Schema evolution breaking downstream consumers
+Recovery Enforce backward compatibility checks on all schema changes; maintain schema registry with versioned evolution rules; deploy canary migration with automated rollback on consumer failure
+
+Risk Concurrent write conflicts causing data corruption
+Recovery Implement optimistic concurrency control with conflict detection; use multi-version concurrency control for snapshot isolation; deploy conflict resolution with last-writer-wins and audit trail
+
+Risk Time travel storage explosion from excessive versioning
+Recovery Implement automatic compaction with configurable retention policies; use delta encoding for efficient version storage; archive old versions to cold storage after retention period
+
+Risk Streaming ingestion data loss during broker failure
+Recovery Implement write-ahead log with replication factor of 3; deploy idempotent producers with exactly-once semantics; maintain replay capability from persistent offset storage
+
+Risk Query performance degradation from unoptimized table layouts
+Recovery Implement automatic partition pruning and Z-ordering; schedule regular statistics collection and layout optimization; deploy query plan caching with adaptive re-planning
+
+Risk Data lake security breach exposing sensitive records
+Recovery Implement column-level encryption for sensitive fields; deploy fine-grained access control with row-level security; maintain audit trail for all data access operations
+
+Layer StorageEngine
+    SubLayer: TransactionLog
+    SubLayer: FileFormat
+    SubLayer: CompactionManager
+Layer Ingestion
+    SubLayer: BatchIngestion
+    SubLayer: StreamingIngestion
+    SubLayer: SchemaValidation
+Layer QueryEngine
+    SubLayer: QueryPlanner
+    SubLayer: QueryOptimizer
+    SubLayer: ExecutionEngine
+Layer Governance
+    SubLayer: SchemaRegistry
+    SubLayer: AccessControl
+    SubLayer: AuditLogger
+
+Validation ACID transaction isolation must pass serializable isolation test suite
+Validation Schema backward compatibility must be verified for all evolution operations
+Validation Time travel query must return correct results for any timestamp within retention window
+Validation Streaming ingestion must achieve exactly-once delivery under failure injection testing
+Validation Query p99 latency must remain below 30 seconds for standard analytical workloads
+Validation Compaction must reduce storage overhead by at least 40% without data loss
+Validation Access control must enforce row-level security with zero bypass incidents
+Validation Data integrity checksums must validate on every read operation
+
+# Level 2 - Entities
+
+Entity TableMetadata
+    tableId: string
+    tableName: string
+    schemaVersion: integer
+    currentSchema: dict
+    partitionColumns: list
+    sortColumns: list
+    properties: dict
+    createdAt: datetime
+    lastModifiedAt: datetime
+    retentionDays: integer
+
+Entity TransactionRecord
+    transactionId: string
+    tableId: string
+    operationType: string
+    commitTimestamp: datetime
+    fileAdditions: list
+    fileRemovals: list
+    schemaChanges: dict
+    isolationLevel: string
+    rowCount: integer
+    byteSize: integer
+
+Entity SchemaVersion
+    versionId: integer
+    tableId: string
+    schema: dict
+    evolutionType: string
+    compatibilityMode: string
+    migrationScript: string
+    approvedBy: string
+    createdAt: datetime
+    parentVersionId: integer
+
+Entity IngestionJob
+    jobId: string
+    sourceUri: string
+    targetTable: string
+    ingestionMode: string
+    format: string
+    schemaOverride: dict
+    deduplicationConfig: dict
+    status: string
+    recordsProcessed: integer
+    recordsRejected: integer
+    startedAt: datetime
+    completedAt: datetime
+
+Entity QueryPlan
+    planId: string
+    queryText: string
+    logicalPlan: dict
+    physicalPlan: dict
+    estimatedCost: float
+    partitionPruning: list
+    statisticsUsed: dict
+    optimizationRules: list
+    executionTimeMs: float
+    rowsScanned: integer
+
+Entity DataFile
+    fileId: string
+    filePath: string
+    fileSizeBytes: integer
+    rowCount: integer
+    partitionValues: dict
+    minValues: dict
+    maxValues: dict
+    nullCounts: dict
+    createdAt: datetime
+    deletionTimestamp: datetime
+    checksumHash: string
+
+# Level 3 - Behaviors
+
+Behavior IngestBatchData
+    Input:
+        sourceConfig: dict
+        targetTable: string
+        ingestionConfig: dict
+    Output:
+        ingestionJob: IngestionJob
+        transactionRecord: TransactionRecord
+    Action:
+        Validate source data format and schema compatibility
+        Apply schema evolution rules if differences detected
+        Partition data according to table partition configuration
+        Write data files in optimized columnar format
+        Compute statistics and checksums for new files
+        Commit transaction atomically to transaction log
+        Trigger statistics collection for updated partitions
+
+Behavior IngestStreamData
+    Input:
+        streamConfig: dict
+        targetTable: string
+        processingConfig: dict
+    Output:
+        microBatchRecords: TransactionRecord
+        streamMetrics: dict
+    Action:
+        Read records from streaming source with offset tracking
+        Validate schema and apply transformations
+        Buffer records into micro-batches with commit interval
+        Write micro-batch to data files with exactly-once guarantee
+        Commit micro-batch transaction to log
+        Update stream processing checkpoint
+        Emit streaming metrics for monitoring
+
+Behavior EvolveSchema
+    Input:
+        tableId: string
+        newSchema: dict
+        evolutionConfig: dict
+    Output:
+        newSchemaVersion: SchemaVersion
+        migrationReport: dict
+    Action:
+        Compare new schema against current version
+        Classify changes as additive or breaking
+        Validate backward compatibility constraints
+        If breaking changes, require explicit migration script
+        Register new schema version in schema registry
+        Update table metadata with new schema version
+        Notify downstream consumers of schema change
+
+Behavior ExecuteTimeTravelQuery
+    Input:
+        queryText: string
+        targetTimestamp: datetime
+        targetTable: string
+    Output:
+        queryResult: dict
+        queryPlan: QueryPlan
+    Action:
+        Resolve table state at target timestamp from transaction log
+        Identify data files active at target timestamp
+        Construct query plan with temporal file selection
+        Apply partition pruning based on query predicates
+        Execute query against historical file set
+        Validate results against checksums
+        Return results with query plan and execution metrics
+
+Behavior CompactTable
+    Input:
+        tableId: string
+        compactionConfig: dict
+    Output:
+        compactionReport: dict
+        filesRemoved: integer
+        filesAdded: integer
+    Action:
+        Identify small files eligible for compaction
+        Group files by partition for compaction
+        Merge small files into optimized larger files
+        Maintain Z-ordering on configured sort columns
+        Compute new statistics and checksums
+        Commit compaction transaction atomically
+        Archive replaced files for retention period
+
+Behavior OptimizeQuery
+    Input:
+        queryText: string
+        queryContext: dict
+    Output:
+        optimizedPlan: QueryPlan
+        optimizationReport: dict
+    Action:
+        Parse query into logical plan
+        Apply predicate pushdown optimizations
+        Perform partition pruning using table statistics
+        Optimize join ordering using cost-based estimation
+        Apply data skipping using min/max statistics
+        Generate physical execution plan
+        Return optimized plan with cost estimates
+
+# Level 4 - Conditions
+
+Condition: SchemaBreakingChange
+    When schema evolution contains column removals or type changes without migration
+    Then block schema registration; require migration script; notify table owner; enforce backward compatibility review
+
+Condition: TransactionConflict
+    When concurrent transactions modify the same data files
+    Then detect conflict using optimistic concurrency control; abort conflicting transaction; retry with exponential backoff; log conflict for analysis
+
+Condition: StorageQuotaExceeded
+    When table storage exceeds configured quota threshold
+    Then trigger emergency compaction; enforce retention policy with early deletion; alert data governance team; block new writes until quota restored
+
+Condition: StreamingLagExceeded
+    When streaming ingestion lag exceeds 60 seconds
+    Then increase micro-batch commit frequency; scale streaming consumers; alert operations team; activate backpressure on source
+
+Condition: QueryTimeoutRisk
+    When estimated query cost exceeds timeout threshold
+    Then suggest query optimization hints; apply result set limitation; recommend partition pruning; log expensive query for review
+
+# Level 5 - Events
+
+Event: TransactionCommitted
+    On successful ACID transaction commit to log
+    Action: update table metadata; invalidate query cache; notify streaming consumers; emit audit event
+
+Event: SchemaEvolved
+    On schema version change registered and approved
+    Action: notify all table consumers; update downstream pipeline configurations; publish schema change notice; trigger compatibility validation
+
+Event: CompactionCompleted
+    On table compaction operation finished
+    Action: update file statistics; refresh query optimization metadata; archive old files; emit storage savings metrics
+
+Event: StreamingCheckpoint
+    On streaming ingestion checkpoint saved
+    Action: verify exactly-once delivery; update lag metrics; commit pending micro-batch; log checkpoint offset
+
+Event: QuerySLAViolation
+    On query execution exceeding SLA threshold
+    Action: capture query plan for analysis; alert performance team; suggest optimization; update query statistics baseline
+
+Event: AccessViolationAttempt
+    On unauthorized data access attempt detected
+    Action: block access immediately; log full audit trail; alert security team; update access control policies
+
+# Level 6 - Concurrency
+
+Parallel:
+    Batch and streaming ingestion to different tables simultaneously
+    Multiple query executions with resource isolation
+    Compaction of different partitions concurrently
+    Schema validation alongside data writes
+    Statistics collection during query execution
+    Transaction log appends with concurrent reads
+
+# Level 7 - Optimization
+
+Optimize: Query execution performance
+    Priority: Maximize partition pruning effectiveness; maintain Z-ordering on high-cardinality filter columns; collect statistics on all query-relevant columns
+
+Optimize: Storage efficiency
+    Priority: Aggressive compaction of small files; columnar encoding with dictionary compression; delta encoding for versioned data; tiered storage with automatic archival
+
+Optimize: Ingestion throughput
+    Priority: Batch small writes into larger commits; parallelize file writes across partitions; minimize transaction log contention with append-only design
+
+# Level 8 - Learning
+
+Learn: Optimal partitioning strategy per table
+    Goal: Minimize query scan volume for common query patterns
+    Adapt: Partition column selection and granularity
+    Based: Historical query patterns, partition pruning effectiveness, and scan metrics
+
+Learn: Compaction scheduling optimization
+    Goal: Minimize compaction overhead while maintaining query performance
+    Adapt: Compaction trigger thresholds and schedule windows
+    Based: File size distribution trends, query performance correlation, and resource utilization patterns
+
+Learn: Query plan optimization parameters
+    Goal: Select optimal join order and execution strategy for complex queries
+    Adapt: Cost model parameters and optimization rule priorities
+    Based: Historical query execution times, plan choices, and actual vs estimated costs
+
+Learn: Schema evolution compatibility patterns
+    Goal: Predict potential downstream impact of schema changes before deployment
+    Adapt: Compatibility check rules and migration recommendation logic
+    Based: Historical schema change incidents, consumer failure patterns, and migration success rates
+
+# Level 9 - Security
+
+Security:
+    Encrypt: All data files at rest using AES-256 with column-level encryption for sensitive fields
+    Encrypt: Transaction log entries with tamper-evident cryptographic hashing
+    Protect: Schema registry with RBAC requiring approval for production schema changes
+    Protect: Data access with fine-grained row-level and column-level security policies
+    Encrypt: Streaming ingestion channels with TLS 1.3 and SASL authentication
+    Protect: Query execution with query-level audit logging and data masking for sensitive results
+    Protect: Time travel data with access control policies scoped to temporal permissions
+
+# Level 10 - Native
+
+Native: python
+{
+import hashlib
+import json
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass, field
+
+@dataclass
+class SchemaRegistry:
+    schemas: Dict[str, List[Dict]] = field(default_factory=dict)
+    compatibility_mode: str = "BACKWARD"
+
+    def register_schema(self, table_id: str, new_schema: Dict) -> Tuple[Dict, bool]:
+        versions = self.schemas.get(table_id, [])
+        current = versions[-1] if versions else None
+
+        if current:
+            compatible, issues = self._check_compatibility(current["schema"], new_schema)
+            if not compatible:
+                return {
+                    "status": "rejected",
+                    "issues": issues,
+                    "version": len(versions)
+                }, False
+
+        new_version = {
+            "version": len(versions) + 1,
+            "schema": new_schema,
+            "created_at": datetime.utcnow().isoformat(),
+            "parent_version": len(versions)
+        }
+        versions.append(new_version)
+        self.schemas[table_id] = versions
+        return new_version, True
+
+    def _check_compatibility(self, current: Dict, new: Dict) -> Tuple[bool, List[str]]:
+        issues = []
+        current_fields = {f["name"]: f for f in current.get("fields", [])}
+        new_fields = {f["name"]: f for f in new.get("fields", [])}
+
+        for name, field_def in current_fields.items():
+            if name not in new_fields:
+                if not field_def.get("nullable", True):
+                    issues.append(f"Non-nullable column '{name}' removed without default")
+            elif new_fields[name]["type"] != field_def["type"]:
+                issues.append(f"Column '{name}' type changed from {field_def['type']} to {new_fields[name]['type']}")
+
+        compatible = len(issues) == 0
+        return compatible, issues
+
+@dataclass
+class TransactionLog:
+    entries: List[Dict] = field(default_factory=list)
+
+    def commit(self, table_id: str, operation: str, files_added: List[str],
+               files_removed: List[str], metadata: Dict = None) -> Dict:
+        txn = {
+            "transaction_id": hashlib.sha256(
+                f"{table_id}{operation}{len(self.entries)}".encode()
+            ).hexdigest()[:16],
+            "table_id": table_id,
+            "operation": operation,
+            "timestamp": datetime.utcnow().isoformat(),
+            "files_added": files_added,
+            "files_removed": files_removed,
+            "metadata": metadata or {}
+        }
+        self.entries.append(txn)
+        return txn
+
+    def get_table_state(self, table_id: str, as_of: Optional[datetime] = None) -> Dict:
+        active_files = set()
+        for entry in self.entries:
+            if entry["table_id"] != table_id:
+                continue
+            if as_of and datetime.fromisoformat(entry["timestamp"]) > as_of:
+                break
+            for f in entry["files_removed"]:
+                active_files.discard(f)
+            for f in entry["files_added"]:
+                active_files.add(f)
+        return {"table_id": table_id, "active_files": list(active_files)}
+
+@dataclass
+class CompactionManager:
+    target_file_size_mb: int = 256
+    small_file_threshold_mb: int = 64
+
+    def find_compaction_candidates(self, files: List[Dict]) -> Dict[str, List[List[Dict]]]:
+        by_partition = {}
+        for f in files:
+            key = json.dumps(f.get("partition_values", {}), sort_keys=True)
+            by_partition.setdefault(key, []).append(f)
+
+        candidates = {}
+        for partition_key, partition_files in by_partition.items():
+            groups = []
+            current_group = []
+            current_size = 0
+
+            for f in sorted(partition_files, key=lambda x: x.get("file_size_bytes", 0)):
+                size_mb = f.get("file_size_bytes", 0) / (1024 * 1024)
+                if size_mb < self.small_file_threshold_mb:
+                    current_group.append(f)
+                    current_size += size_mb
+                    if current_size >= self.target_file_size_mb:
+                        groups.append(current_group)
+                        current_group = []
+                        current_size = 0
+                else:
+                    if current_group:
+                        groups.append(current_group)
+                        current_group = []
+                        current_size = 0
+
+            if current_group:
+                groups.append(current_group)
+            if groups:
+                candidates[partition_key] = groups
+
+        return candidates
+}

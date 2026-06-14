@@ -1,0 +1,452 @@
+# AICL Example: Game Economy Engine
+# Currency systems, trading, auction house, crafting, inflation control, and sink/faucet balance management
+
+Goal
+    Design a robust game economy engine that manages multiple currency types, facilitates
+    player-to-player trading and auction house operations, governs crafting systems with
+    resource conversion, and actively monitors and controls inflation through intelligent
+    sink/faucet balance mechanisms to maintain long-term economic stability.
+
+Constraint
+    Total currency supply must be tracked in real-time across all currency types
+    Auction house must process at least 10000 transactions per second
+    Trading must be atomic: both sides complete or neither does
+    Crafting output must be deterministic given identical inputs and skill levels
+    Inflation rate must not exceed 2% per game month under normal conditions
+    Sink/faucet ratio must be maintained between 0.95 and 1.05
+
+Risk
+    Hyperinflation from unchecked currency faucets (drops, quests, vendoring)
+Recovery
+    Activate dynamic faucet throttling: reduce drop rates and quest rewards by 15%
+    increments; increase vendor sell prices; introduce limited-time luxury sinks;
+    alert economy team when inflation exceeds monthly threshold
+
+Risk
+    Market manipulation through buyout cornering of critical resources
+Recovery
+    Detect cornering via concentration analysis (single player owning >40% of listings);
+    impose listing caps per player; unlock reserve stockpiles to flood market;
+    flag and suspend suspicious accounts for review
+
+Risk
+    Duplication exploit creates phantom currency or items
+Recovery
+    Implement server-side authoritative transaction ledger with checksum verification;
+    run periodic integrity audits comparing item count against ledger; on detection,
+    remove duplicated items, rollback offending accounts, and patch exploit vector
+
+Risk
+    Auction house latency spike during high-volume trading events
+Recovery
+    Pre-scale auction house microservices before scheduled events; enable request
+    batching and deferred processing for non-critical operations; implement circuit
+    breaker with graceful degradation showing stale prices during overload
+
+Risk
+    Crafting economy collapse from raw material oversupply
+Recovery
+    Adjust material drop rates dynamically based on market supply levels; introduce
+    seasonal crafting recipes that consume excess materials; enable material
+    conversion to alternative currencies at diminishing rates
+
+Risk
+    Cross-region economic arbitrage exploits price disparities
+Recovery
+    Implement region-locked economies with controlled exchange rates; monitor
+    cross-region transfer volumes; flag and investigate large-scale transfer patterns;
+    apply transfer taxes to discourage arbitrage
+
+Layer
+    SubLayer: CurrencyLayer
+        Currency types, minting, burning, conversion rates, supply tracking
+    SubLayer: TradingLayer
+        Direct trades, trade verification, escrow, trade history, dispute resolution
+    SubLayer: AuctionLayer
+        Listing management, bid processing, buyout handling, fee collection, expiry
+    SubLayer: CraftingLayer
+        Recipe management, material validation, skill checks, output generation, cooldowns
+    SubLayer: InflationLayer
+        Supply monitoring, faucet/sink tracking, rate calculation, threshold alerting
+    SubLayer: AuditLayer
+        Transaction logging, integrity verification, anomaly detection, compliance reporting
+
+Validation
+    Every currency transaction must result in balanced ledger (sum of all accounts equals total supply)
+    Auction listings must have valid reserve prices and duration within configured bounds
+    Crafting operations must consume exact materials specified by recipe with no remainder
+    Trade operations must be atomic with both parties receiving agreed items simultaneously
+    Inflation rate must be calculated and reported every game-day cycle
+    All transactions must be auditable with complete provenance chain
+    Currency conversion rates must be within 0.01% of oracle-derived values
+
+Entity Currency
+    currencyId: string
+    name: string
+    totalSupply: float
+    circulatingSupply: float
+    faucetRate: float
+    sinkRate: float
+    conversionRate: float
+    isTradeable: boolean
+    isBound: boolean
+
+Entity AuctionListing
+    listingId: string
+    sellerId: string
+    itemId: string
+    quantity: integer
+    startingPrice: float
+    buyoutPrice: float
+    currentBid: float
+    currentBidder: string
+    reservePrice: float
+    duration: integer
+    createdAt: datetime
+    expiresAt: datetime
+    status: string
+
+Entity TradeOffer
+    tradeId: string
+    initiatorId: string
+    recipientId: string
+    initiatorItems: list
+    recipientItems: list
+    initiatorCurrency: dict
+    recipientCurrency: dict
+    status: string
+    createdAt: datetime
+    escrowId: string
+
+Entity CraftingRecipe
+    recipeId: string
+    name: string
+    inputMaterials: dict
+    outputItems: dict
+    requiredSkill: string
+    skillLevelRequired: integer
+    craftingTime: float
+    cooldownCategory: string
+    successRate: float
+    criticalRate: float
+
+Entity EconomicSnapshot
+    snapshotId: string
+    timestamp: datetime
+    totalGoldSupply: float
+    faucetAmount: float
+    sinkAmount: float
+    inflationRate: float
+    sinkFaucetRatio: float
+    averageTransactionValue: float
+    marketVelocity: float
+    giniCoefficient: float
+
+Entity PlayerWallet
+    playerId: string
+    gold: float
+    premiumCurrency: float
+    boundCurrency: float
+    craftingTokens: float
+    dailyFaucetTotal: float
+    dailySinkTotal: float
+    lastAuditChecksum: string
+
+Entity MarketOrder
+    orderId: string
+    playerId: string
+    itemType: string
+    orderType: string
+    price: float
+    quantity: integer
+    fulfilledQuantity: integer
+    createdAt: datetime
+    expiresAt: datetime
+    status: string
+
+Behavior ProcessAuctionBid
+    Input:
+        listingId: string
+        bidderId: string
+        bidAmount: float
+    Output:
+        success: boolean
+        newCurrentBid: float
+        previousBidderRefund: dict
+    Action:
+        Validate bidder has sufficient currency for bid
+        Check bid exceeds current bid by minimum increment
+        Verify listing is still active and not expired
+        Place previous bidder's currency in refund queue
+        Deduct bid amount from bidder's wallet
+        Update listing with new bid and bidder
+        Send outbid notification to previous bidder
+        Record bid in auction transaction log
+
+Behavior ExecuteTrade
+    Input:
+        tradeId: string
+        confirmationCode: string
+    Output:
+        result: dict
+        transactionLog: list
+    Action:
+        Verify both parties have confirmed the trade
+        Lock both players' inventories and wallets atomically
+        Validate all offered items still exist and are tradeable
+        Validate all offered currency is still available
+        Transfer items from initiator to recipient
+        Transfer items from recipient to initiator
+        Transfer currencies according to trade terms
+        Record complete transaction in audit log with checksums
+        Release locks and notify both parties of completion
+
+Behavior CraftItem
+    Input:
+        playerId: string
+        recipeId: string
+        materialOverrides: dict
+    Output:
+        result: dict
+        outputItems: list
+        skillExperience: float
+    Action:
+        Retrieve recipe definition and validate player skill level
+        Check material availability in player inventory
+        Verify crafting cooldown has expired for this category
+        Consume input materials from player inventory
+        Roll success check based on recipe success rate and player skill
+        If critical success, apply critical output multiplier
+        Generate output items and add to player inventory
+        Award skill experience based on recipe difficulty
+        Record crafting operation in economy audit trail
+
+Behavior MonitorInflation
+    Input:
+        snapshotInterval: integer
+        currencyType: string
+    Output:
+        inflationReport: dict
+        alerts: list
+        recommendedActions: list
+    Action:
+        Calculate current total currency supply from ledger
+        Compare against previous snapshot to derive inflation rate
+        Track faucet volume (drops, quests, vendor sales, minting)
+        Track sink volume (taxes, fees, destruction, burning)
+        Compute sink/faucet ratio and flag if outside 0.95-1.05 range
+        Calculate market velocity (transaction volume / supply)
+        Compute wealth distribution via Gini coefficient
+        Generate recommended actions if metrics exceed thresholds
+        Persist economic snapshot and publish report
+
+Behavior ProcessMarketOrder
+    Input:
+        orderId: string
+        matchEngine: string
+    Output:
+        fulfillmentResult: dict
+        transactions: list
+    Action:
+        Match buy order against lowest sell order (or vice versa)
+        Calculate fulfillment quantity at intersection price
+        Execute atomic currency and item transfer
+        Update both orders with fulfilled quantities
+        Collect transaction fee based on order type and volume
+        Record matched transaction in market history
+        Notify both parties of fulfillment
+        Close fully fulfilled orders, keep partial orders active
+
+Behavior ConvertCurrency
+    Input:
+        playerId: string
+        sourceCurrency: string
+        targetCurrency: string
+        amount: float
+    Output:
+        convertedAmount: float
+        exchangeRate: float
+        fee: float
+    Action:
+        Retrieve current exchange rate from oracle
+        Validate player has sufficient source currency
+        Calculate conversion amount after exchange rate and fee
+        Burn source currency from player wallet
+        Mint target currency to player wallet
+        Record conversion in audit trail with rate snapshot
+        Update faucet/sink counters for both currencies
+        Return conversion details with fee breakdown
+
+Condition
+    When inflation rate exceeds 2% per game month
+    Then activate faucet throttling (reduce drop rates 15%), increase sink mechanisms
+         (raise auction fees 10%, introduce luxury vendor items), alert economy team
+
+Condition
+    When a single player lists more than 20% of a resource type on auction house
+    Then flag for market manipulation review, impose temporary listing cap,
+         and notify compliance team for investigation
+
+Condition
+    When sink/faucet ratio falls below 0.90 for three consecutive snapshots
+    Then emergency sink activation: double crafting material costs temporarily,
+         introduce time-limited currency sink events, increase vendor prices by 25%
+
+Condition
+    When trade escrow timeout expires without confirmation
+    Then cancel trade, return all escrowed items and currency to original owners,
+         log failed trade for fraud analysis, apply reputation penalty to non-confirming party
+
+Condition
+    When auction listing receives no bids within 75% of its duration
+    Then lower listing visibility, suggest price reduction to seller,
+         and extend duration by 24 hours at no additional fee
+
+Event
+    On CurrencyMinted
+    Action: Update total supply counter, log faucet entry, check inflation threshold,
+            update real-time supply dashboard, trigger inflation monitoring if needed
+
+Event
+    On CurrencyBurned
+    Action: Update total supply counter, log sink entry, update sink/faucet ratio,
+            check if ratio has returned to healthy range, update economic snapshot
+
+Event
+    On HighValueTrade
+    Action: Flag trade for enhanced audit logging, verify both parties have 2FA enabled,
+            impose 24-hour hold on transferred items, notify compliance system
+
+Event
+    On MarketCrash
+    Action: Activate circuit breaker halting all new listings, freeze pending orders,
+            alert economy team for manual review, publish market status update to players
+
+Event
+    On CraftingExploitDetected
+    Action: Disable affected recipe immediately, audit all recent crafting outputs,
+            rollback exploitative gains, patch recipe validation, publish hotfix notes
+
+Parallel
+    Auction bid processing across multiple item categories
+    Trade escrow management for concurrent trade operations
+    Inflation monitoring with periodic snapshot computation
+    Market order matching engine continuous operation
+    Currency conversion processing with rate oracle updates
+    Audit log integrity verification and anomaly scanning
+
+Optimize
+    Target: Auction house throughput
+    Priority: Order matching engine prioritized over listing management; bid processing
+              takes precedence over expiry cleanup; fee collection is deferred to batch
+
+Optimize
+    Target: Economic stability
+    Priority: Sink/faucet balance maintenance over player convenience; inflation control
+              takes precedence over short-term engagement metrics; long-term health over
+              immediate transaction volume
+
+Learn
+    Target: Dynamic faucet/sink balance parameters
+    Goal: Maintain inflation rate between 0.5% and 2% per game month automatically
+    Adapt
+        Based: Historical inflation measurements, player spending patterns, content
+               release schedules, and seasonal activity variations
+
+Learn
+    Target: Optimal auction fee structure
+    Goal: Maximize sink efficiency while maintaining market liquidity above 60%
+    Adapt
+        Based: Auction volume at different fee levels, listing duration distributions,
+               bid frequency patterns, and seller behavior analysis
+
+Learn
+    Target: Crafting material drop rate calibration
+    Goal: Maintain material prices within 20% of target value bands
+    Adapt
+        Based: Market price trends for crafted goods, material supply levels, crafting
+               volume analytics, and player skill progression rates
+
+Security
+    Encrypt: Player wallet balances, trade escrow contents, auction bid amounts,
+             currency conversion rates, transaction audit logs
+    Protect: Currency minting operations, total supply calculations, faucet/sink
+             counters, market matching engine integrity, inflation rate computations
+
+Security
+    Encrypt: Cross-service transaction payloads, audit trail integrity hashes,
+             oracle rate feeds, escrow state transfers
+    Protect: Duplication exploit vectors, trade manipulation detection, auction
+             sniping prevention, market manipulation safeguards, currency counterfeiting
+
+Native Python
+{
+import decimal
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Dict, List, Optional
+
+decimal.getcontext().prec = 28
+
+@dataclass
+class CurrencyLedger:
+    currency_id: str
+    total_supply: decimal.Decimal = decimal.Decimal("0")
+    circulating_supply: decimal.Decimal = decimal.Decimal("0")
+    faucet_total: decimal.Decimal = decimal.Decimal("0")
+    sink_total: decimal.Decimal = decimal.Decimal("0")
+    _accounts: Dict[str, decimal.Decimal] = field(default_factory=dict)
+
+    def mint(self, account_id: str, amount: decimal.Decimal, reason: str) -> bool:
+        self.total_supply += amount
+        self.circulating_supply += amount
+        self.faucet_total += amount
+        self._accounts[account_id] = self._accounts.get(account_id, decimal.Decimal("0")) + amount
+        return True
+
+    def burn(self, account_id: str, amount: decimal.Decimal, reason: str) -> bool:
+        balance = self._accounts.get(account_id, decimal.Decimal("0"))
+        if balance < amount:
+            return False
+        self._accounts[account_id] = balance - amount
+        self.total_supply -= amount
+        self.circulating_supply -= amount
+        self.sink_total += amount
+        return True
+
+    def transfer(self, from_id: str, to_id: str, amount: decimal.Decimal) -> bool:
+        if self._accounts.get(from_id, decimal.Decimal("0")) < amount:
+            return False
+        self._accounts[from_id] -= amount
+        self._accounts[to_id] = self._accounts.get(to_id, decimal.Decimal("0")) + amount
+        return True
+
+    def verify_integrity(self) -> bool:
+        return sum(self._accounts.values()) == self.circulating_supply
+
+@dataclass
+class AuctionEngine:
+    listings: Dict[str, dict] = field(default_factory=dict)
+    fee_rate: decimal.Decimal = decimal.Decimal("0.05")
+
+    def place_bid(self, listing_id: str, bidder_id: str, amount: decimal.Decimal) -> dict:
+        listing = self.listings.get(listing_id)
+        if not listing or listing["status"] != "active":
+            return {"success": False, "error": "listing_not_found"}
+        min_increment = listing["current_bid"] * decimal.Decimal("1.05")
+        if amount < min_increment:
+            return {"success": False, "error": "bid_too_low"}
+        previous_bidder = listing.get("current_bidder")
+        listing["current_bid"] = amount
+        listing["current_bidder"] = bidder_id
+        return {"success": True, "previous_bidder": previous_bidder}
+
+    def calculate_inflation_rate(self, snapshots: List[dict]) -> decimal.Decimal:
+        if len(snapshots) < 2:
+            return decimal.Decimal("0")
+        prev = snapshots[-2]["total_supply"]
+        curr = snapshots[-1]["total_supply"]
+        if prev == 0:
+            return decimal.Decimal("0")
+        return ((curr - prev) / prev) * 100
+}

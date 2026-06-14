@@ -1,0 +1,663 @@
+# AICL Example: Complete Banking System
+# A full-featured banking platform with accounts, transactions, loans,
+# fraud detection, multi-currency support, and regulatory compliance
+# Demonstrates ALL 10 AICL language levels
+
+# =============================================================================
+# LEVEL 1 — Architecture (Mandatory)
+# =============================================================================
+
+Goal:
+Create a complete banking system with account management, fund transfers, loan processing, fraud detection, multi-currency support, and regulatory compliance
+
+Constraint:
+Must comply with PCI-DSS security standards
+
+Constraint:
+All financial transactions must be ACID-compliant
+
+Constraint:
+Maximum API response time 200 ms for standard operations
+
+Constraint:
+System must support at least 10000 concurrent users
+
+Constraint:
+All data must be encrypted at rest and in transit
+
+Constraint:
+Audit trail must be immutable and retained for 7 years
+
+Risk:
+Database corruption or data loss
+
+Recovery:
+Failover to replica with automatic data reconciliation
+
+Risk:
+Unauthorized access to customer accounts
+
+Recovery:
+Lock account immediately and notify customer and security team
+
+Risk:
+Fraudulent transaction pattern detected
+
+Recovery:
+Suspend transaction and escalate to fraud review queue
+
+Risk:
+Payment network gateway unavailable
+
+Recovery:
+Queue transactions for retry and switch to backup gateway
+
+Risk:
+Insufficient liquidity for settlement
+
+Recovery:
+Borrow from interbank lending facility and alert treasury
+
+Risk:
+System-wide outage during business hours
+
+Recovery:
+Activate disaster recovery site within 15 minutes RTO
+
+Risk:
+Denial of service attack
+
+Recovery:
+Enable rate limiting and geographic filtering
+
+Risk:
+Regulatory compliance violation
+
+Recovery:
+Halt affected operations and engage compliance team immediately
+
+Layer:
+Presentation
+    Sublayer:
+    Web banking portal
+    Sublayer:
+    Mobile application
+    Sublayer:
+    ATM interface
+    Sublayer:
+    Branch teller terminal
+    Sublayer:
+    Admin dashboard
+
+Layer:
+API Gateway
+    Sublayer:
+    Authentication service
+    Sublayer:
+    Rate limiter
+    Sublayer:
+    Request router
+    Sublayer:
+    API versioning
+    Sublayer:
+    Load balancer
+
+Layer:
+Core Banking
+    Sublayer:
+    Account management
+    Sublayer:
+    Transaction engine
+    Sublayer:
+    Transfer processor
+    Sublayer:
+    Balance calculator
+    Sublayer:
+    Statement generator
+
+Layer:
+Lending
+    Sublayer:
+    Loan origination
+    Sublayer:
+    Credit scoring
+    Sublayer:
+    Payment scheduling
+    Sublayer:
+    Collateral management
+
+Layer:
+Fraud Detection
+    Sublayer:
+    Real-time monitoring
+    Sublayer:
+    Pattern analysis
+    Sublayer:
+    Alert management
+    Sublayer:
+    Case investigation
+
+Layer:
+Integration
+    Sublayer:
+    Payment network SWIFT
+    Sublayer:
+    Card network Visa Mastercard
+    Sublayer:
+    Credit bureau API
+    Sublayer:
+    Regulatory reporting
+    Sublayer:
+    Interbank settlement
+
+Layer:
+Reporting
+    Sublayer:
+    Regulatory reports
+    Sublayer:
+    Financial statements
+    Sublayer:
+    Customer statements
+    Sublayer:
+    Audit trail
+
+Layer:
+Data
+    Sublayer:
+    Account database
+    Sublayer:
+    Transaction ledger
+    Sublayer:
+    Customer registry
+    Sublayer:
+    Document storage
+
+# =============================================================================
+# LEVEL 2 — Entities
+# =============================================================================
+
+Entity Customer
+    customer_id: string
+    first_name: string
+    last_name: string
+    email: string
+    phone: string
+    date_of_birth: datetime
+    nationality: string
+    kyc_status: string
+    risk_rating: string
+    created_at: datetime
+
+Entity Account
+    account_id: string
+    customer_id: string
+    account_type: string
+    currency: string
+    balance: float
+    available_balance: float
+    status: string
+    daily_limit: float
+    opened_at: datetime
+    last_activity: datetime
+
+Entity Transaction
+    transaction_id: string
+    account_id: string
+    transaction_type: string
+    amount: float
+    currency: string
+    description: string
+    reference: string
+    status: string
+    timestamp: datetime
+    counterparty_account: string
+    counterparty_bank: string
+
+Entity Card
+    card_id: string
+    account_id: string
+    card_type: string
+    card_number_masked: string
+    expiry_date: datetime
+    cvv_hash: string
+    pin_hash: string
+    daily_withdrawal_limit: float
+    status: string
+
+Entity Loan
+    loan_id: string
+    customer_id: string
+    account_id: string
+    loan_type: string
+    principal: float
+    interest_rate: float
+    term_months: integer
+    remaining_balance: float
+    monthly_payment: float
+    next_payment_date: datetime
+    status: string
+    collateral: string
+
+Entity Branch
+    branch_id: string
+    name: string
+    address: string
+    city: string
+    country: string
+    manager: string
+    operating_hours: string
+
+Entity CurrencyRate
+    base_currency: string
+    target_currency: string
+    rate: float
+    timestamp: datetime
+
+Entity FraudAlert
+    alert_id: string
+    transaction_id: string
+    alert_type: string
+    severity: string
+    description: string
+    status: string
+    assigned_to: string
+    created_at: datetime
+    resolved_at: datetime
+
+Entity AuditEntry
+    entry_id: string
+    actor: string
+    action: string
+    resource_type: string
+    resource_id: string
+    details: string
+    ip_address: string
+    timestamp: datetime
+
+# =============================================================================
+# LEVEL 3 — Behaviors
+# =============================================================================
+
+Behavior OpenAccount
+
+Input:
+    Customer account_type currency
+
+Output:
+    Account
+
+Action:
+    verify customer identity and create new account with zero balance
+
+Behavior CloseAccount
+
+Input:
+    Account
+
+Output:
+    boolean
+
+Action:
+    verify zero balance and deactivate account
+
+Behavior Deposit
+
+Input:
+    Account amount currency
+
+Output:
+    Transaction
+
+Action:
+    credit account with deposited amount and record transaction
+
+Behavior Withdraw
+
+Input:
+    Account amount currency
+
+Output:
+    Transaction
+
+Action:
+    debit account with withdrawn amount and record transaction
+
+Behavior Transfer
+
+Input:
+    Account source Account target amount currency
+
+Output:
+    Transaction
+
+Action:
+    debit source account and credit target account atomically
+
+Behavior CurrencyExchange
+
+Input:
+    Account amount target_currency
+
+Output:
+    Transaction
+
+Action:
+    convert amount using current exchange rate and credit in target currency
+
+Behavior ProcessLoanApplication
+
+Input:
+    Customer Loan loan_type principal term_months
+
+Output:
+    Loan
+
+Action:
+    run credit check and calculate terms and approve or reject loan
+
+Behavior MakeLoanPayment
+
+Input:
+    Loan amount
+
+Output:
+    Transaction
+
+Action:
+    apply payment to loan balance and update remaining term
+
+Behavior FreezeAccount
+
+Input:
+    Account reason
+
+Action:
+    set account status to frozen and log security event
+
+Behavior GenerateStatement
+
+Input:
+    Account start_date end_date
+
+Output:
+    list
+
+Action:
+    compile all transactions for account in date range
+
+# =============================================================================
+# LEVEL 4 — Conditions
+# =============================================================================
+
+Condition:
+
+When account balance below minimum threshold
+
+Then apply minimum balance fee and notify customer
+
+Condition:
+
+When transaction amount exceeds daily limit
+
+Then reject transaction and alert customer
+
+Condition:
+
+When transfer destination account is frozen
+
+Then reject transfer and notify source account holder
+
+Condition:
+
+When loan payment is overdue by 30 days
+
+Then mark loan as delinquent and report to credit bureau
+
+Condition:
+
+When card is reported stolen
+
+Then block all transactions and issue replacement card
+
+Condition:
+
+When customer KYC status is expired
+
+Then restrict account to view-only and request document renewal
+
+Condition:
+
+When login attempt fails 3 times consecutively
+
+Then lock account and send verification code to registered phone
+
+Condition:
+
+When currency exchange rate fluctuates more than 5 percent
+
+Then pause automated exchanges and alert treasury team
+
+# =============================================================================
+# LEVEL 5 — Events
+# =============================================================================
+
+Event:
+
+On transaction completed
+
+Action:
+    update account balance and send notification and record audit entry
+
+Event:
+
+On large transaction detected
+
+Action:
+    flag for fraud review and send confirmation request to customer
+
+Event:
+
+On account balance change
+
+Action:
+    recalculate available balance and update interest accrual
+
+Event:
+
+On loan payment due
+
+Action:
+    send reminder notification and attempt auto-debit if authorized
+
+Event:
+
+On fraud alert triggered
+
+Action:
+    suspend affected account and create investigation case and notify security
+
+Event:
+
+On customer login
+
+Action:
+    validate session token and load customer profile and log access
+
+Event:
+
+On regulatory report required
+
+Action:
+    compile required data and format according to regulation and submit
+
+Event:
+
+On interbank settlement
+
+Action:
+    reconcile transaction batches and update correspondent accounts
+
+# =============================================================================
+# LEVEL 6 — Concurrency
+# =============================================================================
+
+Parallel:
+
+Transaction Processing
+Fraud Detection Engine
+Notification Service
+Audit Logger
+
+Parallel:
+
+Core Banking
+Lending Service
+Integration Gateway
+Reporting Engine
+
+# =============================================================================
+# LEVEL 7 — Optimization
+# =============================================================================
+
+Optimize:
+Transaction throughput
+
+Optimize:
+Database query performance
+
+Optimize:
+API response latency
+
+Priority:
+Real-time fraud detection over batch reporting
+
+# =============================================================================
+# LEVEL 8 — Learning
+# =============================================================================
+
+Learn:
+
+Transaction fraud patterns
+
+Goal:
+    detect anomalous behavior before transaction completes
+
+Learn:
+
+Customer spending habits
+
+Goal:
+    personalize financial recommendations and detect account takeover
+
+Adapt:
+
+Fraud detection sensitivity
+
+Based on:
+    customer risk profile and transaction history
+
+# =============================================================================
+# LEVEL 9 — Security
+# =============================================================================
+
+Security:
+
+Encrypt:
+    account balances and transaction amounts
+
+Encrypt:
+    customer personal information
+
+Encrypt:
+    card numbers and CVV
+
+Encrypt:
+    loan terms and financial data
+
+Protect:
+    customer credentials and session tokens
+
+Protect:
+    API keys and service authentication
+
+Protect:
+    audit trail integrity
+
+Protect:
+    interbank communication channels
+
+# =============================================================================
+# LEVEL 10 — Native Code
+# =============================================================================
+
+Native: python
+{
+import hashlib
+import hmac
+import time
+
+def generate_transaction_id():
+    """Generate a unique transaction ID using timestamp and hash."""
+    timestamp = str(int(time.time() * 1000))
+    random_seed = str(hashlib.sha256(timestamp.encode()).hexdigest()[:8])
+    return f"TXN-{timestamp[-10:]}-{random_seed}"
+
+def verify_pin(stored_hash: str, input_pin: str, salt: str) -> bool:
+    """Verify a PIN against its stored hash using HMAC-SHA256."""
+    computed = hmac.new(
+        salt.encode(), input_pin.encode(), hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(computed, stored_hash)
+
+def calculate_compound_interest(principal: float, rate: float,
+                                 months: int) -> float:
+    """Calculate compound interest for a loan or deposit."""
+    monthly_rate = rate / 12 / 100
+    return principal * ((1 + monthly_rate) ** months - 1)
+}
+
+# =============================================================================
+# Validations
+# =============================================================================
+
+Validation:
+Customer can open and close accounts
+
+Validation:
+Deposits and withdrawals process correctly with proper balance updates
+
+Validation:
+Transfers between accounts execute atomically
+
+Validation:
+Currency exchange applies correct rates
+
+Validation:
+Loan origination and payment work end to end
+
+Validation:
+Fraud detection flags suspicious transactions
+
+Validation:
+Frozen accounts reject all debit transactions
+
+Validation:
+Daily limits are enforced
+
+Validation:
+All transactions produce immutable audit entries
+
+Validation:
+System handles 10000 concurrent users without degradation
+
+Validation:
+All encrypted data can only be read with proper authorization
+
+Validation:
+Regulatory reports generate correctly
+
+Validation:
+System recovers from database failure within 15 minutes
+
+Validation:
+Customer notifications are delivered within 5 seconds

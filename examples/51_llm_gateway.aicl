@@ -1,0 +1,487 @@
+# AICL Example: LLM API Gateway
+# Production LLM API gateway providing model routing, prompt management, token counting,
+# rate limiting, caching, and fine-tuning orchestration with multi-provider support.
+
+Goal Build a production LLM API gateway that intelligently routes requests across multiple LLM providers, manages prompts with version control, enforces rate limits and cost controls, caches responses, and orchestrates fine-tuning workflows with comprehensive observability
+
+Constraint All LLM responses must pass safety guardrails before delivery to end users
+Constraint Token counting must be accurate within 2% of actual token usage for billing purposes
+Constraint Rate limiting must be enforced per-tenant with configurable quotas and burst allowances
+Constraint Prompt templates must be versioned and changes require approval before production deployment
+Constraint Cost per request must not exceed configured maximum without explicit override
+
+Risk LLM provider API outage causing complete service disruption
+Recovery Implement multi-provider failover with automatic routing to backup providers; maintain response cache for common queries; deploy circuit breaker pattern with exponential backoff retry
+
+Risk Prompt injection attack bypassing safety guardrails
+Recovery Implement multi-layer input sanitization; deploy dedicated prompt injection classifier; apply output filtering on generated content; log and block suspicious patterns
+
+Risk Token counting inaccuracy leading to billing disputes
+Recovery Use model-specific tokenizer for counting; implement dual-count verification; maintain audit log of token counts; provide real-time usage dashboards to tenants
+
+Risk Cache poisoning through manipulated cache keys
+Recovery Implement cache key hashing with tenant isolation; validate cached responses before serving; set TTL with periodic cache invalidation; audit cache access patterns
+
+Risk Fine-tuning job consuming excessive resources and stalling shared infrastructure
+Recovery Implement resource quotas per fine-tuning job; enable preemptible training with checkpointing; isolate training compute from serving infrastructure; monitor and auto-kill runaway jobs
+
+Risk Cost overrun from unexpected traffic spikes or expensive model selections
+Recovery Enforce per-tenant cost caps with soft and hard limits; implement automatic model downgrade on budget approach; alert on anomalous spending patterns; require explicit approval for high-cost model usage
+
+Layer GatewayCore
+    SubLayer: RequestRouter
+    SubLayer: ResponseHandler
+    SubLayer: SafetyGuardrail
+Layer PromptManagement
+    SubLayer: TemplateRegistry
+    SubLayer: VariableInjection
+    SubLayer: VersionControl
+Layer Infrastructure
+    SubLayer: TokenCounter
+    SubLayer: RateLimiter
+    SubLayer: ResponseCache
+    SubLayer: CostController
+Layer FineTuning
+    SubLayer: DatasetPreparation
+    SubLayer: TrainingOrchestrator
+    SubLayer: ModelEvaluation
+
+Validation All responses must pass safety guardrail check before delivery
+Validation Token counting accuracy must be within 2% of provider-reported usage
+Validation Rate limiting must reject requests exceeding quota within 100ms
+Validation Cache hit rate must exceed 30% for production workloads
+Validation Prompt template changes must require approval workflow
+Validation Fine-tuning jobs must not exceed allocated resource quotas
+Validation Cost alerts must trigger within 60 seconds of threshold breach
+Validation Multi-provider failover must complete within 10 seconds of primary outage
+
+# Level 2 - Entities
+
+Entity LLMRequest
+    requestId: string
+    tenantId: string
+    promptTemplateId: string
+    templateVariables: dict
+    modelPreference: string
+    maxTokens: integer
+    temperature: float
+    topP: float
+    stopSequences: list
+    metadata: dict
+    submittedAt: datetime
+
+Entity LLMResponse
+    responseId: string
+    requestId: string
+    generatedText: string
+    modelUsed: string
+    providerUsed: string
+    promptTokenCount: integer
+    completionTokenCount: integer
+    totalTokenCount: integer
+    finishReason: string
+    safetyScore: float
+    cacheHit: boolean
+    latencyMs: float
+    costUsd: float
+    completedAt: datetime
+
+Entity PromptTemplate
+    templateId: string
+    templateName: string
+    templateContent: string
+    variableDefinitions: list
+    version: string
+    status: string
+    approvalStatus: string
+    safetyClassification: string
+    createdAt: datetime
+    approvedBy: string
+    metadata: dict
+
+Entity RateLimitConfig
+    configId: string
+    tenantId: string
+    requestsPerMinute: integer
+    tokensPerMinute: integer
+    tokensPerDay: integer
+    burstAllowance: integer
+    costCapDaily: float
+    costCapMonthly: float
+    allowedModels: list
+    priorityLevel: string
+
+Entity CacheEntry
+    cacheKey: string
+    requestHash: string
+    response: LLMResponse
+    tenantId: string
+    modelUsed: string
+    createdAt: datetime
+    expiresAt: datetime
+    hitCount: integer
+    sizeBytes: integer
+
+Entity FineTuningJob
+    jobId: string
+    tenantId: string
+    baseModel: string
+    trainingDatasetId: string
+    hyperparameters: dict
+    status: string
+    resourceQuota: dict
+    trainingMetrics: dict
+    evaluationMetrics: dict
+    submittedAt: datetime
+    completedAt: datetime
+    costUsd: float
+
+# Level 3 - Behaviors
+
+Behavior RouteRequest
+    Input:
+        request: LLMRequest
+        routingConfig: dict
+    Output:
+        selectedProvider: string
+        selectedModel: string
+        routingDecision: dict
+    Action:
+        Check tenant rate limits and cost caps
+        Evaluate model preference against allowed models list
+        Check circuit breaker status for each provider
+        Apply cost optimization routing logic
+        Select provider based on latency, cost, and availability
+        Compute routing decision explanation for audit
+        Return selected provider and model with routing metadata
+
+Behavior ProcessPrompt
+    Input:
+        request: LLMRequest
+        promptTemplate: PromptTemplate
+    Output:
+        renderedPrompt: string
+        tokenCount: integer
+        safetyFlags: list
+    Action:
+        Retrieve prompt template from version-controlled registry
+        Validate all required template variables are provided
+        Inject variables into template with escaping
+        Run prompt injection detection on rendered prompt
+        Count tokens using model-specific tokenizer
+        Compute estimated cost based on token count and model
+        Return rendered prompt with safety assessment and token count
+
+Behavior EnforceRateLimit
+    Input:
+        tenantId: string
+        requestTokens: integer
+        rateLimitConfig: RateLimitConfig
+    Output:
+        allowed: boolean
+        remainingQuota: dict
+        retryAfterSeconds: float
+    Action:
+        Check current token usage against per-minute and per-day limits
+        Check request count against per-minute limit
+        Evaluate burst allowance for temporary overages
+        Check daily and monthly cost caps
+        If limit exceeded, compute retry-after duration
+        If allowed, deduct quota atomically
+        Return allowance decision with remaining quota details
+
+Behavior CacheResponse
+    Input:
+        request: LLMRequest
+        response: LLMResponse
+        cacheConfig: dict
+    Output:
+        cacheStored: boolean
+        cacheKey: string
+    Action:
+        Compute deterministic cache key from request parameters
+        Verify tenant isolation for cache namespace
+        Check response safety score meets caching threshold
+        Serialize and store response with configured TTL
+        Update cache statistics and hit rate metrics
+        Return storage confirmation with cache key
+
+Behavior OrchestrateFineTuning
+    Input:
+        fineTuningJob: FineTuningJob
+        orchestrationConfig: dict
+    Output:
+        jobStatus: dict
+        trainingPlan: dict
+    Action:
+        Validate training dataset format and size requirements
+        Allocate compute resources within tenant quota
+        Prepare training data with validation split
+        Configure training hyperparameters and schedule
+        Launch training job on isolated compute infrastructure
+        Set up monitoring and checkpointing
+        Return job status and training plan
+
+Behavior ApplySafetyGuardrail
+    Input:
+        response: LLMResponse
+        guardrailConfig: dict
+    Output:
+        safeResponse: LLMResponse
+        safetyReport: dict
+        blocked: boolean
+    Action:
+        Run content safety classifier on generated text
+        Check for personally identifiable information leakage
+        Validate response adheres to content policy rules
+        Apply output length and format constraints
+        If safety violations detected, redact or regenerate
+        Compute overall safety score
+        Return filtered response with detailed safety report
+
+# Level 4 - Conditions
+
+Condition: ProviderAPIUnavailable
+    When LLM provider returns 5xx errors or connection timeout for 3 consecutive requests
+    Then activate circuit breaker for provider; reroute traffic to backup provider; alert infrastructure team; maintain service with degraded model options
+
+Condition: PromptInjectionDetected
+    When prompt injection classifier score exceeds 0.7 threshold
+    Then block request from processing; log full request for security analysis; alert security team; apply rate penalty to source IP or tenant
+
+Condition: CostCapApproaching
+    When tenant daily cost reaches 80% of configured cap
+    Then issue warning notification to tenant; restrict to cost-efficient models only; require explicit override for premium model access; generate cost projection
+
+Condition: CacheCorruptionDetected
+    When cached response fails integrity check or safety re-validation
+    Then evict corrupted entry immediately; audit surrounding cache entries; log corruption event; verify cache key generation logic
+
+Condition: FineTuningResourceOverrun
+    When fine-tuning job exceeds allocated GPU hours by more than 20%
+    Then pause job and checkpoint state; notify tenant of resource overrun; require approval to continue; update resource quota estimates
+
+# Level 5 - Events
+
+Event: RequestReceived
+    On new LLM request submitted to gateway
+    Action: validate request schema; check rate limits; begin routing decision; log request metadata for observability
+
+Event: ResponseGenerated
+    On LLM response received from provider and processed
+    Action: apply safety guardrails; update token usage counters; evaluate cache eligibility; emit cost and latency metrics
+
+Event: RateLimitExceeded
+    On tenant exceeding configured rate or token limit
+    Action: reject request with 429 status; return retry-after header; update rate limit dashboard; alert tenant if persistent
+
+Event: ProviderFailover
+    On primary provider circuit breaker triggered
+    Action: reroute all traffic to backup provider; alert infrastructure team; activate degraded mode notification; log failover event with root cause
+
+Event: FineTuningCompleted
+    On fine-tuning job reaching completion
+    Action: evaluate model against benchmark; register fine-tuned model in registry; notify tenant of availability; generate cost summary
+
+Event: PromptTemplateApproved
+    On prompt template passing approval workflow
+    Action: deploy template to production registry; invalidate affected cache entries; notify template users; log approval audit trail
+
+# Level 6 - Concurrency
+
+Parallel:
+    Safety guardrail checking alongside response streaming
+    Token counting concurrent with request routing
+    Cache lookup simultaneously with rate limit evaluation
+    Multi-provider health checking in parallel
+    Fine-tuning monitoring alongside gateway serving
+    Usage metric aggregation across concurrent requests
+
+# Level 7 - Optimization
+
+Optimize: Request routing for cost-effectiveness
+    Priority: Select cheapest capable model per request; batch similar requests; leverage cache hits aggressively; prefer spot pricing for non-interactive workloads
+
+Optimize: Response latency
+    Priority: Stream responses where possible; pre-warm provider connections; cache frequent prompt patterns; minimize guardrail processing overhead
+
+Optimize: Cache hit rate
+    Priority: Normalize prompts for cache key consistency; implement semantic caching for near-duplicate prompts; set optimal TTL based on response staleness tolerance
+
+# Level 8 - Learning
+
+Learn: Optimal routing policy for cost-latency trade-off
+    Goal: Minimize cost while meeting latency SLA for each request category
+    Adapt: Routing weights across providers and model tiers
+    Based: Historical latency, cost, and quality metrics per provider and model
+
+Learn: Cache TTL optimization
+    Goal: Maximize cache hit rate while ensuring response freshness
+    Adapt: TTL values per prompt category and tenant requirements
+    Based: Cache hit rates, staleness complaints, and response change frequency
+
+Learn: Rate limit calibration
+    Goal: Set per-tenant rate limits that balance fairness with utilization
+    Adapt: Token and request quotas per tenant tier
+    Based: Usage patterns, cost trends, and tenant feedback on throttling events
+
+Learn: Fine-tuning hyperparameter suggestions
+    Goal: Recommend optimal fine-tuning configurations for new datasets
+    Adapt: Default hyperparameters per model and dataset size
+    Based: Historical fine-tuning outcomes and evaluation metrics across tenants
+
+# Level 9 - Security
+
+Security:
+    Encrypt: All prompt content and responses at rest using AES-256 with per-tenant key encryption
+    Encrypt: API communication with mutual TLS 1.3 and certificate pinning
+    Protect: Prompt templates from unauthorized modification via signed version control
+    Protect: Tenant API keys with rotation policy and scoped permissions
+    Protect: Cache entries with tenant-isolated encryption namespaces
+    Encrypt: Fine-tuning datasets and model weights with envelope encryption
+    Protect: Rate limit and cost configuration from tampering via audit-logged access controls
+
+# Level 10 - Native
+
+Native: python
+{
+import hashlib
+import time
+import json
+from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass, field
+from collections import defaultdict
+
+@dataclass
+class TokenCounter:
+    model_tokenizers: Dict[str, object] = field(default_factory=dict)
+
+    def count_tokens(self, text: str, model: str) -> int:
+        if model in self.model_tokenizers:
+            tokenizer = self.model_tokenizers[model]
+            return len(tokenizer.encode(text))
+        return self._approximate_count(text)
+
+    def _approximate_count(self, text: str) -> int:
+        word_count = len(text.split())
+        char_count = len(text)
+        return int(word_count * 1.3 + char_count * 0.05)
+
+@dataclass
+class RateLimiter:
+    quotas: Dict[str, Dict] = field(default_factory=dict)
+    usage: Dict[str, Dict] = field(default_factory=lambda: defaultdict(lambda: {
+        "requests": [], "tokens": [], "cost": 0.0
+    }))
+
+    def check_limit(self, tenant_id: str, tokens: int, cost: float) -> Tuple[bool, Dict]:
+        if tenant_id not in self.quotas:
+            return True, {"remaining": "unlimited"}
+        quota = self.quotas[tenant_id]
+        now = time.time()
+        window = quota.get("window_seconds", 60)
+        usage = self.usage[tenant_id]
+
+        usage["requests"] = [t for t in usage["requests"] if now - t < window]
+        usage["tokens"] = [(t, tk) for t, tk in usage["tokens"] if now - t < window]
+
+        current_requests = len(usage["requests"])
+        current_tokens = sum(tk for _, tk in usage["tokens"])
+        current_cost = usage["cost"]
+
+        rpm_limit = quota.get("requests_per_minute", float("inf"))
+        tpm_limit = quota.get("tokens_per_minute", float("inf"))
+        daily_cost_limit = quota.get("daily_cost_cap", float("inf"))
+
+        allowed = (
+            current_requests < rpm_limit and
+            current_tokens + tokens <= tpm_limit and
+            current_cost + cost <= daily_cost_limit
+        )
+
+        remaining = {
+            "requests_remaining": max(0, rpm_limit - current_requests),
+            "tokens_remaining": max(0, tpm_limit - current_tokens),
+            "cost_remaining": max(0, daily_cost_limit - current_cost)
+        }
+
+        if allowed:
+            usage["requests"].append(now)
+            usage["tokens"].append((now, tokens))
+            usage["cost"] += cost
+
+        return allowed, remaining
+
+@dataclass
+class PromptInjectionDetector:
+    suspicion_threshold: float = 0.7
+    blocked_patterns: List[str] = field(default_factory=lambda: [
+        "ignore previous instructions",
+        "system prompt",
+        "you are now",
+        "jailbreak",
+        "DAN mode",
+    ])
+
+    def detect(self, prompt: str) -> Dict:
+        lower_prompt = prompt.lower()
+        pattern_matches = [p for p in self.blocked_patterns if p in lower_prompt]
+        score = min(1.0, len(pattern_matches) * 0.3)
+        is_suspicious = score >= self.suspicion_threshold
+        return {
+            "is_suspicious": is_suspicious,
+            "score": score,
+            "matched_patterns": pattern_matches,
+            "action": "block" if is_suspicious else "allow"
+        }
+
+@dataclass
+class ResponseCache:
+    entries: Dict[str, Dict] = field(default_factory=dict)
+    default_ttl: int = 3600
+
+    def compute_key(self, prompt: str, model: str, temperature: float, tenant_id: str) -> str:
+        raw = f"{tenant_id}:{model}:{temperature}:{prompt}"
+        return hashlib.sha256(raw.encode()).hexdigest()
+
+    def get(self, cache_key: str) -> Optional[Dict]:
+        entry = self.entries.get(cache_key)
+        if entry is None:
+            return None
+        if time.time() > entry["expires_at"]:
+            del self.entries[cache_key]
+            return None
+        entry["hit_count"] += 1
+        return entry["response"]
+
+    def put(self, cache_key: str, response: Dict, ttl: Optional[int] = None) -> None:
+        self.entries[cache_key] = {
+            "response": response,
+            "created_at": time.time(),
+            "expires_at": time.time() + (ttl or self.default_ttl),
+            "hit_count": 0
+        }
+
+@dataclass
+class CostController:
+    model_pricing: Dict[str, Dict] = field(default_factory=lambda: {
+        "gpt-4": {"prompt_per_1k": 0.03, "completion_per_1k": 0.06},
+        "gpt-3.5-turbo": {"prompt_per_1k": 0.001, "completion_per_1k": 0.002},
+        "claude-3-opus": {"prompt_per_1k": 0.015, "completion_per_1k": 0.075},
+    })
+    daily_caps: Dict[str, float] = field(default_factory=dict)
+    daily_spend: Dict[str, float] = field(default_factory=lambda: defaultdict(float))
+
+    def compute_cost(self, model: str, prompt_tokens: int, completion_tokens: int) -> float:
+        pricing = self.model_pricing.get(model, {"prompt_per_1k": 0.01, "completion_per_1k": 0.03})
+        cost = (prompt_tokens / 1000 * pricing["prompt_per_1k"] +
+                completion_tokens / 1000 * pricing["completion_per_1k"])
+        return cost
+
+    def check_budget(self, tenant_id: str, estimated_cost: float) -> Tuple[bool, float]:
+        cap = self.daily_caps.get(tenant_id, float("inf"))
+        current = self.daily_spend[tenant_id]
+        remaining = max(0, cap - current)
+        allowed = current + estimated_cost <= cap
+        return allowed, remaining
+}

@@ -1,0 +1,441 @@
+# AICL Example: MMO Game Server
+# Comprehensive MMO server architecture with world management, player sessions, combat, inventory, guilds, instancing, and sharding
+
+Goal
+    Build a massively multiplayer online game server supporting persistent world management,
+    real-time combat, inventory systems, guild operations, dungeon instancing, and horizontal
+    sharding for millions of concurrent players with sub-50ms tick rate.
+
+Constraint
+    Server tick rate must not exceed 50ms per world update cycle
+    Player state must be persisted within 2 seconds of any mutation
+    Combat calculations must be deterministic across all shards
+    World boundaries must enforce zone-based migration with zero data loss
+    Guild operations must maintain consistency across shard boundaries
+    Instance servers must be recyclable within 30 seconds of dungeon completion
+
+Risk
+    Shard failure causes player data loss or duplication during migration
+Recovery
+    Implement write-ahead logging on all shard transitions; on shard failure, replay WAL
+    from last checkpoint and validate player state checksums before re-registering
+
+Risk
+    Combat desync between client predictions and server authoritative state
+Recovery
+    Server maintains authoritative combat timeline; on desync detection, send full state
+    snapshot to client and force client resync with server rollback buffer
+
+Risk
+    Instance server resource exhaustion under high concurrency
+Recovery
+    Enforce instance server queue with priority tokens; overflow instances redirect to
+    backup pool; degraded mode reduces NPC count and physics fidelity
+
+Risk
+    Guild data inconsistency during cross-shard operations
+Recovery
+    Use two-phase commit for guild mutations; on failure, roll back all participants and
+    queue operation for retry with exponential backoff
+
+Risk
+    World server memory leak from long-running entity accumulation
+Recovery
+    Periodic entity garbage collection sweeps; leaked entities detected via reference
+    counting and forcefully reclaimed with audit log entry
+
+Risk
+    DDoS attack on login gateway overwhelms authentication service
+Recovery
+    Rate-limit login attempts per IP with CAPTCHA escalation; redirect overflow to
+    verification queue; auto-scale auth microservices behind load balancer
+
+Layer
+    SubLayer: GatewayLayer
+        Session management, rate limiting, authentication proxy, load balancing
+    SubLayer: WorldLayer
+        Zone management, entity lifecycle, spatial indexing, NPC AI scheduling
+    SubLayer: CombatLayer
+        Damage calculation, ability resolution, hit detection, threat management
+    SubLayer: InventoryLayer
+        Item management, equipment slots, loot generation, bag expansion
+    SubLayer: SocialLayer
+        Guild management, party formation, chat routing, friend lists
+    SubLayer: InstanceLayer
+        Dungeon creation, instance lifecycle, boss state tracking, reset scheduling
+    SubLayer: ShardLayer
+        Shard allocation, data partitioning, cross-shard messaging, migration orchestration
+
+Validation
+    All player mutations must produce an audit trail with timestamp, shard ID, and checksum
+    Combat outcomes must be reproducible given identical input sequences and RNG seeds
+    Instance lifecycle must track creation, active, completing, and recycled states
+    Shard boundaries must never leave player entities in an orphaned state
+    Guild membership changes must be atomic across all affected shards
+    Inventory operations must maintain ACID properties for item transfers
+    World zone transitions must complete within 5 seconds under normal load
+
+Entity PlayerSession
+    sessionId: string
+    accountId: string
+    characterId: string
+    currentShard: string
+    currentZone: string
+    position: dict
+    health: float
+    mana: float
+    lastTick: datetime
+    connectionState: string
+    combatFlags: list
+
+Entity WorldZone
+    zoneId: string
+    zoneName: string
+    shardAssignment: string
+    maxPlayers: integer
+    currentPlayers: integer
+    npcPopulation: integer
+    resourceNodes: list
+    bounds: dict
+    adjacentZones: list
+    environmentState: dict
+
+Entity CombatEncounter
+    encounterId: string
+    initiatorId: string
+    targetIds: list
+    zoneId: string
+    startTime: datetime
+    abilityQueue: list
+    damageLog: list
+    threatTable: dict
+    status: string
+    lootTable: dict
+
+Entity InventoryItem
+    itemId: string
+    ownerId: string
+    baseItemTemplate: string
+    quantity: integer
+    slotPosition: integer
+    enchantments: list
+    durability: float
+    soulbound: boolean
+    customAttributes: dict
+
+Entity Guild
+    guildId: string
+    guildName: string
+    leaderId: string
+    officerIds: list
+    memberIds: list
+    guildLevel: integer
+    guildBank: dict
+    shardAffinities: list
+    creationDate: datetime
+    motd: string
+
+Entity InstanceDungeon
+    instanceId: string
+    dungeonTemplate: string
+    ownerPartyId: string
+    shardId: string
+    currentBossState: dict
+    progressFlags: list
+    timeRemaining: float
+    difficultyTier: integer
+    spawnState: dict
+    completionState: string
+
+Entity ShardNode
+    shardId: string
+    region: string
+    playerCount: integer
+    cpuUtilization: float
+    memoryUtilization: float
+    activeZones: list
+    status: string
+    lastHeartbeat: datetime
+    migrationQueue: list
+
+Behavior ProcessWorldTick
+    Input:
+        shardId: string
+        tickNumber: integer
+        deltaTime: float
+    Output:
+        worldState: dict
+        events: list
+    Action:
+        Retrieve all active entities within shard scope
+        Update NPC AI state machines with delta time
+        Process pending movement commands from player sessions
+        Resolve spatial collisions and trigger zone boundary checks
+        Execute scheduled world events (resource respawn, weather changes)
+        Broadcast delta updates to all connected clients in shard
+        Persist mutated entity states to durable storage
+
+Behavior ResolveCombat
+    Input:
+        encounterId: string
+        abilityId: string
+        casterId: string
+        targetIds: list
+    Output:
+        result: dict
+        threatDelta: dict
+        damageLog: list
+    Action:
+        Validate ability cooldown and resource cost for caster
+        Calculate base damage from ability template and caster stats
+        Apply damage modifiers from enchantments, buffs, and debuffs
+        Roll critical hit and miss chances using deterministic RNG
+        Distribute damage across targets based on ability targeting rules
+        Update threat table with threat values per target
+        Generate loot drops if any target reaches zero health
+        Broadcast combat results to all participants
+
+Behavior ManageInventory
+    Input:
+        ownerId: string
+        operation: string
+        itemData: dict
+        slotTarget: integer
+    Output:
+        success: boolean
+        updatedInventory: dict
+        errors: list
+    Action:
+        Validate item ownership and slot availability
+        Check bag capacity and slot compatibility with item type
+        Apply operation (add, remove, move, swap, split, merge)
+        Validate equipment requirements if equipping item
+        Update durability state if item is equipment
+        Persist inventory mutation with transaction log
+        Return updated inventory state and any validation errors
+
+Behavior ProcessGuildOperation
+    Input:
+        guildId: string
+        operation: string
+        memberId: string
+        targetMemberId: string
+        payload: dict
+    Output:
+        result: dict
+        auditEntry: dict
+    Action:
+        Validate caller permission level within guild hierarchy
+        Check operation preconditions (member limits, guild level requirements)
+        Execute two-phase commit across all affected shards
+        Apply guild mutation (invite, kick, promote, demote, bank access)
+        Generate audit entry with timestamp and caller identity
+        Broadcast guild update to all online guild members
+        Return operation result and audit reference
+
+Behavior CreateInstance
+    Input:
+        partyId: string
+        dungeonTemplate: string
+        difficultyTier: integer
+    Output:
+        instanceId: string
+        connectInfo: dict
+    Action:
+        Validate party composition meets dungeon requirements
+        Select optimal instance server based on load and region
+        Allocate instance resources and initialize dungeon state
+        Populate NPC spawns and boss state from template
+        Generate instance-specific loot tables with difficulty scaling
+        Register instance with shard for monitoring
+        Return connection details to party members
+
+Behavior MigrateShard
+    Input:
+        playerId: string
+        sourceShard: string
+        targetShard: string
+        reason: string
+    Output:
+        migrationResult: dict
+        newSessionState: dict
+    Action:
+        Quiesce player entity on source shard (freeze state)
+        Serialize full player state with checksum
+        Write migration intent to write-ahead log
+        Transfer serialized state to target shard
+        Reconstruct player entity on target shard
+        Validate state integrity with checksum comparison
+        Update routing table and notify gateway layer
+        Complete two-phase commit and clean up source shard
+
+Condition
+    When player crosses zone boundary
+    Then initiate shard migration if target zone is on different shard,
+         otherwise update zone tracking and load new area assets
+
+Condition
+    When combat encounter has no living hostile targets
+    Then finalize encounter, distribute loot, update quest progress,
+         and broadcast encounter completion to party members
+
+Condition
+    When shard node heartbeat is not received within 10 seconds
+    Then mark shard as degraded, redirect new logins to healthy shards,
+         and begin failover procedure for affected player sessions
+
+Condition
+    When guild bank transaction exceeds daily withdrawal limit
+    Then reject transaction, notify guild officers, and log audit entry
+         for potential investigation of bank abuse
+
+Condition
+    When instance dungeon timer expires
+    Then force-complete dungeon with partial completion rewards,
+         teleport players to exit zone, and queue instance for recycling
+
+Event
+    On PlayerLogin
+    Action: Authenticate session, load character state, assign to optimal shard,
+            restore last known position, notify friends list of online status
+
+Event
+    On PlayerDisconnect
+    Action: Save player state with priority flag, remove from active combat encounters,
+            start 60-second grace period for reconnection, notify party members
+
+Event
+    On WorldBossSpawn
+    Action: Broadcast boss appearance to all players in zone, scale boss difficulty
+            based on participant count, initialize shared loot eligibility tracker
+
+Event
+    On GuildWarDeclared
+    Action: Activate PvP flags between opposing guild members, create war scoreboard,
+            notify all guild members, schedule war duration timer
+
+Event
+    On ShardRebalance
+    Action: Calculate optimal shard distribution based on population metrics,
+            generate migration plan with minimal player disruption,
+            execute phased migration with rollback checkpoints
+
+Parallel
+    World tick processing across all active shards
+    Combat resolution for independent encounters
+    Inventory operations for non-interacting players
+    NPC AI state machine updates per zone
+    Guild operation processing across shards
+    Instance lifecycle management per dungeon server
+
+Optimize
+    Target: World tick latency
+    Priority: Combat resolution takes precedence over NPC AI updates;
+              player movement takes precedence over environmental updates;
+              shard migration is deprioritized during peak combat load
+
+Optimize
+    Target: Shard resource utilization
+    Priority: Even player distribution across shards; zone density thresholds
+              trigger rebalancing; cost optimization favors consolidation during
+              off-peak hours while maintaining latency SLAs
+
+Learn
+    Target: Combat balance parameters
+    Goal: Achieve class win-rate parity within 5% variance across all tiers
+    Adapt
+        Based: Aggregate combat outcome analytics per class, tier, and encounter type
+
+Learn
+    Target: Instance difficulty scaling
+    Goal: Maintain 70% completion rate for intended difficulty tier parties
+    Adapt
+        Based: Instance completion rates, average time-to-complete, and party wipe frequency
+
+Learn
+    Target: Shard population distribution
+    Goal: Minimize cross-shard migration frequency while maintaining load balance
+    Adapt
+        Based: Player login patterns, zone popularity trends, and session duration models
+
+Security
+    Encrypt: Player session tokens, authentication credentials, guild bank contents,
+             payment transaction data
+    Protect: Player inventory state, combat damage calculations, loot generation RNG,
+             shard routing tables, instance completion rewards
+
+Security
+    Encrypt: Cross-shard communication channels, migration state transfers,
+             guild operation payloads
+    Protect: Combat cheat detection inputs, position validation data,
+             anti-teleport movement verification, ability cooldown enforcement
+
+Native Rust
+{
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
+#[derive(Debug, Clone)]
+pub struct PlayerState {
+    pub session_id: String,
+    pub character_id: String,
+    pub position: (f32, f32, f32),
+    pub health: f32,
+    pub mana: f32,
+    pub combat_flags: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CombatResult {
+    pub encounter_id: String,
+    pub damage_log: Vec<DamageEntry>,
+    pub threat_delta: HashMap<String, f32>,
+    pub loot_drops: Vec<LootEntry>,
+}
+
+#[derive(Debug, Clone)]
+pub struct DamageEntry {
+    pub source: String,
+    pub target: String,
+    pub amount: f32,
+    pub critical: bool,
+    pub ability_id: String,
+    pub timestamp: u64,
+}
+
+pub struct MmoServer {
+    shards: Arc<RwLock<HashMap<String, ShardNode>>>,
+    players: Arc<RwLock<HashMap<String, PlayerState>>>,
+    combat_queue: Arc<RwLock<Vec<CombatRequest>>>,
+}
+
+impl MmoServer {
+    pub async fn process_tick(&self, shard_id: &str, delta: f32) -> WorldUpdate {
+        let shards = self.shards.read().await;
+        if !shards.contains_key(shard_id) {
+            return WorldUpdate::ShardNotFound;
+        }
+        // Process world tick: NPC AI, movement, collisions
+        WorldUpdate::Success {
+            updated_entities: 0,
+            events_generated: vec![],
+        }
+    }
+
+    pub async fn resolve_combat(
+        &self,
+        encounter_id: &str,
+        ability_id: &str,
+        caster_id: &str,
+        targets: &[String],
+    ) -> CombatResult {
+        CombatResult {
+            encounter_id: encounter_id.to_string(),
+            damage_log: vec![],
+            threat_delta: HashMap::new(),
+            loot_drops: vec![],
+        }
+    }
+}
+}

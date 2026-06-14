@@ -1,0 +1,408 @@
+# AICL Example: MVC Web Application
+# Implements a full Model-View-Controller web application with routing, middleware pipeline,
+# session management, template rendering, input validation, and CSRF protection.
+
+# Level 1: Architecture
+Goal: Build a production MVC web application framework supporting clean separation of concerns,
+    declarative routing with parameter extraction, middleware pipeline for cross-cutting logic,
+    secure session management, and view template rendering with layout inheritance.
+
+Constraint: Controllers must not contain business logic; delegate to service layer.
+Constraint: Views must not execute arbitrary code; only template expressions permitted.
+Constraint: All user input must be validated before reaching controller logic.
+Constraint: Session data must be stored server-side; client holds only a signed session ID.
+Constraint: Each route must declare its HTTP method, path pattern, and required middleware.
+
+Risk: Session hijacking via stolen session cookie
+Recovery: Regenerate session ID on privilege elevation; bind session to IP and user-agent fingerprint
+
+Risk: CSRF token bypass on state-changing requests
+Recovery: Double-submit cookie pattern with SameSite=Strict attribute and token rotation per request
+
+Risk: Template injection through unsanitized user input
+Recovery: Auto-escape all template expressions by default; explicit unescape requires safe annotation
+
+Risk: Route collision causing request misrouting
+Recovery: Detect route conflicts at startup; first-registered wins with warning for duplicates
+
+Risk: Middleware ordering causes authentication bypass
+Recovery: Enforce middleware dependency graph; validate ordering at route registration time
+
+Risk: Memory leak from unbounded session store
+Recovery: Set session TTL of 30 minutes; background sweeper evicts expired sessions every 60 seconds
+
+Layer: Presentation
+    SubLayer: Router
+    SubLayer: Controller
+    SubLayer: ViewRenderer
+    SubLayer: Middleware
+Layer: Application
+    SubLayer: SessionManager
+    SubLayer: AuthService
+    SubLayer: ValidationService
+    SubLayer: FlashMessenger
+Layer: Data
+    SubLayer: Model
+    SubLayer: Repository
+    SubLayer: DatabasePool
+
+Validation: Route path parameters must match declared regex patterns
+Validation: Request body must conform to content-type schema before controller dispatch
+Validation: Session ID must be cryptographically signed and unexpired
+Validation: CSRF token must match server-side stored token for the session
+Validation: Response content-type must match route declaration
+Validation: Middleware pipeline must not skip authentication for protected routes
+
+# Level 2: Entities
+Entity Route
+    routeId: string
+    httpMethod: string
+    pathPattern: string
+    controllerName: string
+    actionName: string
+    middlewareStack: list
+    requiredRoles: list
+    parameterConstraints: dict
+    cacheTtl: integer
+
+Entity Controller
+    controllerName: string
+    actions: dict
+    beforeFilters: list
+    afterFilters: list
+    layout: string
+    rescues: dict
+    namespace: string
+
+Entity ViewTemplate
+    templateId: string
+    templateName: string
+    layout: string
+    partials: list
+    helpers: list
+    lastModified: datetime
+    compiledAt: datetime
+    cacheEnabled: boolean
+    mimeType: string
+
+Entity Session
+    sessionId: string
+    userId: string
+    data: dict
+    createdAt: datetime
+    lastAccessedAt: datetime
+    expiresAt: datetime
+    ipAddress: string
+    userAgent: string
+    csrfToken: string
+
+Entity HttpRequest
+    requestId: string
+    method: string
+    path: string
+    headers: dict
+    queryParams: dict
+    bodyParams: dict
+    routeParams: dict
+    session: Session
+    contentType: string
+    ipAddress: string
+
+Entity Middleware
+    middlewareId: string
+    middlewareName: string
+    priority: integer
+    dependencies: list
+    config: dict
+    enabled: boolean
+    scope: string
+
+# Level 3: Behaviors
+Behavior MatchRoute
+    Input:
+        method: string
+        path: string
+    Output:
+        route: Route
+        params: dict
+    Action:
+        Scan route table for matching HTTP method
+        Apply path pattern matching with parameter extraction
+        Resolve route parameters against declared constraints
+        Verify required middleware is available
+        Return matched route with extracted parameters
+
+Behavior DispatchRequest
+    Input:
+        request: HttpRequest
+        route: Route
+    Output:
+        response: dict
+    Action:
+        Execute middleware pipeline in priority order
+        Instantiate controller with request context
+        Apply before-filters on controller
+        Invoke controller action with route parameters
+        Apply after-filters on controller
+        Execute post-action middleware in reverse order
+        Return rendered response
+
+Behavior RenderView
+    Input:
+        templateName: string
+        locals: dict
+        layout: string
+    Output:
+        renderedHtml: string
+    Action:
+        Resolve template file from template registry
+        Compile template if not cached or modified since compilation
+        Render partials and helpers into template context
+        Apply auto-escaping to all interpolated values
+        Render layout with yielded content
+        Cache rendered output if cacheEnabled
+        Return rendered HTML string
+
+Behavior ManageSession
+    Input:
+        sessionId: string
+        operation: string
+        data: dict
+    Output:
+        session: Session
+    Action:
+        Validate session ID signature and expiration
+        Load session data from server-side store
+        Apply operation: create, read, update, destroy
+        Regenerate ID if privilege elevation detected
+        Update last accessed timestamp
+        Persist session changes to store
+
+Behavior ValidateInput
+    Input:
+        params: dict
+        rules: dict
+    Output:
+        sanitized: dict
+        errors: list
+    Action:
+        Check each parameter against its validation rule
+        Apply type coercion where appropriate
+        Sanitize strings against XSS patterns
+        Collect all validation errors without short-circuiting
+        Return sanitized params and error list
+
+Behavior AuthenticateRequest
+    Input:
+        request: HttpRequest
+        requiredRoles: list
+    Output:
+        authenticated: boolean
+        userId: string
+    Action:
+        Extract session cookie from request headers
+        Validate session ID and load session data
+        Check user roles against required roles
+        Verify IP and user-agent match session fingerprint
+        Return authentication result
+
+# Level 4: Conditions
+Condition: SessionExpired
+    When session lastAccessedAt exceeds configured TTL
+    Then destroy session, clear cookie, and redirect to login with flash message
+
+Condition: UnauthorizedAccess
+    When authenticated user lacks required role for route
+    Then return HTTP 403 with insufficient-privileges view and log attempt
+
+Condition: ValidationFailure
+    When input validation produces any errors
+    Then re-render form view with error messages and preserved input values
+
+# Level 5: Events
+Event: OnRequestReceived
+    On new HTTP request entering the middleware pipeline
+    Action: Start request timer, inject correlation ID, and attach trace context
+
+Event: OnAuthenticationFailure
+    On session validation or role check failure
+    Action: Log security event with IP and user-agent, increment failed auth metric
+
+Event: OnSessionCreated
+    On new session established after successful login
+    Action: Emit audit event, set session cookie with Secure and HttpOnly flags
+
+Event: OnRouteNotFound
+    On no matching route found for request path and method
+    Action: Return HTTP 404 with custom not-found view and log path for analysis
+
+# Level 6: Concurrency
+Parallel:
+    Request handling across multiple worker processes
+    Session store read/write operations with optimistic locking
+    Template compilation for modified views in background
+    Middleware execution for independent concerns (logging, metrics, CORS)
+    Static asset serving on separate thread pool from dynamic requests
+
+# Level 7: Optimization
+Optimize: Request processing latency
+    Priority: Cache compiled templates; pool database connections; minimize middleware overhead per route
+
+Optimize: View rendering throughput
+    Priority: Pre-compile templates at startup; cache rendered fragments with key-based expiration
+
+# Level 8: Learning
+Learn: Route popularity patterns
+    Goal: Identify high-traffic routes for pre-warming and connection pool sizing
+    Adapt: Per-route connection pool allocation
+    Based: Request frequency distribution and latency percentiles over sliding 15-minute window
+
+Learn: Session store sizing
+    Goal: Predict session store memory requirements based on traffic patterns
+    Adapt: Session TTL and eviction aggressiveness
+    Based: Concurrent session count trends and average session data size
+
+# Level 9: Security
+Security:
+    Encrypt: Session cookie using HMAC-SHA256 with rotating secret key
+    Encrypt: Sensitive session data fields with AES-256-GCM server-side encryption
+    Protect: All forms against CSRF with per-request token validation and SameSite cookies
+    Protect: Application against XSS with Content-Security-Policy headers and auto-escaping
+    Protect: Upload endpoints against file inclusion with mime-type validation and sandboxed storage
+
+# Level 10: Native
+Go
+{
+package mvc
+
+import (
+    "crypto/hmac"
+    "crypto/sha256"
+    "encoding/hex"
+    "fmt"
+    "net/http"
+    "regexp"
+    "sync"
+    "time"
+)
+
+type Route struct {
+    Method      string
+    Pattern     *regexp.Regexp
+    Handler     http.HandlerFunc
+    Middleware  []func(http.Handler) http.Handler
+    Params      []string
+}
+
+type Router struct {
+    routes []Route
+    mu     sync.RWMutex
+}
+
+func NewRouter() *Router {
+    return &Router{}
+}
+
+func (r *Router) AddRoute(method, pattern string, handler http.HandlerFunc, middleware ...func(http.Handler) http.Handler) {
+    re := regexp.MustCompile(pattern)
+    paramRe := regexp.MustCompile(`:([a-zA-Z]+)`)
+    matches := paramRe.FindAllStringSubmatch(pattern, -1)
+    params := make([]string, 0)
+    for _, m := range matches {
+        params = append(params, m[1])
+    }
+    r.mu.Lock()
+    r.routes = append(r.routes, Route{
+        Method: method, Pattern: re, Handler: handler,
+        Middleware: middleware, Params: params,
+    })
+    r.mu.Unlock()
+}
+
+func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+    r.mu.RLock()
+    defer r.mu.RUnlock()
+    for _, route := range r.routes {
+        if route.Method != req.Method {
+            continue
+        }
+        matches := route.Pattern.FindStringSubmatch(req.URL.Path)
+        if matches == nil {
+            continue
+        }
+        for i, name := range route.Params {
+            if i+1 < len(matches) {
+                req.URL.RawQuery += fmt.Sprintf("&%s=%s", name, matches[i+1])
+            }
+        }
+        var handler http.Handler = route.Handler
+        for i := len(route.Middleware) - 1; i >= 0; i-- {
+            handler = route.Middleware[i](handler)
+        }
+        handler.ServeHTTP(w, req)
+        return
+    }
+    http.NotFound(w, req)
+}
+
+type SessionManager struct {
+    store   map[string]*Session
+    secret  []byte
+    mu      sync.RWMutex
+}
+
+type Session struct {
+    ID        string
+    Data      map[string]interface{}
+    CreatedAt time.Time
+    ExpiresAt time.Time
+    CSRFToken string
+}
+
+func NewSessionManager(secret string) *SessionManager {
+    sm := &SessionManager{
+        store:  make(map[string]*Session),
+        secret: []byte(secret),
+    }
+    go sm.sweepExpired()
+    return sm
+}
+
+func (sm *SessionManager) Create(w http.ResponseWriter) *Session {
+    id := generateToken(sm.secret)
+    session := &Session{
+        ID: id, Data: make(map[string]interface{}),
+        CreatedAt: time.Now(), ExpiresAt: time.Now().Add(30 * time.Minute),
+        CSRFToken: generateToken(sm.secret),
+    }
+    sm.mu.Lock()
+    sm.store[id] = session
+    sm.mu.Unlock()
+    http.SetCookie(w, &http.Cookie{
+        Name: "session_id", Value: id,
+        HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
+        Path: "/", MaxAge: 1800,
+    })
+    return session
+}
+
+func (sm *SessionManager) sweepExpired() {
+    ticker := time.NewTicker(60 * time.Second)
+    for range ticker.C {
+        sm.mu.Lock()
+        now := time.Now()
+        for id, s := range sm.store {
+            if now.After(s.ExpiresAt) {
+                delete(sm.store, id)
+            }
+        }
+        sm.mu.Unlock()
+    }
+}
+
+func generateToken(secret []byte) string {
+    h := hmac.New(sha256.New, secret)
+    h.Write([]byte(fmt.Sprintf("%d", time.Now().UnixNano())))
+    return hex.EncodeToString(h.Sum(nil))
+}
+}

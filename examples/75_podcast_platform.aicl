@@ -1,0 +1,565 @@
+# AICL Example: Podcast Platform
+# Audio processing, RSS feeds, transcription, ad insertion, analytics, and discovery
+
+Goal
+    Build a podcast platform that handles professional audio processing with loudness
+    normalization and enhancement, manages RSS feed generation and distribution to all
+    major directories, provides automated transcription with speaker diarization, supports
+    dynamic ad insertion with targeting, delivers comprehensive analytics for creators,
+    and powers content discovery through topic modeling and listener behavior analysis.
+
+Constraint
+    Audio processing must normalize to -16 LUFS for spoken content within 1 LU tolerance
+    RSS feed generation must complete within 5 seconds of any episode metadata change
+    Transcription must achieve at least 95% word accuracy for clear English speech
+    Dynamic ad insertion must be seamless with no audible artifacts at splice points
+    Analytics must be available within 5 minutes of listening event ingestion
+    Discovery recommendations must be generated within 200ms per user request
+
+Risk
+    Audio normalization introduces artifacts or degrades speech intelligibility
+Recovery
+    Apply multi-pass normalization with speech-weighted filtering; validate output
+    with PESQ score; if quality below threshold, fall back to simpler normalization;
+    maintain original audio for reprocessing; alert audio engineering team on repeated failures
+
+Risk
+    RSS feed distribution delays cause episodes to be unavailable on directories
+Recovery
+    Implement webhook-based push notifications to directories; poll directories for
+    feed update verification; if push fails, retry with exponential backoff; maintain
+    direct submission API integration for major platforms; alert creator of distribution delay
+
+Risk
+    Transcription service outage blocks episode processing pipeline
+Recovery
+    Queue transcription jobs for deferred processing; mark episodes as transcription
+    pending; enable episode publication without transcription; process transcription
+    asynchronously when service recovers; notify creator when transcription available
+
+Risk
+    Ad insertion targeting leaks listener personal data to advertisers
+Recovery
+    Implement server-side ad decisioning with anonymized audience segments; never expose
+    individual listener data; use differential privacy for audience reporting; audit ad
+    targeting parameters for compliance; enforce data minimization in ad request payloads
+
+Risk
+    Analytics data inconsistency between real-time and batch-processed metrics
+Recovery
+    Use Lambda architecture with speed and batch layers; reconcile speed layer results
+    with batch processing hourly; flag discrepancies exceeding 2% for investigation;
+    serve speed layer data with appropriate confidence indicators; maintain immutable
+    event log as source of truth
+
+Risk
+    Content discovery algorithm amplifies popular podcasts at expense of niche content
+Recovery
+    Implement diversity injection in recommendation ranking; allocate minimum 25% of
+    recommendation slots to discovery content; track and optimize for catalog coverage;
+    provide niche category boosting; monitor recommendation entropy metrics
+
+Layer
+    SubLayer: AudioLayer
+        Audio ingestion, normalization, enhancement, format conversion, chapter marking
+    SubLayer: FeedLayer
+        RSS generation, directory distribution, feed validation, metadata management
+    SubLayer: TranscriptionLayer
+        Speech-to-text, speaker diarization, timestamp alignment, language detection
+    SubLayer: AdLayer
+        Ad decisioning, dynamic insertion, targeting, frequency capping, compliance
+    SubLayer: AnalyticsLayer
+        Event ingestion, metric computation, creator dashboard, export, benchmarking
+    SubLayer: DiscoveryLayer
+        Topic modeling, similarity matching, listener profiling, recommendation ranking
+
+Validation
+    All published audio must meet -16 LUFS loudness target within 1 LU tolerance
+    RSS feeds must validate against Apple Podcasts and Spotify specifications
+    Transcription timestamps must align within 500ms of actual speech boundaries
+    Ad insertion splice points must be inaudible with crossfade validation
+    Analytics event processing must maintain exactly-once semantics
+    Discovery recommendations must include at least 25% catalog-diverse content
+    All creator-facing metrics must be reconcilable to raw event data
+
+Entity Podcast
+    podcastId: string
+    creatorId: string
+    title: string
+    description: string
+    rssUrl: string
+    coverArtUrl: string
+    category: string
+    subcategories: list
+    language: string
+    episodeCount: integer
+    subscriberCount: integer
+    createdAt: datetime
+    rating: float
+
+Entity Episode
+    episodeId: string
+    podcastId: string
+    title: string
+    description: string
+    audioUrl: string
+    duration: float
+    fileSize: integer
+    loudness: float
+    publishDate: datetime
+    season: integer
+    episodeNumber: integer
+    chapterMarks: list
+    transcriptionId: string
+    status: string
+
+Entity Transcription
+    transcriptionId: string
+    episodeId: string
+    language: string
+    segments: list
+    speakers: list
+    wordAccuracy: float
+    processingTime: float
+    status: string
+    createdAt: datetime
+    reviewedBy: string
+
+Entity AdCampaign
+    campaignId: string
+    advertiserId: string
+    creativeUrl: string
+    targetSegments: list
+    frequencyCap: integer
+    startDate: datetime
+    endDate: datetime
+    budget: float
+    spent: float
+    impressions: integer
+    status: string
+
+Entity ListeningEvent
+    eventId: string
+    listenerId: string
+    episodeId: string
+    podcastId: string
+    eventType: string
+    position: float
+    duration: float
+    timestamp: datetime
+    deviceType: string
+    client: string
+    isAdSupported: boolean
+
+Entity DiscoveryProfile
+    listenerId: string
+    listenedTopics: dict
+    listenedCategories: dict
+    completionRateAvg: float
+    listeningVelocity: float
+    noveltyAffinity: float
+    recentPodcastIds: list
+    embedding: list
+    lastUpdated: datetime
+
+Entity RSSFeed
+    feedId: string
+    podcastId: string
+    feedUrl: string
+    lastGenerated: datetime
+    lastValidated: datetime
+    validationErrors: list
+    distributionStatus: dict
+    subscriberCount: integer
+    etag: string
+
+Behavior ProcessAudio
+    Input:
+        episodeId: string
+        sourceAudioPath: string
+        processingOptions: dict
+    Output:
+        processedAudioUrl: string
+        loudnessReport: dict
+        chapterData: list
+    Action:
+        Ingest source audio and validate format compatibility
+        Analyze audio: measure loudness, detect silence gaps, identify speech segments
+        Apply loudness normalization to -16 LUFS with speech-weighted filtering
+        Apply dynamic range compression optimized for spoken content
+        Detect and mark chapter boundaries from silence gaps or metadata
+        Convert to distribution formats (MP3, AAC, OGG) with appropriate bitrates
+        Generate waveform data for visual player display
+        Validate output quality with PESQ measurement
+        Store processed audio in CDN with cache headers
+        Return processed audio URLs with loudness and chapter reports
+
+Behavior GenerateRSSFeed
+    Input:
+        podcastId: string
+        includeDrafts: boolean
+    Output:
+        feedUrl: string
+        feedHash: string
+        validationResults: dict
+    Action:
+        Retrieve podcast metadata and all published episodes
+        Build RSS 2.0 XML with Apple Podcasts and Spotify namespace extensions
+        Include episode enclosures with correct MIME types and file sizes
+        Add iTunes-specific tags (category, explicit, author, owner)
+        Generate chapters and transcript references in feed entries
+        Validate feed against Apple Podcasts and Spotify specifications
+        Compute ETag for caching support
+        Upload feed to CDN with appropriate cache TTL
+        Push update notification to directory webhooks
+        Return feed URL with validation results
+
+Behavior TranscribeEpisode
+    Input:
+        episodeId: string
+        audioUrl: string
+        language: string
+    Output:
+        transcriptionId: string
+        segments: list
+        speakers: list
+        accuracy: float
+    Action:
+        Retrieve audio and validate accessibility
+        Detect language if not specified
+        Perform speech-to-text with word-level timestamps
+        Apply speaker diarization to identify distinct speakers
+        Align timestamps with audio segments
+        Calculate word-level confidence scores
+        Compute overall accuracy estimate
+        Flag low-confidence segments for human review
+        Store transcription with episode reference
+        Return transcription ID with segments and speaker data
+
+Behavior InsertDynamicAd
+    Input:
+        episodeId: string
+        listenerId: string
+        insertionPoint: string
+        context: dict
+    Output:
+        adCreativeUrl: string
+        adDuration: float
+        spliceMetadata: dict
+    Action:
+        Determine available ad slots at insertion point
+        Query ad decisioning engine with anonymized listener segment
+        Apply frequency capping per listener per campaign
+        Select highest-value eligible ad campaign
+        Generate splice metadata with crossfade parameters for seamless insertion
+        Validate splice points are in silence or low-energy audio segments
+        Record ad impression event for billing and analytics
+        Return ad creative URL with splice instructions for client
+
+Behavior ComputeAnalytics
+    Input:
+        podcastId: string
+        periodStart: datetime
+        periodEnd: datetime
+        granularity: string
+    Output:
+        metrics: dict
+        comparisons: dict
+        benchmarks: dict
+    Action:
+        Aggregate listening events for podcast within time period
+        Compute key metrics: total listens, unique listeners, completion rate, drop-off points
+        Calculate subscriber growth and churn rates
+        Identify top episodes by performance metrics
+        Compute listening geography and device distributions
+        Generate time-of-day and day-of-week listening patterns
+        Compare against previous period for trend analysis
+        Benchmark against category averages if available
+        Prepare exportable report data
+        Return comprehensive analytics with comparisons and benchmarks
+
+Behavior GenerateDiscovery
+    Input:
+        listenerId: string
+        context: dict
+        maxResults: integer
+    Output:
+        podcastRecommendations: list
+        episodeRecommendations: list
+        categorySuggestions: list
+    Action:
+        Retrieve listener discovery profile and recent listening signals
+        Generate candidate pool from collaborative and content-based sources
+        Score candidates using topic similarity and listening pattern matching
+        Inject diversity: ensure 25% of results are catalog-diverse discoveries
+        Apply novelty weighting based on listener's exploration affinity
+        Filter for language compatibility and content availability
+        Rank by expected engagement with discovery bonus factor
+        Cache results with activity-based TTL
+        Return recommendations with explanation metadata
+
+Behavior ValidateRSSCompliance
+    Input:
+        feedUrl: string
+        targetPlatform: string
+    Output:
+        isValid: boolean
+        errors: list
+        warnings: list
+        platformSpecificIssues: list
+    Action:
+        Fetch and parse RSS feed from URL
+        Validate XML well-formedness and RSS 2.0 compliance
+        Check required fields per target platform specification
+        Validate enclosure URLs are accessible and correct MIME type
+        Check cover art dimensions and file size requirements
+        Verify iTunes namespace tags are correctly formatted
+        Test feed accessibility and response time
+        Generate compliance report with platform-specific requirements
+        Return validation results with actionable error and warning lists
+
+Condition
+    When audio loudness deviates more than 1 LU from -16 LUFS target
+    Then reprocess audio with adjusted normalization parameters; if still out
+         of spec after second pass, flag for manual audio engineering review;
+         do not publish episode until loudness is within tolerance
+
+Condition
+    When RSS feed validation fails for any major directory
+    Then block episode publication, notify creator with specific validation errors,
+         suggest corrections, and provide preview of feed output for manual review
+
+Condition
+    When listener ad frequency cap is reached for a campaign
+    Then serve alternative ad from different campaign; if no eligible campaigns,
+         serve house ad or skip ad slot entirely; never exceed frequency cap
+
+Condition
+    When transcription accuracy falls below 90% for an episode
+    Then flag for human transcription review, display partial transcription with
+         accuracy warning, and schedule re-transcription with enhanced model parameters
+
+Condition
+    When podcast analytics show listener drop-off exceeding 40% in first 5 minutes
+    Then notify creator with drop-off analysis, suggest intro optimization,
+         provide benchmark comparison, and highlight episodes with better retention
+
+Event
+    On EpisodePublished
+    Action: Trigger RSS feed regeneration, notify subscribers via push, submit to
+            podcast directories, start transcription pipeline, update discovery index,
+            initialize analytics tracking
+
+Event
+    On TranscriptionCompleted
+    Action: Update episode metadata with transcription reference, regenerate RSS feed
+            with transcript tag, index transcription for search, notify creator of
+            availability, enable chapter navigation
+
+Event
+    On AdImpression
+    Action: Record impression for billing, update frequency cap counter, trigger
+            analytics event, check campaign budget, update ad decisioning model
+
+Event
+    On ListeningMilestone
+    Action: Check for achievement triggers, update listener profile, compute
+            engagement metrics, update recommendation signals, generate creator
+            notification for significant milestones
+
+Event
+    On FeedValidationError
+    Action: Alert creator with error details, block feed distribution, provide
+            fix suggestions, create support ticket, track resolution time
+
+Parallel
+    Audio processing pipeline across multiple episodes
+    RSS feed generation and directory distribution
+    Transcription processing with speech-to-text and diarization
+    Dynamic ad insertion decisioning for concurrent listeners
+    Analytics event aggregation and metric computation
+    Discovery recommendation generation across listener segments
+
+Optimize
+    Target: Audio processing throughput
+    Priority: Published episodes processed first; normalization is synchronous;
+              format conversion can be parallelized per output format; quality
+              validation must complete before CDN distribution
+
+Optimize
+    Target: Discovery recommendation relevance
+    Priority: Listening completion signals weighted over start signals; topic
+              consistency balanced with novelty; category diversity enforced;
+              recent listening weighted higher than historical preferences
+
+Learn
+    Target: Audio processing parameters per content type
+    Goal: Achieve optimal loudness normalization without speech artifacts for all content styles
+    Adapt
+        Based: Audio quality metrics from processed episodes, creator feedback on
+               audio quality, listener playback device distributions, and loudness
+               compliance verification results
+
+Learn
+    Target: Dynamic ad insertion effectiveness
+    Goal: Maximize ad completion rate while maintaining listener retention above 95%
+    Adapt
+        Based: Ad skip rates by insertion point and content type, listener
+               retention before and after ad breaks, and frequency cap optimization
+               for engagement versus revenue tradeoffs
+
+Learn
+    Target: Discovery recommendation accuracy
+    Goal: Achieve >40% click-through rate and >60% completion rate for recommended podcasts
+    Adapt
+        Based: Recommendation engagement metrics, listening pattern changes after
+               discovery, category exploration velocity, and listener satisfaction
+               signals from explicit ratings and subscriptions
+
+Security
+    Encrypt: Audio content in transit and at rest, transcription data, listener
+             personal data, ad targeting segments, analytics event payloads
+    Protect: Audio content integrity, RSS feed tampering prevention, ad insertion
+             fraud detection, analytics event authenticity, transcription data privacy
+
+Security
+    Encrypt: Creator payout information, advertiser billing data, listener
+             behavioral profiles, ad decisioning model parameters
+    Protect: Ad frequency cap enforcement, listener data anonymization for
+             ad targeting, content access control, download authentication,
+             analytics manipulation prevention
+
+Native Python
+{
+import hashlib
+import time
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Tuple
+from enum import Enum
+from datetime import datetime, timedelta
+
+class EpisodeStatus(Enum):
+    UPLOADING = "uploading"
+    PROCESSING = "processing"
+    TRANSCRIBING = "transcribing"
+    READY = "ready"
+    PUBLISHED = "published"
+    ARCHIVED = "archived"
+
+@dataclass
+class Podcast:
+    podcast_id: str
+    creator_id: str
+    title: str
+    description: str
+    rss_url: str
+    cover_art_url: str
+    category: str
+    language: str
+    episodes: List[str] = field(default_factory=list)
+    subscriber_count: int = 0
+
+@dataclass
+class Episode:
+    episode_id: str
+    podcast_id: str
+    title: str
+    description: str
+    audio_url: str
+    duration: float
+    file_size: int
+    loudness_lufs: float
+    publish_date: datetime
+    season: int = 1
+    episode_number: int = 0
+    chapter_marks: List[dict] = field(default_factory=list)
+    transcription_id: Optional[str] = None
+    status: EpisodeStatus = EpisodeStatus.UPLOADING
+
+@dataclass
+class TranscriptionSegment:
+    start_time: float
+    end_time: float
+    speaker: str
+    text: str
+    confidence: float
+
+@dataclass
+class Transcription:
+    transcription_id: str
+    episode_id: str
+    language: str
+    segments: List[TranscriptionSegment]
+    speakers: List[str]
+    overall_accuracy: float
+    created_at: datetime = field(default_factory=datetime.utcnow)
+
+class AudioProcessor:
+    TARGET_LUFS = -16.0
+    LUFS_TOLERANCE = 1.0
+
+    def normalize_loudness(self, input_lufs: float, content: bytes) -> Tuple[float, bytes]:
+        adjustment = self.TARGET_LUFS - input_lufs
+        if abs(input_lufs - self.TARGET_LUFS) <= self.LUFS_TOLERANCE:
+            return input_lufs, content
+        # Apply gain adjustment (simplified)
+        new_lufs = input_lufs + adjustment
+        return new_lufs, content
+
+    def validate_loudness(self, measured_lufs: float) -> bool:
+        return abs(measured_lufs - self.TARGET_LUFS) <= self.LUFS_TOLERANCE
+
+    def detect_chapters(self, silence_gaps: List[Tuple[float, float]],
+                        min_gap_duration: float = 2.0) -> List[dict]:
+        chapters = []
+        chapter_start = 0.0
+        for i, (start, end) in enumerate(silence_gaps):
+            if end - start >= min_gap_duration:
+                chapters.append({
+                    "title": f"Chapter {i + 1}",
+                    "start_time": chapter_start,
+                    "end_time": start,
+                })
+                chapter_start = end
+        return chapters
+
+class RSSFeedGenerator:
+    def generate_feed(self, podcast: Podcast, episodes: List[Episode]) -> str:
+        items = []
+        for ep in episodes:
+            if ep.status != EpisodeStatus.PUBLISHED:
+                continue
+            items.append(f"""
+    <item>
+        <title>{ep.title}</title>
+        <description>{ep.description}</description>
+        <enclosure url="{ep.audio_url}" length="{ep.file_size}" type="audio/mpeg"/>
+        <pubDate>{ep.publish_date.strftime('%a, %d %b %Y %H:%M:%S GMT')}</pubDate>
+        <itunes:duration>{int(ep.duration)}</itunes:duration>
+        <itunes:season>{ep.season}</itunes:season>
+        <itunes:episode>{ep.episode_number}</itunes:episode>
+    </item>""")
+
+        return f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+<channel>
+    <title>{podcast.title}</title>
+    <description>{podcast.description}</description>
+    <itunes:category text="{podcast.category}"/>
+    <itunes:owner>
+        <itunes:email>creator@platform.com</itunes:email>
+    </itunes:owner>
+    <language>{podcast.language}</language>
+    {''.join(items)}
+</channel>
+</rss>"""
+
+class AdDecisioningEngine:
+    def select_ad(self, listener_segment: str, frequency_caps: Dict[str, int],
+                  eligible_campaigns: List[dict]) -> Optional[dict]:
+        for campaign in sorted(eligible_campaigns, key=lambda c: c.get("bid", 0), reverse=True):
+            campaign_id = campaign["campaign_id"]
+            if frequency_caps.get(campaign_id, 0) < campaign.get("frequency_cap", 3):
+                return campaign
+        return None
+}

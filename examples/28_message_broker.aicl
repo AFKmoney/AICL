@@ -1,0 +1,331 @@
+# AICL Example: Message Broker
+# Implements a distributed message broker with topic/queue management, publish-subscribe,
+# exactly-once delivery semantics, partitioning, consumer groups, and dead-letter handling.
+
+# Level 1: Architecture
+Goal: Provide a highly scalable, durable message broker that supports publish-subscribe and point-to-point messaging with exactly-once delivery semantics, ordered partition consumption, consumer group balancing, and guaranteed message persistence across node failures.
+
+Constraint: Messages must be persisted to disk before acknowledging the producer
+Constraint: Exactly-once delivery requires idempotent producer and transactional consumer
+Constraint: Partition count per topic must not exceed the number of broker nodes
+Constraint: Consumer group rebalancing must complete within the session timeout period
+Constraint: Message ordering must be maintained within a single partition
+Constraint: Retention policy must be enforced even if consumers have not consumed messages
+
+Risk: Message loss during broker failover before disk persistence
+Recovery: Synchronous replication to in-sync replicas before acknowledging producer; if primary fails, ISR member promotes with complete log; unreplicated messages are re-sent by producer with idempotent retry
+
+Risk: Consumer group rebalancing storm causing processing halts
+Recovery: Cooperative sticky assignment strategy minimizes partition movement; incremental cooperative rebalancing avoids stop-the-world pauses; rebalance throttle limits partition reassignment rate
+
+Risk: Duplicate message delivery due to producer retry after acknowledgment
+Recovery: Idempotent producer with sequence numbers per partition; broker deduplicates based on producer ID and sequence number; consumer enables transactional reads with commit-after-processing semantics
+
+Risk: Partition leader failure causing consumer lag and unavailability
+Recovery: Controller detects leader failure via ZooKeeper/RAFT session expiry; new leader elected from ISR; consumers reconnect and resume from last committed offset; unclean leader election prevented by default
+
+Risk: Dead-letter queue overflow from poison messages
+Recovery: Dead-letter queue has independent retention policy; messages exceeding max delivery attempts are moved to DLQ; DLQ monitoring triggers alert at 80% capacity; manual replay mechanism for DLQ messages
+
+Risk: Disk exhaustion from high-throughput topics exceeding retention cleanup rate
+Recovery: Enforce hard retention limit with aggressive log segment deletion; throttle producers on partitions nearing disk quota; automatic broker defragmentation; alert at 85% disk utilization
+
+Layer: BrokerCore
+    SubLayer: LogStorage
+    SubLayer: PartitionManager
+    SubLayer: ReplicationManager
+    SubLayer: ControllerService
+Layer: ClientProtocol
+    SubLayer: ProducerAPI
+    SubLayer: ConsumerAPI
+    SubLayer: AdminAPI
+    SubLayer: TransactionCoordinator
+Layer: ConsumerGroup
+    SubLayer: GroupCoordinator
+    SubLayer: OffsetManager
+    SubLayer: RebalanceProtocol
+    SubLayer: HeartbeatManager
+
+Validation: All published messages must be persisted to at least min.insync.replicas before acknowledgment
+Validation: Consumer offset commits must be atomic across all assigned partitions
+Validation: Partition leader must always be a member of the in-sync replica set
+Validation: Topic configuration changes must not reduce partition count
+Validation: Transactional producer must not interleave transactional and non-transactional messages
+Validation: Consumer group generation must monotonically increase on each rebalance
+
+# Level 2: Entities
+Entity Topic
+    topicName: string
+    partitionCount: integer
+    replicationFactor: integer
+    retentionMs: integer
+    maxMessageBytes: integer
+    cleanupPolicy: string
+    minInsyncReplicas: integer
+    createdAt: datetime
+    configVersion: integer
+
+Entity Partition
+    partitionId: integer
+    topicName: string
+    leaderBroker: string
+    isrMembers: list
+    replicaAssignments: list
+    logStartOffset: integer
+    logEndOffset: integer
+    highWatermark: integer
+    preferredLeader: string
+
+Entity ConsumerGroup
+    groupId: string
+    generationId: integer
+    leaderId: string
+    protocolType: string
+    members: list
+    state: string
+    sessionTimeoutMs: integer
+    rebalanceTimeoutMs: integer
+    assignedPartitions: dict
+
+Entity Message
+    topic: string
+    partition: integer
+    offset: integer
+    key: bytes
+    value: bytes
+    headers: dict
+    timestamp: datetime
+    producerId: string
+    sequenceNumber: integer
+    transactionalId: string
+
+Entity ProducerState
+    producerId: string
+    transactionalId: string
+    epoch: integer
+    sequenceNumbers: dict
+    currentTransaction: string
+    lastAckedOffset: integer
+    batchSize: integer
+    lingerMs: integer
+
+Entity DeadLetterQueue
+    topicName: string
+    originalTopic: string
+    reason: string
+    deliveryAttempts: integer
+    firstDeliveryTime: datetime
+    lastDeliveryTime: datetime
+    originalPartition: integer
+    originalOffset: integer
+    messageContent: bytes
+
+# Level 3: Behaviors
+Behavior ProduceMessage
+    Input: topic: string, key: bytes, value: bytes, headers: dict, transactionalId: string
+    Output: partition: integer, offset: integer, timestamp: datetime
+    Action:
+        Validate topic exists and message size within limits
+        Determine target partition using key hash or round-robin
+        If transactional, validate producer epoch and sequence number
+        Append message to partition leader log segment
+        Replicate to all in-sync replicas synchronously
+        Update high watermark after ISR acknowledgment
+        Return partition and offset to producer
+
+Behavior ConsumeMessage
+    Input: groupId: string, topic: string, maxRecords: integer, timeoutMs: integer
+    Output: messages: list, highWatermark: integer
+    Action:
+        Validate consumer is member of the group with valid generation
+        Fetch messages from assigned partitions starting at committed offset
+        Respect partition ordering within fetch results
+        Return messages up to maxRecords or until timeout
+        Include high watermark for consumer lag calculation
+        Track fetch latency for monitoring
+
+Behavior CommitOffset
+    Input: groupId: string, offsets: dict, commitType: string
+    Output: success: boolean, committedOffsets: dict
+    Action:
+        Validate consumer generation matches current group generation
+        If transactional commit, validate transaction is in committing state
+        Write offset commits to internal __consumer_offsets topic
+        Replicate offset commit to ensure durability
+        Return confirmed committed offsets
+        Trigger lag metrics update
+
+Behavior RebalanceGroup
+    Input: groupId: string, triggeringMember: string, reason: string
+    Output: newAssignment: dict, generationId: integer
+    Action:
+        Increment group generation counter
+        Revoke currently assigned partitions from all members
+        Compute new partition assignment using cooperative sticky strategy
+        Minimize partition movement from previous assignment
+        Distribute new assignment to all group members
+        Wait for member acknowledgment within rebalance timeout
+
+Behavior HandlePoisonMessage
+    Input: topic: string, partition: integer, offset: integer, error: string, deliveryCount: integer
+    Output: dlqPartition: integer, dlqOffset: integer
+    Action:
+        If deliveryCount exceeds max.redelivery.count, route to dead-letter topic
+        Enrich message with failure metadata (reason, original partition/offset)
+        Produce to DLQ topic with same key for ordering
+        Commit offset past the poison message to unblock consumer
+        Emit poison message metric with error classification
+
+Behavior CreateTopic
+    Input: topicName: string, partitionCount: integer, replicationFactor: integer, config: dict
+    Output: success: boolean, topicMetadata: dict
+    Action:
+        Validate topic name follows naming conventions
+        Assign partition leaders and replicas across brokers using rack-aware assignment
+        Create log directories on assigned brokers
+        Register topic in cluster metadata
+        Propagate metadata to all brokers via controller notification
+        Return topic metadata including partition assignments
+
+# Level 4: Conditions
+Condition: ISRShrinksBelowMin
+    When in-sync replica count for a partition drops below min.insync.replicas
+    Then reject all produce requests for that partition with NOT_ENOUGH_REPLICAS error code; alert operations team; attempt to recover lagging replicas by truncating to leader's log end offset
+
+Condition: ConsumerSessionExpired
+    When consumer fails to send heartbeat within session.timeout.ms
+    Then trigger group rebalance to reassign the departed consumer's partitions; mark consumer as removed; log session expiry event with consumer ID and last heartbeat timestamp
+
+Condition: DiskUsageThreshold
+    When broker disk usage exceeds retention.bytes or reaches 85% capacity
+    Then aggressively delete oldest log segments; throttle producers on affected partitions; if throttling insufficient, reject new produces with POLICY_VIOLATION; alert operations
+
+Condition: UncleanLeaderElection
+    When no in-sync replica is available to become partition leader
+    Then if unclean.leader.election.enable is true, elect from out-of-sync replicas with data loss warning; if false, partition remains unavailable; emit critical alert either way
+
+Condition: TransactionTimeout
+    When transactional producer fails to commit or abort within transaction.timeout.ms
+    Then transaction coordinator automatically aborts the transaction; release all locked partitions; emit transaction timeout metric; subsequent produce requests from same producerId are rejected until producer recovers with new epoch
+
+# Level 5: Events
+Event: OnNewPartitionLeader
+    On partition leadership changes to a new broker
+    Action: Update cluster metadata, notify producers of new leader endpoint, redirect consumer fetch requests, update ISR tracking, emit leader change metric, verify new leader has complete log
+
+Event: OnConsumerGroupRebalance
+    On consumer group membership or subscription change
+    Action: Pause consumption on revoked partitions, commit offsets before revocation, process new partition assignments, reset fetch positions for newly assigned partitions, emit rebalance duration metric
+
+Event: OnMessageProduced
+    On message successfully appended and replicated to partition
+    Action: Update partition high watermark, emit produce latency metric, check if log segment rotation needed, trigger retention cleanup if segment size exceeds threshold, update topic bytes counter
+
+Event: OnDLQMessageAdded
+    On message moved to dead-letter queue
+    Action: Emit DLQ metric with error classification, increment poison message counter, notify consumer application via callback if registered, log original offset and failure reason for debugging
+
+Event: OnBrokerJoined
+    On new broker registered with the cluster controller
+    Action: Assign partition replicas to new broker for load balancing, trigger partial rebalance if auto-leader-rebalance enabled, update cluster metadata on all brokers, begin log catchup for new replicas
+
+# Level 6: Concurrency
+Parallel:
+    Independent partition log append operations across leaders
+    Consumer fetch requests from different groups on different partitions
+    Log segment deletion and retention enforcement
+    Replica fetcher threads per broker for ISR maintenance
+    Offset commit processing from multiple consumer groups
+
+# Level 7: Optimization
+Optimize: Produce throughput
+    Priority: Batch messages per partition using linger.ms and batch.size; compress batches with lz4/zstd; use zero-copy transfer via sendfile for replica fetching; group produce requests by destination broker
+
+Optimize: Consumer fetch efficiency
+    Priority: Implement read-ahead with predictable prefetch; batch fetch across multiple partitions; use memory-mapped index files for fast offset lookup; return data in zero-copy mode to consumer
+
+Optimize: Log segment management
+    Priority: Pre-allocate log segment files to avoid filesystem fragmentation; use sparse index files with interval-based indexing; parallelize segment deletion across topic partitions
+
+# Level 8: Learning
+Learn: Optimal partition count for throughput
+    Goal: Determine the ideal partition count per topic that maximizes parallelism without excessive overhead
+    Adapt: recommendedPartitionCount per topic
+    Based: Producer throughput, consumer group size, and per-partition latency measurements over the last 24 hours
+
+Learn: Optimal batch size and linger time
+    Goal: Maximize throughput while keeping P99 produce latency under target
+    Adapt: batchSize and lingerMs per producer
+    Based: Observed produce latency distribution, message size distribution, and current throughput requirements
+
+Learn: Consumer group rebalance strategy
+    Goal: Minimize rebalance duration and processing disruption
+    Adapt: sessionTimeoutMs and rebalanceTimeoutMs per group
+    Based: Historical rebalance frequency, duration, and processing delay caused by stop-the-world pauses
+
+# Level 9: Security
+Security:
+    Encrypt: All inter-broker communication using TLS with mutual authentication
+    Encrypt: Client-to-broker connections using TLS with optional SASL authentication
+    Encrypt: Message payloads at rest using AES-256 for sensitive topics
+    Protect: Topic access via ACLs (produce, consume, describe, alter)
+    Protect: Consumer group operations via group-level ACLs
+    Protect: Administrative operations (topic creation, config change) via super-user RBAC
+    Protect: Transactional IDs against hijacking via producer epoch validation
+
+# Level 10: Native
+Native: Java
+{
+public class PartitionLog {
+    private final FileChannel logChannel;
+    private final OffsetIndex offsetIndex;
+    private final TimeIndex timeIndex;
+    private final long rollSizeBytes;
+    private volatile long logEndOffset;
+    private volatile long highWatermark;
+    private final ConcurrentLinkedQueue<LogSegment> segments;
+
+    public synchronized long append(MemoryRecords records) throws IOException {
+        long offset = logEndOffset;
+        
+        // Validate and assign offsets
+        for (RecordBatch batch : records.batches()) {
+            batch.setBaseOffset(offset);
+            offset += batch.countOrNull() != null ? batch.countOrNull() : 1;
+        }
+        
+        // Roll to new segment if needed
+        if (activeSegment().sizeInBytes() > rollSizeBytes) {
+            roll();
+        }
+        
+        // Append to active segment
+        activeSegment().append(records);
+        logEndOffset = offset;
+        
+        // Update indices
+        offsetIndex.append(logEndOffset, activeSegment().sizeInBytes());
+        timeIndex.append(System.currentTimeMillis(), logEndOffset);
+        
+        // Flush based on flush policy
+        if (flushOnWrite) {
+            logChannel.force(true);
+        }
+        
+        return logEndOffset;
+    }
+
+    public synchronized void updateHighWatermark(long newHw) {
+        if (newHw >= highWatermark) {
+            highWatermark = newHw;
+        }
+    }
+
+    public FetchData read(long startOffset, int maxLength) {
+        LogSegment segment = findSegment(startOffset);
+        if (segment == null) return FetchData.empty();
+        
+        int position = offsetIndex.lookup(startOffset).position;
+        return segment.read(position, maxLength);
+    }
+}

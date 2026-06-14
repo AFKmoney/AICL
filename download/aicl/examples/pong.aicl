@@ -1,0 +1,128 @@
+# AICL Example: Pong Game
+# A classic Pong game specification
+
+Goal:
+Build a Pong game
+
+Constraint:
+Must run at 60 FPS minimum
+
+Risk:
+Ball leaves play area
+
+Recovery:
+Clamp ball position to boundaries
+
+Risk:
+Score not displayed correctly
+
+Recovery:
+Reinitialize score display
+
+Risk:
+Input lag detected
+
+Recovery:
+Enable input buffering
+
+Layer:
+Window Manager
+
+Layer:
+Rendering System
+    Sublayer:
+    Sprite rendering
+    Sublayer:
+    Text rendering
+    Sublayer:
+    Background rendering
+
+Layer:
+Input System
+
+Layer:
+Physics Engine
+    Sublayer:
+    Ball movement
+    Sublayer:
+    Collision detection
+    Sublayer:
+    Paddle movement
+
+Layer:
+Game Logic
+    Sublayer:
+    Score tracking
+    Sublayer:
+    Game state management
+    Sublayer:
+    Round management
+
+Validation:
+Complete one playable match
+
+Validation:
+Maintain 60 FPS during gameplay
+
+Validation:
+Score increments correctly on point
+
+Entity Player
+    name: string
+    score: integer
+    paddle_position: float
+
+Entity Ball
+    x: float
+    y: float
+    velocity_x: float
+    velocity_y: float
+
+Behavior MovePaddle
+
+Input:
+    Player
+    direction string
+
+Action:
+    Update paddle position based on direction
+
+Behavior UpdateBall
+
+Input:
+    Ball
+
+Action:
+    Update ball position and handle collisions
+
+Condition:
+
+When ball hits paddle
+
+Then reflect ball velocity
+
+Condition:
+
+When score reaches 10
+
+Then end match
+
+Event:
+
+On key press
+
+Action:
+    move corresponding paddle
+
+Event:
+
+On collision
+
+Action:
+    apply physics reflection
+
+Parallel:
+
+Rendering System
+Input System
+Physics Engine

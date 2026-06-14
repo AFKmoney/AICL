@@ -1,0 +1,534 @@
+# AICL Example: Live Auction Platform
+# Real-time bidding, reserve prices, anti-sniping, payment escrow, and multiple auction types
+
+Goal
+    Build a live auction platform that supports real-time bidding with sub-second latency,
+    enforces reserve prices with transparency controls, implements anti-sniping extensions,
+    manages payment escrow with trust verification, and supports multiple auction types
+    including English, Dutch, sealed-bid, and Vickrey auctions with comprehensive audit trails.
+
+Constraint
+    Bid submission to confirmation must complete within 500ms
+    Anti-sniping extension must trigger automatically and notify all bidders
+    Reserve price must be enforced without revealing to bidders when not met
+    Escrow funds must be locked within 2 seconds of auction close
+    Auction state machine must be strictly enforced with no invalid transitions
+    All auction results must be verifiable and auditable with complete bid history
+
+Risk
+    Bid sniping in final seconds prevents fair competition
+Recovery
+    Implement automatic time extension: if bid placed within last 2 minutes, extend
+    auction by 2 minutes; cap maximum extensions at 3; notify all active bidders of
+    time extension with updated countdown; log extension trigger for audit
+
+Risk
+    Winning bidder defaults on payment after auction close
+Recovery
+    Require pre-authorized payment method before bidding; lock escrow deposit of 10%
+    at bid time; on default, forfeit deposit to seller; offer second-chance to next
+    highest bidder; record default on bidder's trust profile
+
+Risk
+    Shill bidding artificially inflates auction prices
+Recovery
+    Detect shill patterns via bid behavior analysis (same IP, device fingerprint,
+    bid timing patterns); flag suspicious bidding for review; suspend flagged accounts;
+    cancel auctions with confirmed shill activity; refund affected bidders
+
+Risk
+    Payment escrow fails to release funds after successful auction
+Recovery
+    Implement automated escrow release with time-based triggers; if seller verification
+    complete, auto-release after 48 hours; allow buyer confirmation for early release;
+    escalate unresolved escrow to dispute resolution team; maintain full transaction log
+
+Risk
+    Concurrent bid submission creates race condition on current price
+Recovery
+    Implement optimistic concurrency control with version-based conflict detection;
+    on conflict, reject lower bid and notify bidder of current price; process bids in
+    strict chronological order with microsecond precision timestamps; maintain bid
+    queue with single-writer pattern for each auction
+
+Risk
+    Auction type misconfiguration leads to incorrect winner determination
+Recovery
+    Validate auction configuration against type-specific schema before activation;
+    simulate auction with test bids to verify outcome logic; require administrator
+    confirmation for non-standard configurations; maintain type-specific test suites
+
+Layer
+    SubLayer: BiddingLayer
+        Bid submission, validation, queue processing, current price tracking
+    SubLayer: AuctionLayer
+        Auction lifecycle, type-specific logic, state machine, timer management
+    SubLayer: AntiSnipeLayer
+        Time extension triggers, notification dispatch, extension counting
+    SubLayer: EscrowLayer
+        Payment authorization, fund locking, release triggers, refund processing
+    SubLayer: TrustLayer
+        Bidder verification, reputation scoring, fraud detection, dispute resolution
+    SubLayer: AuditLayer
+        Bid history, state transitions, payment records, compliance reporting
+
+Validation
+    Every bid must be higher than current bid plus minimum increment for English auctions
+    Reserve price status (met/unmet) must never be revealed until auction ends
+    Anti-sniping extension must trigger consistently for all qualifying bids
+    Escrow balance must always equal sum of locked deposits for active auctions
+    Auction state transitions must follow defined state machine with no skips
+    Sealed-bid auctions must never reveal bid amounts before closing
+    All monetary calculations must use fixed-point arithmetic with no floating point
+
+Entity Auction
+    auctionId: string
+    sellerId: string
+    title: string
+    description: string
+    auctionType: string
+    startingPrice: float
+    currentPrice: float
+    reservePrice: float
+    reserveMet: boolean
+    minimumIncrement: float
+    startTime: datetime
+    endTime: datetime
+    status: string
+    extensionCount: integer
+    maxExtensions: integer
+    category: string
+
+Entity Bid
+    bidId: string
+    auctionId: string
+    bidderId: string
+    amount: float
+    timestamp: datetime
+    isWinning: boolean
+    isReserveMet: boolean
+    bidType: string
+    deviceFingerprint: string
+    ipAddress: string
+
+Entity EscrowTransaction
+    escrowId: string
+    auctionId: string
+    buyerId: string
+    sellerId: string
+    amount: float
+    depositAmount: float
+    status: string
+    lockedAt: datetime
+    releaseAt: datetime
+    releasedAt: datetime
+    disputeId: string
+
+Entity BidderProfile
+    bidderId: string
+    reputationScore: float
+    totalBids: integer
+    wonAuctions: integer
+    defaultCount: integer
+    trustLevel: string
+    paymentMethods: list
+    isVerified: boolean
+    flags: list
+    createdAt: datetime
+
+Entity AuctionResult
+    resultId: string
+    auctionId: string
+    winningBidId: string
+    winningBidderId: string
+    finalPrice: float
+    reserveMet: boolean
+    totalBids: integer
+    uniqueBidders: integer
+    extensionCount: integer
+    completedAt: datetime
+    escrowId: string
+
+Entity Dispute
+    disputeId: string
+    auctionId: string
+    initiatorId: string
+    respondentId: string
+    reason: string
+    evidence: list
+    status: string
+    assignedMediator: string
+    createdAt: datetime
+    resolvedAt: datetime
+    resolution: string
+
+Behavior SubmitBid
+    Input:
+        auctionId: string
+        bidderId: string
+        amount: float
+        bidType: string
+    Output:
+        bidResult: dict
+        currentPrice: float
+        extensionsTriggered: integer
+    Action:
+        Validate auction is active and accepting bids
+        Verify bidder is authorized and not the seller
+        Check bid meets minimum increment above current price
+        For sealed-bid: accept without revealing; for Dutch: check at or above current
+        Check for concurrent bid conflicts with optimistic locking
+        Record bid with microsecond-precision timestamp
+        Update current price and winning bid
+        Check if reserve price is now met
+        If bid within anti-sniping window, trigger time extension
+        Notify all active bidders of new bid and price update
+
+Behavior ManageAuctionLifecycle
+    Input:
+        auctionId: string
+        action: string
+        parameters: dict
+    Output:
+        newState: string
+        auctionResult: dict
+    Action:
+        Validate state transition against auction state machine
+        If starting: activate auction, initialize timer, open bidding
+        If extending: add extension time, increment counter, notify bidders
+        If closing: determine winner based on auction type rules
+        For English: highest bid wins; for Dutch: first bid at current price
+        For sealed-bid: reveal all bids, highest wins; for Vickrey: second-price
+        Check reserve price and mark result accordingly
+        If reserve met, initiate escrow with winning bidder
+        If reserve not met, notify seller and all bidders
+        Generate comprehensive auction result record
+
+Behavior ProcessEscrow
+    Input:
+        escrowId: string
+        action: string
+        amount: float
+    Output:
+        escrowStatus: string
+        transactionRecord: dict
+    Action:
+        Validate escrow exists and action is permitted in current state
+        If locking: authorize payment method, hold deposit amount
+        If releasing: verify seller obligations met, transfer funds to seller
+        If refunding: return funds to buyer, record reason
+        If disputing: freeze escrow, create dispute record, assign mediator
+        Generate transaction record with full audit trail
+        Update escrow status and timestamps
+        Notify both parties of escrow state change
+        Return updated escrow status with transaction reference
+
+Behavior DetectShillBidding
+    Input:
+        auctionId: string
+        recentBids: list
+    Output:
+        riskScore: float
+        flags: list
+        recommendedAction: string
+    Action:
+        Analyze bid timing patterns for suspicious regularity
+        Cross-reference bidder IP addresses and device fingerprints
+        Check for bid-then-retract patterns from same bidder group
+        Compare bidder history for repeated interactions between same users
+        Calculate statistical likelihood of coordinated bidding
+        If risk score exceeds threshold, flag auction for review
+        Suspend flagged bidders pending investigation
+        Return risk assessment with evidence and recommended action
+
+Behavior ExecuteDutchAuction
+    Input:
+        auctionId: string
+        currentPrice: float
+        priceDecrement: float
+        decrementInterval: integer
+    Output:
+        newPrice: float
+        bidderAccepted: boolean
+        winningBid: dict
+    Action:
+        Decrement current price by configured amount at each interval
+        Broadcast new price to all watching bidders
+        First bidder to accept at current price wins
+        Process as immediate purchase (no further bidding)
+        Verify bidder's pre-authorized payment method
+        Lock escrow deposit from winning bidder
+        Close auction and generate result record
+        Return winning bid details with final price
+
+Behavior ResolveDispute
+    Input:
+        disputeId: string
+        mediatorId: string
+        resolution: string
+        evidence: list
+    Output:
+        disputeOutcome: dict
+        escrowAction: string
+    Action:
+        Validate mediator is assigned to this dispute
+        Review all evidence from both parties
+        Apply resolution (full refund, partial refund, release to seller)
+        Execute corresponding escrow action
+        Update dispute record with resolution and timestamp
+        Adjust reputation scores for both parties based on outcome
+        Notify both parties of dispute resolution
+        Generate compliance report for records
+
+Condition
+    When bid is placed within the last 2 minutes of an English auction
+    Then automatically extend auction end time by 2 minutes; increment extension
+         counter; notify all active bidders; if max extensions reached, allow
+         auction to close on schedule
+
+Condition
+    When winning bidder fails to complete payment within 72 hours of auction close
+    Then forfeit bidder's deposit; offer second-chance to next highest bidder at
+         their bid price; record default on bidder profile; initiate escrow refund
+
+Condition
+    When shill bidding risk score exceeds 0.8 for an active auction
+    Then suspend suspicious bidder accounts; notify seller of investigation;
+         continue auction with remaining legitimate bidders; flag for post-audit
+
+Condition
+    When escrow release timer expires without buyer dispute
+    Then automatically release escrow funds to seller; record auto-release;
+         notify both parties of transaction completion; update trust profiles
+
+Condition
+    When auction receives no bids within first 50% of its duration
+    Then notify seller with suggestion to lower reserve price or extend duration;
+         boost auction visibility in search results; consider featured placement
+
+Event
+    On BidPlaced
+    Action: Update current price, check anti-sniping triggers, notify active bidders,
+            update bid history, check reserve price status, broadcast price update
+
+Event
+    On AuctionClosed
+    Action: Determine winner, verify reserve price, initiate escrow, generate result,
+            notify all participants, update seller and bidder statistics, archive bid history
+
+Event
+    On ReservePriceMet
+    Action: Mark auction as reserve met, notify seller, update auction display to
+            show reserve met indicator, boost bidder confidence signal
+
+Event
+    On DisputeOpened
+    Action: Freeze escrow, assign mediator, notify both parties, collect initial
+            evidence, start dispute resolution timer, update dispute metrics
+
+Event
+    On PaymentDefault
+    Action: Forfeit deposit, record default, offer second-chance bidding, adjust
+            trust profile, notify seller, generate compliance report
+
+Parallel
+    Bid processing for multiple concurrent auctions
+    Anti-sniping timer management across active auctions
+    Escrow transaction processing across multiple payment providers
+    Shill bidding detection analysis in background
+    Dutch auction price decrement scheduling
+    Dispute resolution workflow processing
+
+Optimize
+    Target: Bid submission latency
+    Priority: Bid validation is hot-path; current price updates must be atomic;
+              notification delivery can be asynchronous; escrow operations are
+              deferred until auction close; audit logging is write-behind
+
+Optimize
+    Target: Auction discovery and engagement
+    Priority: Ending-soon auctions boosted in search; high-activity auctions featured;
+              category-specific recommendations; similar item suggestions for
+              outbid bidders; personalized auction alerts
+
+Learn
+    Target: Optimal starting price and reserve price recommendations for sellers
+    Goal: Maximize final sale price while maintaining >70% sell-through rate
+    Adapt
+        Based: Historical auction outcomes by category, seasonal demand patterns,
+               comparable item sale prices, and bidder engagement metrics at
+               different price points
+
+Learn
+    Target: Shill bidding detection accuracy
+    Goal: Detect >90% of confirmed shill bidding with <3% false positive rate
+    Adapt
+        Based: Confirmed shill bidding cases with behavioral patterns, evolving
+               shill tactics, network analysis of bidder relationships, and
+               feedback from fraud investigation team
+
+Learn
+    Target: Anti-sniping extension parameters
+    Goal: Maximize fair bidding participation while minimizing auction fatigue
+    Adapt
+        Based: Bid patterns in final minutes, extension trigger frequency,
+           bidder satisfaction surveys, and sell-through rate correlation
+           with extension counts
+
+Security
+    Encrypt: Bid amounts in transit, payment authorization data, escrow fund
+             details, bidder personal information, dispute evidence
+    Protect: Auction state integrity, bid ordering guarantees, escrow fund
+             security, shill detection model, reserve price confidentiality,
+             sealed-bid secrecy
+
+Security
+    Encrypt: Cross-service payment tokens, mediator communications,
+             compliance report generation, bidder identity verification
+    Protect: Race condition prevention on concurrent bids, auction timer
+             tampering prevention, bid retraction abuse prevention,
+             payment method fraud detection, auction manipulation safeguards
+
+Native Go
+{
+package auction
+
+import (
+    "sync"
+    "time"
+)
+
+type AuctionType string
+
+const (
+    EnglishAuction  AuctionType = "english"
+    DutchAuction    AuctionType = "dutch"
+    SealedBidAuction AuctionType = "sealed"
+    VickreyAuction  AuctionType = "vickrey"
+)
+
+type AuctionStatus string
+
+const (
+    StatusDraft     AuctionStatus = "draft"
+    StatusActive    AuctionStatus = "active"
+    StatusExtended  AuctionStatus = "extended"
+    StatusClosed    AuctionStatus = "closed"
+    StatusCancelled AuctionStatus = "cancelled"
+)
+
+type Bid struct {
+    BidID        string
+    AuctionID    string
+    BidderID     string
+    Amount       int64 // fixed-point in cents
+    Timestamp    time.Time
+    IsWinning    bool
+    ReserveMet   bool
+    IPHash       string
+}
+
+type Auction struct {
+    AuctionID       string
+    SellerID        string
+    AuctionType     AuctionType
+    Status          AuctionStatus
+    StartingPrice   int64
+    CurrentPrice    int64
+    ReservePrice    int64
+    ReserveMet      bool
+    MinIncrement    int64
+    StartTime       time.Time
+    EndTime         time.Time
+    ExtensionCount  int
+    MaxExtensions   int
+    bids            []Bid
+    mu              sync.Mutex
+}
+
+func (a *Auction) SubmitBid(bidderID string, amount int64) (*Bid, bool) {
+    a.mu.Lock()
+    defer a.mu.Unlock()
+
+    if a.Status != StatusActive && a.Status != StatusExtended {
+        return nil, false
+    }
+
+    minBid := a.CurrentPrice + a.MinIncrement
+    if amount < minBid {
+        return nil, false
+    }
+
+    // Mark previous winning bid as no longer winning
+    for i := range a.bids {
+        a.bids[i].IsWinning = false
+    }
+
+    bid := Bid{
+        BidID:     GenerateBidID(),
+        AuctionID: a.AuctionID,
+        BidderID:  bidderID,
+        Amount:    amount,
+        Timestamp: time.Now(),
+        IsWinning: true,
+        ReserveMet: amount >= a.ReservePrice,
+    }
+
+    a.bids = append(a.bids, bid)
+    a.CurrentPrice = amount
+    if amount >= a.ReservePrice {
+        a.ReserveMet = true
+    }
+
+    // Anti-sniping: extend if bid within 2 minutes of end
+    timeUntilEnd := a.EndTime.Sub(time.Now())
+    if timeUntilEnd < 2*time.Minute && a.ExtensionCount < a.MaxExtensions {
+        a.EndTime = a.EndTime.Add(2 * time.Minute)
+        a.ExtensionCount++
+        a.Status = StatusExtended
+    }
+
+    return &bid, true
+}
+
+func (a *Auction) Close() *AuctionResult {
+    a.mu.Lock()
+    defer a.mu.Unlock()
+
+    a.Status = StatusClosed
+    var winningBid *Bid
+    for i := range a.bids {
+        if a.bids[i].IsWinning {
+            winningBid = &a.bids[i]
+            break
+        }
+    }
+
+    return &AuctionResult{
+        AuctionID:     a.AuctionID,
+        WinningBid:    winningBid,
+        FinalPrice:    a.CurrentPrice,
+        ReserveMet:    a.ReserveMet,
+        TotalBids:     len(a.bids),
+        Extensions:    a.ExtensionCount,
+    }
+}
+
+type AuctionResult struct {
+    AuctionID  string
+    WinningBid *Bid
+    FinalPrice int64
+    ReserveMet bool
+    TotalBids  int
+    Extensions int
+}
+
+func GenerateBidID() string {
+    return time.Now().Format("20060102150405") + RandomSuffix(8)
+}
+
+func RandomSuffix(n int) string {
+    // simplified
+    return "abcd1234"
+}
+}

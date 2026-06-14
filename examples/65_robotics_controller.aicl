@@ -1,0 +1,498 @@
+# AICL Example: Robotics Controller
+# Advanced robotics controller with motion planning, multi-sensor fusion, inverse kinematics,
+# safety stop systems, and hierarchical task sequencing for industrial and service robots.
+
+Goal: Build a robotics controller that provides smooth motion planning with collision avoidance,
+    multi-sensor fusion for precise localization, real-time inverse kinematics for multi-DOF
+    manipulators, failsafe stop mechanisms, and hierarchical task sequencing for complex operations.
+
+Constraint: Motion planning must generate collision-free trajectories within 10ms for 6-DOF
+    manipulators with joint velocity and acceleration limits enforced at all times.
+
+Constraint: Sensor fusion must produce localization estimate within 1mm position accuracy and
+    0.1 degree orientation accuracy at 1kHz update rate for precision tasks.
+
+Constraint: Inverse kinematics solver must converge within 1ms for 6-DOF manipulators with
+    singularity handling and joint limit avoidance in the solution space.
+
+Constraint: Safety stops must halt all motion within 50ms of trigger with category 3 stop
+    per ISO 13850 and safe torque off per IEC 61800-5-2 for all drive axes.
+
+Constraint: Task sequencer must support preemptive priority-based scheduling with guaranteed
+    completion of safety-critical tasks regardless of lower-priority task state.
+
+Risk: Collision between robot arm and workspace obstacle during motion execution
+Recovery: Emergency stop all axes within 50ms; retract along collision-free path computed
+    from last known safe configuration; log collision event with full state snapshot
+
+Risk: Inverse kinematics singularity causes uncontrollable joint velocities
+Recovery: Detect singularity proximity through manipulability measure; apply damped least
+    squares with adaptive damping factor; reduce task speed near singular configurations
+
+Risk: Sensor fusion divergence produces incorrect localization estimate
+Recovery: Detect divergence through innovation filter monitoring; fall back to last
+    convergent estimate; reduce motion speed; attempt sensor recalibration sequence
+
+Risk: Safety stop system fails to halt motion on demand
+Recovery: Implement dual-channel safety architecture with hardwired safety relay; monitor
+    safety PLC response time; activate mechanical brake if electrical stop fails
+
+Risk: Task sequencing deadlock prevents robot from completing operations
+Recovery: Detect deadlock through resource dependency cycle analysis; apply deadlock
+    resolution protocol with priority preemption; log deadlock for sequence optimization
+
+Risk: Joint limit violation during high-speed motion exceeds mechanical bounds
+Recovery: Apply soft joint limits with deceleration zone before hard stop; enforce velocity
+    reduction within 5 degrees of joint limit; emergency stop on hard limit contact
+
+Layer: RoboticsController
+    SubLayer: MotionPlanning
+    SubLayer: SensorFusion
+    SubLayer: InverseKinematics
+    SubLayer: SafetySystem
+    SubLayer: TaskSequencer
+
+Validation: All motion trajectories must be collision-free before execution
+Validation: Inverse kinematics solution must satisfy all joint limits and velocity constraints
+Validation: Sensor fusion estimate must include covariance matrix for uncertainty quantification
+Validation: Safety stop must achieve zero velocity within 50ms on all axes
+Validation: Task sequences must be validated for deadlock-free execution before start
+Validation: Joint positions must never exceed hard mechanical limits under any condition
+Validation: Controller must maintain heartbeat with safety PLC at 1kHz minimum
+
+# Level 2: Entities
+
+Entity RobotArm
+    arm_id: string
+    dof: integer
+    joint_positions: list
+    joint_velocities: list
+    joint_limits_min: list
+    joint_limits_max: list
+    max_velocities: list
+    max_accelerations: list
+    payload_kg: float
+
+Entity Trajectory
+    trajectory_id: string
+    arm_id: string
+    waypoints: list
+    duration_s: float
+    is_collision_free: boolean
+    interpolation_type: string
+    created_at: datetime
+
+Entity FusionEstimate
+    estimate_id: string
+    position: dict
+    orientation: dict
+    covariance: list
+    sensor_contributions: dict
+    innovation: dict
+    is_converged: boolean
+    timestamp: datetime
+
+Entity IKSolution
+    solution_id: string
+    arm_id: string
+    target_pose: dict
+    joint_angles: list
+    manipulability: float
+    singularity_proximity: float
+    computation_time_ms: float
+    is_valid: boolean
+
+Entity SafetyState
+    robot_id: string
+    stop_category: integer
+    is_stopped: boolean
+    stop_reason: string
+    safety_plc_heartbeat: datetime
+    drive_safe_torque_off: list
+    mechanical_brake_engaged: list
+    recovery_required: boolean
+
+Entity TaskSequence
+    sequence_id: string
+    robot_id: string
+    tasks: list
+    current_task_index: integer
+    resource_locks: dict
+    priority: integer
+    is_preemptible: boolean
+    status: string
+
+# Level 3: Behaviors
+
+Behavior PlanMotion
+    Input:
+        arm_id: string
+        target_pose: dict
+        constraints: dict
+        obstacle_map: dict
+    Output:
+        trajectory: dict
+        is_collision_free: boolean
+        planning_time_ms: float
+    Action:
+        Transform target pose to joint-space goal configuration
+        Search configuration space using RRT* or trajectory optimization
+        Check collision along candidate trajectories against obstacle map
+        Apply time-optimal trajectory parameterization with jerk limits
+        Validate against all joint velocity and acceleration constraints
+        Return collision-free trajectory or failure with replanning suggestion
+
+Behavior FuseSensors
+    Input:
+        joint_encoders: list
+        force_torque: dict
+        vision_pose: dict
+        imu_data: dict
+    Output:
+        fused_estimate: dict
+        covariance: list
+        is_converged: boolean
+    Action:
+        Predict state using robot kinematic model
+        Update prediction with each sensor measurement sequentially
+        Apply innovation filter to detect and reject outlier measurements
+        Compute fused estimate with full covariance propagation
+        Check convergence criterion on innovation sequence
+        Monitor individual sensor health and exclude degraded sensors
+
+Behavior SolveIK
+    Input:
+        arm_id: string
+        target_pose: dict
+        current_joints: list
+        nullspace_objective: string
+    Output:
+        joint_angles: list
+        manipulability: float
+        singularity_proximity: float
+    Action:
+        Compute Jacobian at current configuration
+        Apply damped least squares with adaptive damping near singularities
+        Project nullspace component for secondary optimization objective
+        Iterate until convergence or maximum iteration count
+        Validate solution against joint limits and velocity constraints
+        Compute manipulability and singularity proximity metrics
+
+Behavior ExecuteSafetyStop
+    Input:
+        stop_category: integer
+        stop_reason: string
+        current_state: dict
+    Output:
+        stop_achieved: boolean
+        time_to_stop_ms: float
+        axes_stopped: list
+    Action:
+        Determine stop category and corresponding deceleration profile
+        Apply deceleration ramp to all moving axes simultaneously
+        Activate safe torque off on drives once velocity reaches zero
+        Engage mechanical brakes for holding position
+        Confirm stop through dual-channel safety PLC verification
+        Log stop event with full state and timing information
+
+Behavior SequenceTasks
+    Input:
+        sequence_id: string
+        task_list: list
+        resource_requirements: dict
+        priority: integer
+    Output:
+        execution_order: list
+        resource_schedule: dict
+        estimated_duration_s: float
+    Action:
+        Analyze task dependencies and resource requirements
+        Build execution graph with partial ordering constraints
+        Detect and resolve potential deadlocks through cycle analysis
+        Schedule tasks with priority-based preemptive policy
+        Allocate resource locks with deadlock prevention protocol
+        Execute tasks sequentially with parallelism where dependencies allow
+
+# Level 4: Conditions
+
+Condition: CollisionDetected
+    When planned trajectory intersects with obstacle in workspace
+    Then abort trajectory execution immediately, retract to last safe
+        configuration, and trigger replanning with updated obstacle map
+
+Condition: SingularityApproaching
+    When manipulability measure drops below threshold indicating singularity proximity
+    Then increase damping factor in IK solver, reduce motion speed proportionally,
+        and consider alternative IK solution with better manipulability
+
+Condition: FusionDivergence
+    When innovation filter Mahalanobis distance exceeds 3-sigma threshold
+    Then flag sensor fusion as diverged, fall back to last convergent estimate,
+        reduce motion speed, and initiate sensor diagnostic sequence
+
+Condition: SafetyStopTriggered
+    When safety PLC commands stop or emergency stop button activated
+    Then execute category 3 stop on all axes within 50ms, engage mechanical
+        brakes, and prevent any motion until safety reset with authorization
+
+Condition: JointLimitApproaching
+    When any joint position is within 5 degrees of soft joint limit
+    Then reduce velocity proportionally to distance from limit, apply
+        deceleration profile, and emergency stop if hard limit contacted
+
+Condition: TaskDeadlineMissed
+    When task execution exceeds allocated time budget by more than 20 percent
+    Then escalate task priority, preempt lower-priority tasks for resource
+        access, and alert operator if deadline cannot be recovered
+
+# Level 5: Events
+
+Event: TrajectoryCompleted
+    On motion_planning_execution_finished_successfully
+    Action: Update robot state with final configuration, release trajectory
+        resources, and signal task sequencer to advance to next task
+
+Event: IKSolutionFound
+    On inverse_kinematics_solver_converged
+    Action: Validate solution against all constraints, forward to motion
+        planner for trajectory generation, and update manipulability metrics
+
+Event: SafetyStopActivated
+    On safety_stop_condition_triggered
+    Action: Log stop event with full context, notify task sequencer to pause
+        all tasks, and require safety reset before motion can resume
+
+Event: SensorRecalibrated
+    On sensor_fusion_recovers_from_divergence
+    Action: Validate new calibration against ground truth, resume high-speed
+        motion if within accuracy specification, and log recalibration event
+
+Event: TaskCompleted
+    On task_sequence_step_finished
+    Action: Release resource locks, update task status, and advance to next
+        task in sequence or signal sequence completion to coordinator
+
+# Level 6: Concurrency
+
+Parallel:
+    Motion planning with trajectory optimization
+    Sensor fusion running at 1kHz update rate
+    Inverse kinematics computation for trajectory waypoints
+    Safety PLC communication and stop monitoring
+    Task execution and resource management
+    Joint limit monitoring on all axes
+    Collision checking against workspace obstacle map
+
+# Level 7: Optimization
+
+Optimize: Motion execution speed while maintaining safety and precision
+    Priority: Safety stop responsiveness takes absolute precedence over all motion goals
+    Priority: Collision avoidance is mandatory; no trajectory executed without clearance check
+    Priority: Joint limit avoidance preferred over task speed near mechanical bounds
+    Priority: Trajectory smoothness optimized for minimum jerk within time constraints
+    Priority: Task throughput maximized subject to safety and precision constraints
+
+# Level 8: Learning
+
+Learn: Optimal trajectory parameters for common motion patterns
+    Goal: Reduce average task cycle time by 20% while maintaining precision
+    Adapt: Trajectory waypoint positions and timing profiles
+        Based: Historical execution times, vibration measurements, and precision outcomes
+
+Learn: Sensor fusion noise characteristics per operating condition
+    Goal: Improve localization accuracy to 0.5mm under varying conditions
+    Adapt: Process and measurement noise covariance matrices per sensor
+        Based: Innovation sequence statistics, temperature, and vibration environment data
+
+Learn: Task sequence optimization for throughput
+    Goal: Minimize idle time and resource contention across task sequences
+    Adapt: Task ordering and resource allocation strategies
+        Based: Historical execution times, resource contention patterns, and deadline compliance
+
+# Level 9: Security
+
+Security:
+    Encrypt: All safety PLC communication using authenticated safety protocols
+    Encrypt: Controller-to-robot communication using TLS with hardware security module
+    Protect: Safety configuration with dual-authorization modification requirement
+    Protect: IK solution integrity with checksum verification before execution
+    Protect: Task sequence definitions with signed authorization and change tracking
+    Encrypt: Sensor data channels using AES-256 with per-session key derivation
+
+# Level 10: Native
+
+Native: C++
+{
+#include <vector>
+#include <array>
+#include <cmath>
+#include <chrono>
+#include <mutex>
+#include <Eigen/Dense>
+
+using Vector6d = Eigen::Matrix<double, 6, 1>;
+using Matrix6d = Eigen::Matrix<double, 6, 6>;
+using VectorXd = Eigen::VectorXd;
+using MatrixXd = Eigen::MatrixXd;
+
+struct JointLimits {
+    Vector6d min_pos;
+    Vector6d max_pos;
+    Vector6d max_vel;
+    Vector6d max_acc;
+};
+
+struct RobotPose {
+    Eigen::Vector3d position;
+    Eigen::Quaterniond orientation;
+};
+
+class DampedLeastSquaresIK {
+private:
+    double lambda_min_;
+    double lambda_max_;
+    double manipulability_threshold_;
+    int max_iterations_;
+    double position_tolerance_;
+    double orientation_tolerance_;
+    JointLimits limits_;
+
+public:
+    DampedLeastSquaresIK(double lam_min, double lam_max,
+                          double manip_thresh, int max_iter,
+                          double pos_tol, double ori_tol,
+                          const JointLimits& limits)
+        : lambda_min_(lam_min), lambda_max_(lam_max),
+          manipulability_threshold_(manip_thresh),
+          max_iterations_(max_iter),
+          position_tolerance_(pos_tol),
+          orientation_tolerance_(ori_tol),
+          limits_(limits) {}
+
+    struct IKResult {
+        Vector6d joint_angles;
+        double manipulability;
+        double singularity_proximity;
+        double computation_time_ms;
+        bool is_valid;
+        int iterations;
+    };
+
+    IKResult solve(const RobotPose& target,
+                   const Vector6d& current_joints,
+                   const std::function<Matrix6d(const Vector6d&)>& jacobian_fn,
+                   const std::function<RobotPose(const Vector6d&)>& fk_fn) {
+        auto start = std::chrono::high_resolution_clock::now();
+        IKResult result;
+        result.joint_angles = current_joints;
+        result.is_valid = false;
+        result.iterations = 0;
+
+        for (int i = 0; i < max_iterations_; ++i) {
+            result.iterations = i + 1;
+            RobotPose current = fk_fn(result.joint_angles);
+            Vector6d error = compute_error(target, current);
+
+            if (error.head<3>().norm() < position_tolerance_ &&
+                error.tail<3>().norm() < orientation_tolerance_) {
+                result.is_valid = true;
+                break;
+            }
+
+            Matrix6d J = jacobian_fn(result.joint_angles);
+            double manip = std::sqrt((J * J.transpose()).determinant());
+            result.manipulability = manip;
+
+            double lambda = compute_damping(manip);
+            result.singularity_proximity = 1.0 - manip / manipulability_threshold_;
+
+            Matrix6d damped = J.transpose() * (J * J.transpose() +
+                            lambda * lambda * Matrix6d::Identity()).inverse();
+            Vector6d delta_q = damped * error;
+
+            result.joint_angles += delta_q;
+
+            for (int j = 0; j < 6; ++j) {
+                result.joint_angles(j) = std::clamp(
+                    result.joint_angles(j),
+                    limits_.min_pos(j) + 0.01,
+                    limits_.max_pos(j) - 0.01
+                );
+            }
+        }
+
+        auto end = std::chrono::high_resolution_clock::now();
+        result.computation_time_ms =
+            std::chrono::duration<double, std::milli>(end - start).count();
+        return result;
+    }
+
+private:
+    double compute_damping(double manipulability) const {
+        if (manipulability > manipulability_threshold_) {
+            return lambda_min_;
+        }
+        double ratio = manipulability / manipulability_threshold_;
+        return lambda_min_ + (lambda_max_ - lambda_min_) * (1.0 - ratio * ratio);
+    }
+
+    Vector6d compute_error(const RobotPose& target,
+                           const RobotPose& current) const {
+        Vector6d err;
+        err.head<3>() = target.position - current.position;
+        Eigen::AngleAxisd aa(target.orientation * current.orientation.inverse());
+        err.tail<3>() = aa.angle() * aa.axis();
+        return err;
+    }
+};
+
+class SafetyMonitor {
+private:
+    std::mutex mutex_;
+    int stop_category_;
+    bool is_stopped_;
+    std::chrono::system_clock::time_point stop_timestamp_;
+    JointLimits limits_;
+
+public:
+    SafetyMonitor(const JointLimits& limits)
+        : stop_category_(0), is_stopped_(false), limits_(limits) {}
+
+    bool check_joint_limits(const Vector6d& joints) const {
+        for (int i = 0; i < 6; ++i) {
+            if (joints(i) <= limits_.min_pos(i) ||
+                joints(i) >= limits_.max_pos(i)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool check_velocity_limits(const Vector6d& velocities) const {
+        for (int i = 0; i < 6; ++i) {
+            if (std::abs(velocities(i)) > limits_.max_vel(i)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void trigger_stop(int category, const std::string& reason) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        stop_category_ = category;
+        is_stopped_ = true;
+        stop_timestamp_ = std::chrono::system_clock::now();
+    }
+
+    bool is_stopped() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return is_stopped_;
+    }
+
+    void reset_stop() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        is_stopped_ = false;
+        stop_category_ = 0;
+    }
+};
+}

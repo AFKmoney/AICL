@@ -1,0 +1,573 @@
+     1→   800→      const data = await res.json();
+     2→   801→
+     3→   802→      // Check if TODOs are still present
+     4→   803→      const hasTodos = activeFile.content.includes('TODO');
+     5→   804→
+     6→   805→      if (hasTodos) {
+     7→   806→        toast({
+     8→   807→          title: 'Exercise Incomplete',
+     9→   808→          description: 'Some TODO items remain. Complete them before checking.',
+    10→   809→          variant: 'destructive',
+    11→   810→        });
+    12→   811→      } else if (data.overall === 'PASS') {
+    13→   812→        toast({
+    14→   813→          title: 'Exercise Complete! 🎉',
+    15→   814→          description: 'Your AICL specification passes all verification checks.',
+    16→   815→        });
+    17→   816→      } else {
+    18→   817→        toast({
+    19→   818→          title: 'Verification Issues',
+    20→   819→          description: `Your spec has ${data.failed || 0} failing checks. Review and fix them.`,
+    21→   820→          variant: 'destructive',
+    22→   821→        });
+    23→   822→      }
+    24→   823→    } catch {
+    25→   824→      toast({ title: 'Error', description: 'Could not check exercise', variant: 'destructive' });
+    26→   825→    }
+    27→   826→    setIsRunning(false);
+    28→   827→  }, [activeExercise, activeFile]);
+    29→   828→
+    30→   829→  // Load tree when panel opens
+    31→   830→  useEffect(() => {
+    32→   831→    if (rightPanelContent === 'tree' && !treeData) {
+    33→   832→      fetch('/api/tree', {
+    34→   833→        method: 'POST',
+    35→   834→        headers: { 'Content-Type': 'application/json' },
+    36→   835→        body: JSON.stringify({ source: activeFile.content }),
+    37→   836→      }).then(r => r.json()).then(data => {
+    38→   837→        setTreeData(data.tree || data.error || 'No tree data');
+    39→   838→      }).catch(() => setTreeData('Error loading tree'));
+    40→   839→    }
+    41→   840→  }, [rightPanelContent, activeFile.content, treeData]);
+    42→   841→
+    43→   842→  // ============================================================
+    44→   843→  // RENDER
+    45→   844→  // ============================================================
+    46→   845→  return (
+    47→   846→    <TooltipProvider delayDuration={300}>
+    48→   847→      <div className="h-screen flex flex-col bg-[#1e1e1e] text-[#d4d4d4] overflow-hidden">
+    49→   848→        {/* ======== TOOLBAR ======== */}
+    50→   849→        <div className="flex items-center gap-1 px-2 py-1 bg-[#252526] border-b border-[#3c3c3c] flex-shrink-0">
+    51→   850→          {/* Left: Logo + File ops */}
+    52→   851→          <div className="flex items-center gap-1 mr-2">
+    53→   852→            <div className="flex items-center gap-1.5 px-2">
+    54→   853→              <div className="w-4 h-4 rounded bg-[#cd2d48] flex items-center justify-center">
+    55→   854→                <span className="text-white text-[8px] font-bold">A</span>
+    56→   855→              </div>
+    57→   856→              <span className="text-xs font-semibold text-[#cd2d48]">AICL</span>
+    58→   857→            </div>
+    59→   858→            <div className="w-px h-4 bg-[#3c3c3c]" />
+    60→   859→          </div>
+    61→   860→
+    62→   861→          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30]" onClick={newFile}><Plus className="h-3.5 w-3.5 mr-1" />New</Button></TooltipTrigger><TooltipContent>New File</TooltipContent></Tooltip>
+    63→   862→          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30]" onClick={loadFile}><FolderOpen className="h-3.5 w-3.5 mr-1" />Open</Button></TooltipTrigger><TooltipContent>Open File</TooltipContent></Tooltip>
+    64→   863→          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30]" onClick={saveFile}><Save className="h-3.5 w-3.5 mr-1" />Save</Button></TooltipTrigger><TooltipContent>Save (Ctrl+S)</TooltipContent></Tooltip>
+    65→   864→
+    66→   865→          <div className="w-px h-4 bg-[#3c3c3c] mx-1" />
+    67→   866→
+    68→   867→          {/* Target language selector */}
+    69→   868→          <Select value={targetLang} onValueChange={setTargetLang}>
+    70→   869→            <SelectTrigger className="h-7 w-[110px] text-xs bg-[#2d2d30] border-[#3c3c3c]">
+    71→   870→              <SelectValue />
+    72→   871→            </SelectTrigger>
+    73→   872→            <SelectContent className="bg-[#252526] border-[#3c3c3c]">
+    74→   873→              <SelectItem value="python">Python</SelectItem>
+    75→   874→              <SelectItem value="rust">Rust</SelectItem>
+    76→   875→              <SelectItem value="javascript">JavaScript</SelectItem>
+    77→   876→              <SelectItem value="go">Go</SelectItem>
+    78→   877→            </SelectContent>
+    79→   878→          </Select>
+    80→   879→
+    81→   880→          <div className="w-px h-4 bg-[#3c3c3c] mx-1" />
+    82→   881→
+    83→   882→          {/* AICL Actions */}
+    84→   883→          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30] text-[#4ec9b0]" onClick={runCompile} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Play className="h-3.5 w-3.5 mr-1" />}Compile</Button></TooltipTrigger><TooltipContent>Compile AICL source code</TooltipContent></Tooltip>
+    85→   884→          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30] text-[#569cd6]" onClick={runVerify} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5 mr-1" />}Verify</Button></TooltipTrigger><TooltipContent>Verify specification quality</TooltipContent></Tooltip>
+    86→   885→          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30] text-[#dcdcaa]" onClick={runAudit} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <FileSearch className="h-3.5 w-3.5 mr-1" />}Audit</Button></TooltipTrigger><TooltipContent>Audit compilation provenance</TooltipContent></Tooltip>
+    87→   886→          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30] text-[#c586c0]" onClick={runExplain} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Brain className="h-3.5 w-3.5 mr-1" />}Explain</Button></TooltipTrigger><TooltipContent>Explain compilation provenance</TooltipContent></Tooltip>
+    88→   887→          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30] text-[#6a9955]" onClick={runTree} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <TreePine className="h-3.5 w-3.5 mr-1" />}Tree</Button></TooltipTrigger><TooltipContent>Architecture tree</TooltipContent></Tooltip>
+    89→   888→          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30] text-[#ce9178]" onClick={runOptimize} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Zap className="h-3.5 w-3.5 mr-1" />}Optimize</Button></TooltipTrigger><TooltipContent>Optimize architecture</TooltipContent></Tooltip>
+    90→   889→
+    91→   890→          <div className="w-px h-4 bg-[#3c3c3c] mx-1" />
+    92→   891→
+    93→   892→          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30]" onClick={clearOutput}><Trash2 className="h-3.5 w-3.5 mr-1" />Clear</Button></TooltipTrigger><TooltipContent>Clear output</TooltipContent></Tooltip>
+    94→   893→
+    95→   894→          {/* Spacer */}
+    96→   895→          <div className="flex-1" />
+    97→   896→
+    98→   897→          {/* Right: Search */}
+    99→   898→          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30]" onClick={() => { setFindOpen(!findOpen); setTimeout(() => findInputRef.current?.focus(), 50); }}><Search className="h-3.5 w-3.5 mr-1" />Find</Button></TooltipTrigger><TooltipContent>Find & Replace (Ctrl+F)</TooltipContent></Tooltip>
+   100→   899→        </div>
+   101→   900→
+   102→   901→        {/* ======== FILE TABS ======== */}
+   103→   902→        <div className="flex items-center bg-[#252526] border-b border-[#3c3c3c] flex-shrink-0 overflow-x-auto">
+   104→   903→          {files.map(file => (
+   105→   904→            <div
+   106→   905→              key={file.id}
+   107→   906→              className={`flex items-center gap-1 px-3 py-1.5 text-xs cursor-pointer border-r border-[#3c3c3c] group min-w-0 ${
+   108→   907→                file.id === activeFileId ? 'bg-[#1e1e1e] text-white border-t-2 border-t-[#cd2d48]' : 'bg-[#2d2d30] text-[#808080] hover:bg-[#2d2d30]'
+   109→   908→              }`}
+   110→   909→              onClick={() => setActiveFileId(file.id)}
+   111→   910→            >
+   112→   911→              <File className="h-3 w-3 text-[#4ec9b0] flex-shrink-0" />
+   113→   912→              <span className="truncate max-w-[120px]">{file.name}</span>
+   114→   913→              {file.modified && <span className="w-2 h-2 rounded-full bg-[#cd2d48] flex-shrink-0" />}
+   115→   914→              <button
+   116→   915→                className="ml-1 opacity-0 group-hover:opacity-100 hover:text-white flex-shrink-0"
+   117→   916→                onClick={(e) => { e.stopPropagation(); closeFile(file.id); }}
+   118→   917→              >
+   119→   918→                <X className="h-3 w-3" />
+   120→   919→              </button>
+   121→   920→            </div>
+   122→   921→          ))}
+   123→   922→          <button
+   124→   923→            className="px-2 py-1.5 text-[#808080] hover:text-white hover:bg-[#2d2d30] text-xs"
+   125→   924→            onClick={newFile}
+   126→   925→          >
+   127→   926→            <Plus className="h-3.5 w-3.5" />
+   128→   927→          </button>
+   129→   928→        </div>
+   130→   929→
+   131→   930→        {/* ======== FIND/REPLACE BAR ======== */}
+   132→   931→        {findOpen && (
+   133→   932→          <div className="flex items-center gap-2 px-3 py-1.5 bg-[#252526] border-b border-[#3c3c3c] flex-shrink-0">
+   134→   933→            <div className="flex items-center gap-1 flex-1">
+   135→   934→              <Search className="h-3.5 w-3.5 text-[#808080]" />
+   136→   935→              <input
+   137→   936→                ref={findInputRef}
+   138→   937→                className="bg-[#3c3c3c] border border-[#4f4f4f] rounded px-2 py-1 text-xs text-[#d4d4d4] w-48 focus:outline-none focus:border-[#cd2d48]"
+   139→   938→                placeholder="Find..."
+   140→   939→                value={findText}
+   141→   940→                onChange={(e) => setFindText(e.target.value)}
+   142→   941→                onKeyDown={(e) => { if (e.key === 'Enter') handleFindNext(); if (e.key === 'Escape') setFindOpen(false); }}
+   143→   942→              />
+   144→   943→              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={handleFindNext}>Next</Button>
+   145→   944→            </div>
+   146→   945→            <div className="flex items-center gap-1 flex-1">
+   147→   946→              <Replace className="h-3.5 w-3.5 text-[#808080]" />
+   148→   947→              <input
+   149→   948→                className="bg-[#3c3c3c] border border-[#4f4f4f] rounded px-2 py-1 text-xs text-[#d4d4d4] w-48 focus:outline-none focus:border-[#cd2d48]"
+   150→   949→                placeholder="Replace..."
+   151→   950→                value={replaceText}
+   152→   951→                onChange={(e) => setReplaceText(e.target.value)}
+   153→   952→              />
+   154→   953→              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={handleReplaceAll}>Replace All</Button>
+   155→   954→            </div>
+   156→   955→            <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => setFindOpen(false)}>
+   157→   956→              <X className="h-3.5 w-3.5" />
+   158→   957→            </Button>
+   159→   958→          </div>
+   160→   959→        )}
+   161→   960→
+   162→   961→        {/* ======== MAIN CONTENT ======== */}
+   163→   962→        <div className="flex-1 flex overflow-hidden">
+   164→   963→          {/* --- Left Panel --- */}
+   165→   964→          {leftPanelOpen && (
+   166→   965→            <>
+   167→   966→              <div className="w-60 bg-[#252526] border-r border-[#3c3c3c] flex flex-col flex-shrink-0 overflow-hidden">
+   168→   967→                {/* Panel Tabs */}
+   169→   968→                <div className="flex border-b border-[#3c3c3c]">
+   170→   969→                  <button
+   171→   970→                    className={`flex-1 px-3 py-2 text-xs font-medium ${leftPanelTab === 'files' ? 'text-[#cd2d48] border-b-2 border-[#cd2d48]' : 'text-[#808080] hover:text-[#d4d4d4]'}`}
+   172→   971→                    onClick={() => setLeftPanelTab('files')}
+   173→   972→                  >
+   174→   973→                    <FolderOpen className="h-3.5 w-3.5 inline mr-1" />Examples
+   175→   974→                  </button>
+   176→   975→                  <button
+   177→   976→                    className={`flex-1 px-3 py-2 text-xs font-medium ${leftPanelTab === 'exercises' ? 'text-[#cd2d48] border-b-2 border-[#cd2d48]' : 'text-[#808080] hover:text-[#d4d4d4]'}`}
+   178→   977→                    onClick={() => setLeftPanelTab('exercises')}
+   179→   978→                  >
+   180→   979→                    <BookOpen className="h-3.5 w-3.5 inline mr-1" />Exercises
+   181→   980→                  </button>
+   182→   981→                </div>
+   183→   982→
+   184→   983→                {/* Examples */}
+   185→   984→                {leftPanelTab === 'files' && (
+   186→   985→                  <ScrollArea className="flex-1">
+   187→   986→                    <div className="p-2">
+   188→   987→                      <div className="text-xs text-[#808080] uppercase tracking-wider mb-2 px-2">AICL Examples</div>
+   189→   988→                      {examples.map(ex => (
+   190→   989→                        <button
+   191→   990→                          key={ex.id}
+   192→   991→                          className="w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded hover:bg-[#2d2d30] group text-left"
+   193→   992→                          onClick={() => openExample(ex)}
+   194→   993→                        >
+   195→   994→                          <FileText className="h-3.5 w-3.5 text-[#4ec9b0] flex-shrink-0" />
+   196→   995→                          <div className="min-w-0">
+   197→   996→                            <div className="truncate text-[#d4d4d4]">{ex.title}</div>
+   198→   997→                            <div className="text-[#808080] truncate">{ex.description}</div>
+   199→   998→                          </div>
+   200→   999→                        </button>
+   201→  1000→                      ))}
+   202→  1001→
+   203→  1002→                      <div className="text-xs text-[#808080] uppercase tracking-wider mb-2 mt-4 px-2">Open Files</div>
+   204→  1003→                      {files.map(f => (
+   205→  1004→                        <button
+   206→  1005→                          key={f.id}
+   207→  1006→                          className={`w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded group text-left ${f.id === activeFileId ? 'bg-[#2d2d30] text-white' : 'hover:bg-[#2d2d30] text-[#d4d4d4]'}`}
+   208→  1007→                          onClick={() => setActiveFileId(f.id)}
+   209→  1008→                        >
+   210→  1009→                          <File className="h-3.5 w-3.5 text-[#4ec9b0] flex-shrink-0" />
+   211→  1010→                          <span className="truncate">{f.name}</span>
+   212→  1011→                          {f.modified && <span className="w-1.5 h-1.5 rounded-full bg-[#cd2d48] flex-shrink-0" />}
+   213→  1012→                        </button>
+   214→  1013→                      ))}
+   215→  1014→                    </div>
+   216→  1015→                  </ScrollArea>
+   217→  1016→                )}
+   218→  1017→
+   219→  1018→                {/* Exercises */}
+   220→  1019→                {leftPanelTab === 'exercises' && (
+   221→  1020→                  <ScrollArea className="flex-1">
+   222→  1021→                    <div className="p-2">
+   223→  1022→                      <div className="text-xs text-[#808080] uppercase tracking-wider mb-2 px-2">Progressive Exercises</div>
+   224→  1023→                      {exercises.map(ex => (
+   225→  1024→                        <button
+   226→  1025→                          key={ex.id}
+   227→  1026→                          className={`w-full flex items-start gap-2 px-2 py-2 text-xs rounded hover:bg-[#2d2d30] text-left ${activeExercise === ex.id ? 'bg-[#2d2d30] border-l-2 border-[#cd2d48]' : ''}`}
+   228→  1027→                          onClick={() => openExercise(ex)}
+   229→  1028→                        >
+   230→  1029→                          <div className="w-5 h-5 rounded-full bg-[#2d2d30] flex items-center justify-center flex-shrink-0 mt-0.5 border border-[#3c3c3c]">
+   231→  1030→                            <span className="text-[10px] text-[#cd2d48] font-bold">{ex.id}</span>
+   232→  1031→                          </div>
+   233→  1032→                          <div className="min-w-0">
+   234→  1033→                            <div className="text-[#d4d4d4] font-medium">{ex.title}</div>
+   235→  1034→                            <div className="text-[#808080] line-clamp-2 mt-0.5">{ex.description}</div>
+   236→  1035→                          </div>
+   237→  1036→                        </button>
+   238→  1037→                      ))}
+   239→  1038→                    </div>
+   240→  1039→                  </ScrollArea>
+   241→  1040→                )}
+   242→  1041→              </div>
+   243→  1042→              <div className="resize-handle w-1 bg-[#3c3c3c] hover:bg-[#cd2d48] cursor-col-resize flex-shrink-0" />
+   244→  1043→            </>
+   245→  1044→          )}
+   246→  1045→
+   247→  1046→          {/* --- Center: Code Editor --- */}
+   248→  1047→          <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+   249→  1048→            {/* Auto-complete hint */}
+   250→  1049→            <div className="flex items-center gap-2 px-3 py-1 bg-[#252526] border-b border-[#3c3c3c] flex-shrink-0">
+   251→  1050→              <span className="text-[10px] text-[#808080]">
+   252→  1051→                Ctrl+Space: Auto-complete | Tab: Indent | Shift+Tab: Outdent | Enter: Auto-indent
+   253→  1052→              </span>
+   254→  1053→              <div className="flex-1" />
+   255→  1054→              <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs hover:bg-[#2d2d30]" onClick={() => setLeftPanelOpen(!leftPanelOpen)}>
+   256→  1055→                {leftPanelOpen ? <PanelLeftClose className="h-3.5 w-3.5" /> : <PanelLeftOpen className="h-3.5 w-3.5" />}
+   257→  1056→              </Button></TooltipTrigger><TooltipContent>Toggle left panel</TooltipContent></Tooltip>
+   258→  1057→              <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs hover:bg-[#2d2d30]" onClick={() => setRightPanelOpen(!rightPanelOpen)}>
+   259→  1058→                {rightPanelOpen ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRightOpen className="h-3.5 w-3.5" />}
+   260→  1059→              </Button></TooltipTrigger><TooltipContent>Toggle right panel</TooltipContent></Tooltip>
+   261→  1060→            </div>
+   262→  1061→
+   263→  1062→            {/* Editor Area */}
+   264→  1063→            <div className="flex-1 relative overflow-hidden">
+   265→  1064→              {/* Line numbers + Highlighted overlay + Textarea */}
+   266→  1065→              <div className="absolute inset-0 flex">
+   267→  1066→                {/* Line numbers */}
+   268→  1067→                <div className="w-12 bg-[#1e1e1e] text-right pr-3 pt-2 select-none overflow-hidden flex-shrink-0">
+   269→  1068→                  {lineNumbers.map(n => (
+   270→  1069→                    <div key={n} className="text-[11px] leading-[21px] text-[#4f4f4f] font-mono">{n}</div>
+   271→  1070→                  ))}
+   272→  1071→                </div>
+   273→  1072→
+   274→  1073→                {/* Code area */}
+   275→  1074→                <div className="flex-1 relative">
+   276→  1075→                  {/* Syntax highlighted background */}
+   277→  1076→                  <pre
+   278→  1077→                    className="absolute inset-0 pt-2 pl-0 pr-4 overflow-auto pointer-events-none editor-textarea whitespace-pre text-[#d4d4d4]"
+   279→  1078→                    aria-hidden="true"
+   280→  1079→                    dangerouslySetInnerHTML={{ __html: highlightedCode }}
+   281→  1080→                    style={{ font: '14px/1.5 var(--font-geist-mono), "Consolas", monospace' }}
+   282→  1081→                  />
+   283→  1082→
+   284→  1083→                  {/* Actual textarea */}
+   285→  1084→                  <textarea
+   286→  1085→                    ref={textareaRef}
+   287→  1086→                    className="absolute inset-0 pt-2 pl-0 pr-4 editor-textarea bg-transparent text-transparent caret-[#d4d4d4] resize-none focus:outline-none whitespace-pre overflow-auto"
+   288→  1087→                    value={activeFile.content}
+   289→  1088→                    onChange={(e) => updateFileContent(activeFileId, e.target.value)}
+   290→  1089→                    onKeyDown={handleKeyDown}
+   291→  1090→                    onKeyUp={handleCursorChange}
+   292→  1091→                    onClick={handleCursorChange}
+   293→  1092→                    onScroll={(e) => {
+   294→  1093→                      const pre = e.currentTarget.previousElementSibling as HTMLElement;
+   295→  1094→                      if (pre) pre.scrollTop = e.currentTarget.scrollTop;
+   296→  1095→                      const lineNumContainer = e.currentTarget.parentElement?.previousElementSibling as HTMLElement;
+   297→  1096→                      if (lineNumContainer) lineNumContainer.scrollTop = e.currentTarget.scrollTop;
+   298→  1097→                    }}
+   299→  1098→                    spellCheck={false}
+   300→  1099→                    autoCapitalize="off"
+   301→  1100→                    autoComplete="off"
+   302→  1101→                    autoCorrect="off"
+   303→  1102→                  />
+   304→  1103→                </div>
+   305→  1104→              </div>
+   306→  1105→            </div>
+   307→  1106→          </div>
+   308→  1107→
+   309→  1108→          {/* --- Right Panel --- */}
+   310→  1109→          {rightPanelOpen && (
+   311→  1110→            <>
+   312→  1111→              <div className="resize-handle w-1 bg-[#3c3c3c] hover:bg-[#cd2d48] cursor-col-resize flex-shrink-0" />
+   313→  1112→              <div className="w-80 bg-[#252526] border-l border-[#3c3c3c] flex flex-col flex-shrink-0 overflow-hidden">
+   314→  1113→                {/* Right panel tabs */}
+   315→  1114→                <div className="flex border-b border-[#3c3c3c]">
+   316→  1115→                  {(['output', 'tree', 'code'] as const).map(tab => (
+   317→  1116→                    <button
+   318→  1117→                      key={tab}
+   319→  1118→                      className={`flex-1 px-2 py-1.5 text-[10px] font-medium capitalize ${rightPanelContent === tab ? 'text-[#cd2d48] border-b-2 border-[#cd2d48]' : 'text-[#808080] hover:text-[#d4d4d4]'}`}
+   320→  1119→                      onClick={() => {
+   321→  1120→                        setRightPanelContent(tab);
+   322→  1121→                        if (tab === 'tree') setTreeData('');
+   323→  1122→                      }}
+   324→  1123→                    >
+   325→  1124→                      {tab === 'output' && <FileSearch className="h-3 w-3 inline mr-1" />}
+   326→  1125→                      {tab === 'tree' && <TreePine className="h-3 w-3 inline mr-1" />}
+   327→  1126→                      {tab === 'code' && <Code2 className="h-3 w-3 inline mr-1" />}
+   328→  1127→                      {tab}
+   329→  1128→                    </button>
+   330→  1129→                  ))}
+   331→  1130→                </div>
+   332→  1131→
+   333→  1132→                {/* Output */}
+   334→  1133→                {rightPanelContent === 'output' && (
+   335→  1134→                  <ScrollArea className="flex-1">
+   336→  1135→                    <div className="p-2 font-mono text-xs">
+   337→  1136→                      {output.map((entry, i) => (
+   338→  1137→                        <div key={i} className={`py-0.5 ${
+   339→  1138→                          entry.type === 'success' ? 'text-[#4ec9b0]' :
+   340→  1139→                          entry.type === 'error' ? 'text-[#f44747]' :
+   341→  1140→                          entry.type === 'warning' ? 'text-[#dcdcaa]' :
+   342→  1141→                          entry.type === 'system' ? 'text-[#808080]' :
+   343→  1142→                          'text-[#d4d4d4]'
+   344→  1143→                        }`}>
+   345→  1144→                          <span className="text-[#4f4f4f] mr-2">
+   346→  1145→                            {new Date(entry.timestamp).toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+   347→  1146→                          </span>
+   348→  1147→                          {entry.type === 'success' && <CheckCircle className="h-3 w-3 inline mr-1" />}
+   349→  1148→                          {entry.type === 'error' && <XCircle className="h-3 w-3 inline mr-1" />}
+   350→  1149→                          {entry.type === 'warning' && <AlertTriangle className="h-3 w-3 inline mr-1" />}
+   351→  1150→                          <span className="whitespace-pre-wrap">{entry.message}</span>
+   352→  1151→                        </div>
+   353→  1152→                      ))}
+   354→  1153→                    </div>
+   355→  1154→                  </ScrollArea>
+   356→  1155→                )}
+   357→  1156→
+   358→  1157→                {/* Tree */}
+   359→  1158→                {rightPanelContent === 'tree' && (
+   360→  1159→                  <ScrollArea className="flex-1">
+   361→  1160→                    <div className="p-2">
+   362→  1161→                      <pre className="font-mono text-xs text-[#4ec9b0] whitespace-pre">{treeData || 'Click "Tree" in toolbar to generate'}</pre>
+   363→  1162→                    </div>
+   364→  1163→                  </ScrollArea>
+   365→  1164→                )}
+   366→  1165→
+   367→  1166→                {/* Generated Code */}
+   368→  1167→                {rightPanelContent === 'code' && (
+   369→  1168→                  <ScrollArea className="flex-1">
+   370→  1169→                    <div className="p-2">
+   371→  1170→                      {compiledCode ? (
+   372→  1171→                        <div>
+   373→  1172→                          <div className="flex items-center gap-2 mb-2">
+   374→  1173→                            <Badge variant="outline" className="text-[10px] text-[#4ec9b0] border-[#4ec9b0]">main.py</Badge>
+   375→  1174→                            <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px] hover:bg-[#2d2d30]" onClick={() => { navigator.clipboard.writeText(compiledCode); toast({ title: 'Copied!', description: 'Compiled code copied to clipboard' }); }}>
+   376→  1175→                              <Copy className="h-3 w-3 mr-1" />Copy
+   377→  1176→                            </Button>
+   378→  1177→                          </div>
+   379→  1178→                          <pre className="font-mono text-[11px] text-[#d4d4d4] whitespace-pre bg-[#1e1e1e] p-2 rounded border border-[#3c3c3c] max-h-[50vh] overflow-auto">{compiledCode}</pre>
+   380→  1179→                          {testCode && (
+   381→  1180→                            <div className="mt-3">
+   382→  1181→                              <div className="flex items-center gap-2 mb-2">
+   383→  1182→                                <Badge variant="outline" className="text-[10px] text-[#dcdcaa] border-[#dcdcaa]">test_main.py</Badge>
+   384→  1183→                                <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px] hover:bg-[#2d2d30]" onClick={() => { navigator.clipboard.writeText(testCode); toast({ title: 'Copied!', description: 'Test code copied to clipboard' }); }}>
+   385→  1184→                                  <Copy className="h-3 w-3 mr-1" />Copy
+   386→  1185→                                </Button>
+   387→  1186→                              </div>
+   388→  1187→                              <pre className="font-mono text-[11px] text-[#d4d4d4] whitespace-pre bg-[#1e1e1e] p-2 rounded border border-[#3c3c3c] max-h-[50vh] overflow-auto">{testCode}</pre>
+   389→  1188→                            </div>
+   390→  1189→                          )}
+   391→  1190→                        </div>
+   392→  1191→                      ) : (
+   393→  1192→                        <div className="text-xs text-[#808080]">Click &quot;Compile&quot; in the toolbar to generate code</div>
+   394→  1193→                      )}
+   395→  1194→                    </div>
+   396→  1195→                  </ScrollArea>
+   397→  1196→                )}
+   398→  1197→              </div>
+   399→  1198→            </>
+   400→  1199→          )}
+   401→  1200→        </div>
+   402→  1201→
+   403→  1202→        {/* ======== BOTTOM PANEL ======== */}
+   404→  1203→        {bottomPanelOpen && (
+   405→  1204→          <div className="h-52 bg-[#252526] border-t border-[#3c3c3c] flex flex-col flex-shrink-0">
+   406→  1205→            {/* Bottom panel tabs */}
+   407→  1206→            <div className="flex items-center border-b border-[#3c3c3c]">
+   408→  1207→              {(['output', 'repl', 'exercises'] as const).map(tab => (
+   409→  1208→                <button
+   410→  1209→                  key={tab}
+   411→  1210→                  className={`px-3 py-1.5 text-xs font-medium capitalize ${bottomPanelTab === tab ? 'text-[#cd2d48] border-b-2 border-[#cd2d48]' : 'text-[#808080] hover:text-[#d4d4d4]'}`}
+   412→  1211→                  onClick={() => setBottomPanelTab(tab)}
+   413→  1212→                >
+   414→  1213→                  {tab === 'output' && <FileSearch className="h-3 w-3 inline mr-1" />}
+   415→  1214→                  {tab === 'repl' && <Terminal className="h-3 w-3 inline mr-1" />}
+   416→  1215→                  {tab === 'exercises' && <BookOpen className="h-3 w-3 inline mr-1" />}
+   417→  1216→                  {tab}
+   418→  1217→                </button>
+   419→  1218→              ))}
+   420→  1219→              <div className="flex-1" />
+   421→  1220→              <Button variant="ghost" size="sm" className="h-6 px-2 mr-1 text-xs hover:bg-[#2d2d30]" onClick={() => setBottomPanelOpen(false)}>
+   422→  1221→                <Minimize2 className="h-3 w-3" />
+   423→  1222→              </Button>
+   424→  1223→            </div>
+   425→  1224→
+   426→  1225→            {/* Output tab */}
+   427→  1226→            {bottomPanelTab === 'output' && (
+   428→  1227→              <ScrollArea className="flex-1">
+   429→  1228→                <div className="p-2 font-mono text-xs">
+   430→  1229→                  {output.map((entry, i) => (
+   431→  1230→                    <div key={i} className={`py-0.5 ${
+   432→  1231→                      entry.type === 'success' ? 'text-[#4ec9b0]' :
+   433→  1232→                      entry.type === 'error' ? 'text-[#f44747]' :
+   434→  1233→                      entry.type === 'warning' ? 'text-[#dcdcaa]' :
+   435→  1234→                      entry.type === 'system' ? 'text-[#808080]' :
+   436→  1235→                      'text-[#d4d4d4]'
+   437→  1236→                    }`}>
+   438→  1237→                      <span className="text-[#4f4f4f] mr-2">
+   439→  1238→                        {new Date(entry.timestamp).toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+   440→  1239→                      </span>
+   441→  1240→                      {entry.message}
+   442→  1241→                    </div>
+   443→  1242→                  ))}
+   444→  1243→                </div>
+   445→  1244→              </ScrollArea>
+   446→  1245→            )}
+   447→  1246→
+   448→  1247→            {/* REPL tab */}
+   449→  1248→            {bottomPanelTab === 'repl' && (
+   450→  1249→              <div className="flex-1 flex flex-col overflow-hidden">
+   451→  1250→                <ScrollArea className="flex-1">
+   452→  1251→                  <div className="p-2 font-mono text-xs">
+   453→  1252→                    {replHistory.map((entry, i) => (
+   454→  1253→                      <div key={i} className={`py-0.5 ${
+   455→  1254→                        entry.type === 'success' ? 'text-[#4ec9b0]' :
+   456→  1255→                        entry.type === 'error' ? 'text-[#f44747]' :
+   457→  1256→                        entry.type === 'warning' ? 'text-[#dcdcaa]' :
+   458→  1257→                        entry.type === 'system' ? 'text-[#808080]' :
+   459→  1258→                        'text-[#d4d4d4]'
+   460→  1259→                      }`}>
+   461→  1260→                        {entry.message}
+   462→  1261→                      </div>
+   463→  1262→                    ))}
+   464→  1263→                  </div>
+   465→  1264→                </ScrollArea>
+   466→  1265→                <div className="flex items-center gap-2 px-2 py-1 border-t border-[#3c3c3c]">
+   467→  1266→                  <span className="text-[#cd2d48] font-mono text-xs">{'>>>'}</span>
+   468→  1267→                  <input
+   469→  1268→                    ref={replInputRef}
+   470→  1269→                    className="flex-1 bg-transparent text-xs text-[#d4d4d4] font-mono focus:outline-none"
+   471→  1270→                    placeholder="Type AICL or :help for commands..."
+   472→  1271→                    value={replInput}
+   473→  1272→                    onChange={(e) => setReplInput(e.target.value)}
+   474→  1273→                    onKeyDown={(e) => { if (e.key === 'Enter') handleReplSubmit(); }}
+   475→  1274→                  />
+   476→  1275→                </div>
+   477→  1276→              </div>
+   478→  1277→            )}
+   479→  1278→
+   480→  1279→            {/* Exercises tab */}
+   481→  1280→            {bottomPanelTab === 'exercises' && (
+   482→  1281→              <ScrollArea className="flex-1">
+   483→  1282→                <div className="p-3">
+   484→  1283→                  {activeExercise ? (
+   485→  1284→                    <div>
+   486→  1285→                      {(() => {
+   487→  1286→                        const ex = exercises.find(e => e.id === activeExercise);
+   488→  1287→                        if (!ex) return <div className="text-xs text-[#808080]">No exercise selected</div>;
+   489→  1288→                        return (
+   490→  1289→                          <>
+   491→  1290→                            <div className="flex items-center gap-2 mb-2">
+   492→  1291→                              <Badge variant="outline" className="text-[#cd2d48] border-[#cd2d48] text-xs">Exercise {ex.id}</Badge>
+   493→  1292→                              <span className="text-sm font-medium text-[#d4d4d4]">{ex.title}</span>
+   494→  1293→                            </div>
+   495→  1294→                            <p className="text-xs text-[#808080] mb-3">{ex.description}</p>
+   496→  1295→                            <div className="flex gap-2">
+   497→  1296→                              <Button size="sm" className="h-7 text-xs bg-[#cd2d48] hover:bg-[#a8233b]" onClick={checkExercise} disabled={isRunning}>
+   498→  1297→                                {isRunning ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
+   499→  1298→                                Check
+   500→  1299→                              </Button>
+   501→  1300→                              <Button size="sm" variant="outline" className="h-7 text-xs border-[#3c3c3c] hover:bg-[#2d2d30]" onClick={() => setActiveExercise(null)}>
+   502→  1301→                                Back to list
+   503→  1302→                              </Button>
+   504→  1303→                            </div>
+   505→  1304→                          </>
+   506→  1305→                        );
+   507→  1306→                      })()}
+   508→  1307→                    </div>
+   509→  1308→                  ) : (
+   510→  1309→                    <div>
+   511→  1310→                      <div className="text-xs text-[#808080] mb-3">Select an exercise to start learning AICL:</div>
+   512→  1311→                      {exercises.map(ex => (
+   513→  1312→                        <button
+   514→  1313→                          key={ex.id}
+   515→  1314→                          className="w-full flex items-start gap-2 px-2 py-2 text-xs rounded hover:bg-[#2d2d30] text-left mb-1"
+   516→  1315→                          onClick={() => openExercise(ex)}
+   517→  1316→                        >
+   518→  1317→                          <div className="w-5 h-5 rounded-full bg-[#2d2d30] flex items-center justify-center flex-shrink-0 mt-0.5 border border-[#3c3c3c]">
+   519→  1318→                            <span className="text-[10px] text-[#cd2d48] font-bold">{ex.id}</span>
+   520→  1319→                          </div>
+   521→  1320→                          <div className="min-w-0">
+   522→  1321→                            <div className="text-[#d4d4d4] font-medium">{ex.title}</div>
+   523→  1322→                            <div className="text-[#808080] line-clamp-2 mt-0.5">{ex.description}</div>
+   524→  1323→                          </div>
+   525→  1324→                        </button>
+   526→  1325→                      ))}
+   527→  1326→                    </div>
+   528→  1327→                  )}
+   529→  1328→                </div>
+   530→  1329→              </ScrollArea>
+   531→  1330→            )}
+   532→  1331→          </div>
+   533→  1332→        )}
+   534→  1333→
+   535→  1334→        {/* ======== STATUS BAR ======== */}
+   536→  1335→        <div className="flex items-center justify-between px-3 py-1 bg-[#cd2d48] text-white text-[11px] flex-shrink-0">
+   537→  1336→          <div className="flex items-center gap-4">
+   538→  1337→            <span className="flex items-center gap-1">
+   539→  1338→              <Layers className="h-3 w-3" />
+   540→  1339→              AICL v1.0.0
+   541→  1340→            </span>
+   542→  1341→            <span className="flex items-center gap-1">
+   543→  1342→              <File className="h-3 w-3" />
+   544→  1343→              {activeFile.name}
+   545→  1344→              {activeFile.modified && ' (modified)'}
+   546→  1345→            </span>
+   547→  1346→          </div>
+   548→  1347→          <div className="flex items-center gap-4">
+   549→  1348→            <span>Ln {cursorPos.line}, Col {cursorPos.col}</span>
+   550→  1349→            <span>Target: {targetLang}</span>
+   551→  1350→            <span>UTF-8</span>
+   552→  1351→            {isRunning && <span className="flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />Processing...</span>}
+   553→  1352→            {!bottomPanelOpen && (
+   554→  1353→              <button className="hover:text-white/80" onClick={() => setBottomPanelOpen(true)}>
+   555→  1354→                <Maximize2 className="h-3 w-3" />
+   556→  1355→              </button>
+   557→  1356→            )}
+   558→  1357→          </div>
+   559→  1358→        </div>
+   560→  1359→      </div>
+   561→  1360→    </TooltipProvider>
+   562→  1361→  );
+   563→  1362→}
+   564→  1363→
+   565→  1364→// Small helper icon component for code tab
+   566→  1365→function Code2({ className }: { className?: string }) {
+   567→  1366→  return (
+   568→  1367→    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+   569→  1368→      <path d="m18 16 4-4-4-4" /><path d="m6 8-4 4 4 4" /><path d="m14.5 4-5 16" />
+   570→  1369→    </svg>
+   571→  1370→  );
+   572→  1371→}
+   573→  1372→

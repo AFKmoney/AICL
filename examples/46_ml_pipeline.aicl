@@ -1,0 +1,427 @@
+# AICL Example: ML Training Pipeline
+# End-to-end machine learning pipeline covering data ingestion, preprocessing, feature engineering,
+# model training, evaluation, deployment, monitoring, and drift detection with full lifecycle management.
+
+Goal Build a production-grade ML training pipeline that automates the end-to-end workflow from raw data ingestion through model deployment and continuous monitoring with drift detection
+
+Constraint All training data must be versioned and reproducible; no model shall be deployed without passing evaluation thresholds on fairness, accuracy, and latency benchmarks
+Constraint Pipeline must support both batch and streaming data sources with exactly-once processing semantics
+Constraint Feature engineering transformations must be deterministic and reversible
+Constraint Model artifacts must be signed and verified before deployment
+Constraint Inference latency must remain below 200ms p99 for real-time endpoints
+
+Risk Training data contamination from upstream source corruption
+Recovery Implement data checksum validation at ingestion; maintain immutable backup snapshots; trigger automated rollback to last validated dataset version
+
+Risk Model training divergence causing loss explosion
+Recovery Implement gradient clipping and adaptive learning rate scheduling; checkpoint every N steps; auto-restore from last stable checkpoint on divergence detection
+
+Risk Feature store schema mismatch between training and serving
+Recovery Enforce dual-validation of feature schemas at write and read time; deploy schema registry with backward compatibility checks; fail deployment on schema drift
+
+Risk Model performance degradation in production due to data drift
+Recovery Deploy statistical drift detectors (KS-test, PSI); trigger automated retraining pipeline when drift exceeds threshold; maintain shadow model for rapid fallback
+
+Risk GPU/TPU resource exhaustion during distributed training
+Recovery Implement elastic resource scaling with priority queues; checkpoint state for preemption recovery; fall back to CPU-only training with reduced batch size on resource timeout
+
+Risk Bias amplification through feedback loops in deployed models
+Recovery Conduct periodic fairness audits across protected attributes; implement counterfactual testing; enforce demographic parity constraints during retraining
+
+Layer PipelineOrchestration
+    SubLayer: DataIngestion
+    SubLayer: Preprocessing
+    SubLayer: FeatureEngineering
+    SubLayer: ModelTraining
+    SubLayer: Evaluation
+    SubLayer: Deployment
+    SubLayer: Monitoring
+Layer Infrastructure
+    SubLayer: ComputeResources
+    SubLayer: StorageResources
+    SubLayer: Networking
+
+Validation Data integrity checksums must pass before preprocessing begins
+Validation Model accuracy must exceed baseline by at least 5% on held-out test set
+Validation Inference latency must be verified below 200ms p99 under load test before deployment
+Validation Feature distributions between training and serving must have PSI below 0.2
+Validation Fairness metrics (equalized odds difference) must remain below 0.1 across protected groups
+Validation Model artifact signature must be verified against registry before serving
+Validation Training reproducibility must be confirmed via deterministic seed verification
+
+# Level 2 - Entities
+
+Entity DataSource
+    sourceId: string
+    sourceType: string
+    connectionUri: string
+    schemaVersion: string
+    ingestionFrequency: string
+    lastIngestedTimestamp: datetime
+    dataFormat: string
+    compressionType: string
+    checksumHash: string
+
+Entity TrainingDataset
+    datasetId: string
+    version: string
+    parentSourceIds: list
+    recordCount: integer
+    featureCount: integer
+    labelDistribution: dict
+    createdTimestamp: datetime
+    dataFingerprint: string
+    splitRatios: dict
+    storagePath: string
+
+Entity FeatureDefinition
+    featureId: string
+    featureName: string
+    featureType: string
+    transformLogic: string
+    sourceColumns: list
+    defaultValue: any
+    validityRange: dict
+    version: string
+    owner: string
+    description: string
+
+Entity ModelArtifact
+    artifactId: string
+    modelName: string
+    modelVersion: string
+    framework: string
+    hyperparameters: dict
+    trainingMetrics: dict
+    evaluationMetrics: dict
+    artifactUri: string
+    signatureHash: string
+    createdAt: datetime
+    createdBy: string
+
+Entity DeploymentEndpoint
+    endpointId: string
+    modelArtifactId: string
+    endpointType: string
+    computeConfig: dict
+    scalingPolicy: dict
+    servingProtocol: string
+    healthCheckUri: string
+    deployedAt: datetime
+    status: string
+    canaryWeight: float
+
+Entity DriftReport
+    reportId: string
+    modelArtifactId: string
+    driftType: string
+    driftScore: float
+    affectedFeatures: list
+    detectionMethod: string
+    detectedAt: datetime
+    threshold: float
+    remediationAction: string
+    severity: string
+
+# Level 3 - Behaviors
+
+Behavior IngestData
+    Input:
+        sourceConfig: DataSource
+        timeRange: dict
+    Output:
+        dataset: TrainingDataset
+        ingestionReport: dict
+    Action:
+        Connect to data source using connectionUri
+        Validate source schema against schemaVersion
+        Compute checksum hash of raw data
+        Register dataset in metadata store with fingerprint
+        Emit DataIngestionComplete event
+
+Behavior PreprocessData
+    Input:
+        rawDataset: TrainingDataset
+        preprocessingConfig: dict
+    Output:
+        processedDataset: TrainingDataset
+        preprocessingReport: dict
+    Action:
+        Apply null value imputation based on configured strategy
+        Remove duplicate records and resolve conflicts
+        Normalize numerical features using configured scaler
+        Encode categorical features using target encoding
+        Validate output schema matches expected feature definitions
+        Compute feature distribution statistics for drift baseline
+
+Behavior EngineerFeatures
+    Input:
+        dataset: TrainingDataset
+        featureDefinitions: list
+    Output:
+        enrichedDataset: TrainingDataset
+        featureReport: dict
+    Action:
+        Apply each FeatureDefinition transformLogic sequentially
+        Validate feature validity ranges and flag outliers
+        Compute feature importance using mutual information
+        Generate cross-feature interaction terms where specified
+        Store feature vectors in feature store with versioning
+        Emit FeatureEngineeringComplete event
+
+Behavior TrainModel
+    Input:
+        trainingDataset: TrainingDataset
+        modelConfig: dict
+        computeConfig: dict
+    Output:
+        modelArtifact: ModelArtifact
+        trainingReport: dict
+    Action:
+        Initialize model architecture with hyperparameters
+        Set random seeds for reproducibility
+        Execute training loop with early stopping
+        Checkpoint model state every N iterations
+        Log training metrics to experiment tracker
+        Validate convergence against configured criteria
+        Emit ModelTrainingComplete event
+
+Behavior EvaluateModel
+    Input:
+        modelArtifact: ModelArtifact
+        evalDataset: TrainingDataset
+        fairnessConfig: dict
+    Output:
+        evaluationReport: dict
+        approvalDecision: boolean
+    Action:
+        Run inference on held-out test set
+        Compute accuracy, precision, recall, F1, AUC metrics
+        Run fairness audit across protected attribute groups
+        Measure inference latency under simulated load
+        Compare metrics against baseline and threshold requirements
+        Generate approval or rejection decision with justification
+
+Behavior DeployModel
+    Input:
+        modelArtifact: ModelArtifact
+        deploymentConfig: dict
+    Output:
+        endpoint: DeploymentEndpoint
+        deploymentReport: dict
+    Action:
+        Verify model artifact signature against registry
+        Package model with serving dependencies
+        Create canary deployment with specified traffic weight
+        Configure autoscaling based on expected load
+        Run smoke tests against endpoint
+        Gradually shift traffic from previous to new model
+        Emit ModelDeployed event
+
+Behavior DetectDrift
+    Input:
+        endpoint: DeploymentEndpoint
+        monitoringConfig: dict
+    Output:
+        driftReport: DriftReport
+        alertTriggered: boolean
+    Action:
+        Collect production feature distributions from serving logs
+        Compute statistical distance metrics (PSI, KS, Wasserstein)
+        Compare against training distribution baseline
+        Score drift severity per feature and overall
+        Trigger remediation if drift exceeds configured threshold
+        Emit DriftDetected event if alert triggered
+
+# Level 4 - Conditions
+
+Condition: StaleDataDetected
+    When source lastIngestedTimestamp exceeds maximum staleness window
+    Then trigger immediate re-ingestion with priority flag and alert data engineering team
+
+Condition: TrainingDivergence
+    When training loss increases for 3 consecutive evaluation steps
+    Then halt training, restore from last stable checkpoint, reduce learning rate by factor of 0.5, and resume
+
+Condition: EvaluationThresholdFailed
+    When model evaluation metrics fall below deployment thresholds
+    Then block deployment, log rejection reason, and trigger hyperparameter search for improvement
+
+Condition: CanaryDegradation
+    When canary endpoint error rate exceeds 2% over 15-minute window
+    Then immediately route all traffic back to stable endpoint and alert on-call engineer
+
+Condition: DriftExceedsThreshold
+    When drift score on any critical feature exceeds PSI threshold of 0.25
+    Then trigger automated retraining pipeline with latest data and notify model owners
+
+# Level 5 - Events
+
+Event: DataIngestionComplete
+    On dataset registration in metadata store
+    Action: validate data integrity checksums, trigger preprocessing pipeline stage, log ingestion metrics
+
+Event: FeatureEngineeringComplete
+    On feature vectors stored in feature store
+    Action: update feature statistics baseline, notify training orchestrator of dataset readiness, publish feature lineage
+
+Event: ModelTrainingComplete
+    On training convergence and final checkpoint saved
+    Action: register model artifact in model registry, trigger evaluation pipeline, log final training metrics
+
+Event: ModelDeployed
+    On endpoint passing health checks and receiving traffic
+    Action: start production monitoring, initialize drift detectors, notify stakeholders of deployment success
+
+Event: DriftDetected
+    On drift score exceeding configured threshold
+    Action: generate drift report, trigger automated retraining workflow, alert model governance team, update model risk score
+
+Event: RetrainingTriggered
+    On drift alert or scheduled retraining window
+    Action: fetch latest approved dataset, increment model version, launch training pipeline with updated configuration
+
+# Level 6 - Concurrency
+
+Parallel:
+    DataIngestion from multiple sources simultaneously
+    FeatureEngineering across independent feature groups
+    Hyperparameter search trials in parallel
+    Cross-validation fold evaluation
+    Fairness audit alongside performance evaluation
+    Canary traffic shadowing with production serving
+
+# Level 7 - Optimization
+
+Optimize: Model training throughput and resource utilization
+    Priority: GPU utilization above 85% preferred; reduce idle compute time; batch size maximized within memory constraints
+
+Optimize: End-to-end pipeline latency from data ingestion to deployment
+    Priority: Minimize time-to-deployment; parallelize independent stages; cache intermediate artifacts aggressively
+
+Optimize: Inference cost at serving time
+    Priority: Model quantization and distillation where accuracy impact is below 1%; prefer spot instances for batch inference; consolidate endpoints
+
+# Level 8 - Learning
+
+Learn: Optimal hyperparameter ranges for each model type
+    Goal: Minimize validation loss while maintaining fairness constraints
+    Adapt: Hyperparameter search space
+    Based: Historical training run outcomes and Bayesian optimization surrogate model
+
+Learn: Drift detection sensitivity thresholds
+    Goal: Maximize true drift detection while minimizing false positive alerts
+    Adapt: PSI and KS-test thresholds per feature
+    Based: Labeled drift events and production incident history
+
+Learn: Optimal preprocessing pipeline configuration
+    Goal: Maximize downstream model performance from preprocessing choices
+    Adapt: Imputation strategy, scaling method, encoding approach
+    Based: A/B test results between preprocessing variants and model quality metrics
+
+Learn: Autoscaling parameters for inference endpoints
+    Goal: Minimize cost while meeting latency SLA under variable load
+    Adapt: Scale-up and scale-down thresholds and cooldown periods
+    Based: Historical traffic patterns and latency measurements
+
+# Level 9 - Security
+
+Security:
+    Encrypt: All training data at rest and in transit using AES-256
+    Encrypt: Model artifacts and checkpoint files using envelope encryption
+    Protect: Data source credentials in secrets manager with rotation policy
+    Protect: Training dataset PII fields via tokenization before feature engineering
+    Protect: Model serving endpoints with mTLS and API key authentication
+    Protect: Experiment tracking logs from unauthorized access via RBAC
+    Encrypt: Feature store communication channels with TLS 1.3
+    Protect: Deployment credentials and cloud IAM roles with least-privilege policy
+
+# Level 10 - Native
+
+Native: python
+{
+import hashlib
+import json
+from datetime import datetime
+from typing import Dict, List, Optional
+from dataclasses import dataclass, field
+
+@dataclass
+class PipelineConfig:
+    pipeline_name: str
+    data_sources: List[Dict]
+    preprocessing_steps: List[Dict]
+    feature_definitions: List[Dict]
+    model_config: Dict
+    deployment_config: Dict
+    monitoring_config: Dict
+    random_seed: int = 42
+
+@dataclass
+class DriftDetector:
+    feature_name: str
+    baseline_distribution: Dict
+    threshold_psi: float = 0.2
+    threshold_ks: float = 0.05
+
+    def compute_psi(self, expected: List[float], actual: List[float]) -> float:
+        import numpy as np
+        breakpoints = np.arange(0, 1.1, 0.1)
+        expected_pct = np.histogram(expected, bins=breakpoints)[0] / len(expected)
+        actual_pct = np.histogram(actual, bins=breakpoints)[0] / len(actual)
+        psi_value = sum(
+            (a - e) * np.log(a / e) if e > 0 and a > 0 else 0
+            for e, a in zip(expected_pct, actual_pct)
+        )
+        return psi_value
+
+    def detect(self, current_distribution: List[float]) -> Dict:
+        psi = self.compute_psi(
+            self.baseline_distribution.get("values", []),
+            current_distribution
+        )
+        return {
+            "feature": self.feature_name,
+            "psi_score": psi,
+            "threshold": self.threshold_psi,
+            "drift_detected": psi > self.threshold_psi,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+class MLPipeline:
+    def __init__(self, config: PipelineConfig):
+        self.config = config
+        self.stages = [
+            "ingest", "preprocess", "feature_engineer",
+            "train", "evaluate", "deploy", "monitor"
+        ]
+        self.checkpoints = {}
+
+    def run(self):
+        for stage in self.stages:
+            print(f"Executing stage: {stage}")
+            result = getattr(self, f"_execute_{stage}")()
+            self.checkpoints[stage] = result
+        return self.checkpoints
+
+    def _execute_ingest(self) -> Dict:
+        return {"status": "completed", "records": 0, "checksum": ""}
+
+    def _execute_preprocess(self) -> Dict:
+        return {"status": "completed", "cleaned_records": 0}
+
+    def _execute_feature_engineer(self) -> Dict:
+        return {"status": "completed", "features": []}
+
+    def _execute_train(self) -> Dict:
+        return {"status": "completed", "model_path": ""}
+
+    def _execute_evaluate(self) -> Dict:
+        return {"status": "completed", "metrics": {}}
+
+    def _execute_deploy(self) -> Dict:
+        return {"status": "completed", "endpoint": ""}
+
+    def _execute_monitor(self) -> Dict:
+        return {"status": "completed", "drift_report": {}}
+}

@@ -1,0 +1,335 @@
+# AICL Example: Service Mesh
+# Implements a service mesh with sidecar proxy pattern, mutual TLS, traffic management,
+# distributed tracing, observability, and policy enforcement across microservices.
+
+# Level 1: Architecture
+Goal: Provide a transparent infrastructure layer for service-to-service communication that enforces security, reliability, and observability policies without requiring application code changes, using a sidecar proxy model with centralized control plane.
+
+Constraint: All inter-service traffic must traverse the sidecar proxy; direct pod-to-pod communication is prohibited
+Constraint: mTLS must be established before any application payload is exchanged between services
+Constraint: Control plane must remain operational even if individual sidecar proxies fail
+Constraint: Policy changes must propagate to all sidecars within 10 seconds
+Constraint: Sidecar proxy overhead must not exceed 5ms P99 latency addition per hop
+
+Risk: Sidecar proxy failure causing complete communication blackout for a service instance
+Recovery: Automatic sidecar restart with exponential backoff; if restart fails within 30s, mark instance unhealthy and remove from service discovery; traffic reroutes to healthy instances
+
+Risk: Certificate expiration causing mTLS handshake failures across the mesh
+Recovery: Proactive certificate rotation 24 hours before expiry; if rotation fails, fall back to last valid certificate with 48-hour grace period while alerting operators
+
+Risk: Control plane outage preventing policy updates and certificate issuance
+Recovery: Sidecars continue operating with last-known configuration; cached certificates remain valid; stale policy enforcement persists until control plane recovers; degrade to permissive mTLS mode
+
+Risk: Misconfigured traffic routing causing cascading failures across services
+Recovery: Validate all routing rules against a shadow traffic test before applying; automatic rollback to previous configuration if error rate exceeds 5% within 60 seconds of deployment
+
+Risk: Observability data volume overwhelming the telemetry collection pipeline
+Recovery: Adaptive sampling rate that reduces trace collection percentage when backpressure is detected; prioritize error and latency-anomaly traces over successful fast traces
+
+Risk: Rogue service bypassing the mesh and communicating directly
+Recovery: Network policies enforce that all egress from application containers routes through sidecar; iptables rules validated every 30 seconds; violation triggers alert and automatic remediation
+
+Layer: ControlPlane
+    SubLayer: ConfigDiscovery
+    SubLayer: CertificateAuthority
+    SubLayer: PolicyEngine
+    SubLayer: TelemetryAggregator
+Layer: DataPlane
+    SubLayer: SidecarProxy
+    SubLayer: IngressGateway
+    SubLayer: EgressGateway
+Layer: Observability
+    SubLayer: DistributedTracing
+    SubLayer: MetricsCollection
+    SubLayer: LogAggregation
+
+Validation: All sidecar proxies must present valid mTLS certificates before forwarding traffic
+Validation: Routing rules must not create circular dependency chains
+Validation: Circuit breaker thresholds must be defined for every service dependency
+Validation: Retry budgets must not exceed 3x the original request volume
+Validation: Service-level objectives must be defined for every mesh-enabled service
+Validation: Certificate rotation must complete before expiry with at least 12-hour margin
+
+# Level 2: Entities
+Entity SidecarProxy
+    proxyId: string
+    serviceId: string
+    inboundPort: integer
+    outboundPort: integer
+    mtlsEnabled: boolean
+    certificateExpiry: datetime
+    configVersion: string
+    lastConfigSync: datetime
+    status: string
+    connectedControlPlane: string
+
+Entity ServiceEntry
+    serviceName: string
+    namespace: string
+    hostnames: list
+    ports: list
+    protocol: string
+    resolution: string
+    endpoints: list
+    meshInternal: boolean
+    healthStatus: string
+
+Entity TrafficRule
+    ruleId: string
+    destinationService: string
+    sourceService: string
+    weight: integer
+    matchConditions: list
+    rewritePath: string
+    requestTimeout: float
+    retryPolicy: dict
+    circuitBreakerConfig: dict
+    priority: integer
+
+Entity MTLSCertificate
+    certificateId: string
+    serviceIdentity: string
+    issuer: string
+    notBefore: datetime
+    notAfter: datetime
+    serialNumber: string
+    rootCA: string
+    rotationCount: integer
+    trustDomain: string
+
+Entity ObservabilityConfig
+    tracingEnabled: boolean
+    tracingSamplingRate: float
+    metricsExportInterval: float
+    logLevel: string
+    spanAttributes: list
+    customMetrics: list
+    accessLogFormat: string
+    backpressureThreshold: float
+
+Entity PolicyRule
+    policyId: string
+    action: string
+    sourceService: string
+    destinationService: string
+    operation: string
+    conditions: list
+    enforcementMode: string
+    auditLogEnabled: boolean
+    createdAt: datetime
+
+# Level 3: Behaviors
+Behavior RouteRequest
+    Input: sourceService: string, destinationService: string, headers: dict, payload: bytes
+    Output: response: bytes, statusCode: integer, latency: float
+    Action:
+        Evaluate traffic rules matching source and destination
+        Apply weight-based routing across destination subsets
+        Inject distributed tracing headers (traceparent, tracestate)
+        Enforce request timeout from traffic rule configuration
+        Record access log entry with request metadata
+        If circuit breaker is open, return immediate 503 with retry-after header
+
+Behavior EstablishmTLS
+    Input: sourceIdentity: string, destinationIdentity: string
+    Output: secureChannel: any, certificate: MTLSCertificate
+    Action:
+        Validate both service identities against the trust domain
+        Retrieve or request certificates from the mesh certificate authority
+        Perform TLS handshake with mutual authentication
+        Verify certificate chain against trusted root CA
+        Establish encrypted channel with forward secrecy
+        Schedule certificate rotation monitoring
+
+Behavior EnforcePolicy
+    Input: policyRequest: dict, sourceService: string, destinationService: string
+    Output: allowed: boolean, denialReason: string
+    Action:
+        Evaluate all matching policy rules in priority order
+        If any rule explicitly denies, reject immediately with denial reason
+        If enforcement mode is permissive, log would-be denial but allow request
+        Audit log all policy evaluations for compliance
+        Return allow if no explicit denial and at least one allow rule matches
+
+Behavior ManageCircuitBreaker
+    Input: serviceName: string, endpoint: string
+    Output: circuitState: string, halfOpenRequests: integer
+    Action:
+        Monitor consecutive failure count against configured threshold
+        If failures exceed threshold, transition circuit to open state
+        After timeout period, transition to half-open and allow probe requests
+        If probe succeeds, close circuit; if probe fails, reopen circuit
+        Emit circuit state change event with failure statistics
+
+Behavior CollectTelemetry
+    Input: span: dict, metrics: dict, accessLog: dict
+    Output: void
+    Action:
+        Apply adaptive sampling to trace spans based on backpressure
+        Enrich spans with mesh-specific attributes (service, namespace, version)
+        Batch metrics and export at configured interval
+        Forward access logs to aggregation pipeline
+        If backpressure exceeds threshold, reduce sampling rate dynamically
+
+Behavior RotateCertificate
+    Input: serviceIdentity: string, currentCert: MTLSCertificate
+    Output: newCertificate: MTLSCertificate
+    Action:
+        Check if current certificate is within rotation window (24h before expiry)
+        Generate new private key and CSR for the service identity
+        Submit CSR to mesh certificate authority for signing
+        Distribute new certificate to sidecar via xDS push
+        Gracefully transition connections to new certificate
+        Retain old certificate for in-flight connection drain
+
+# Level 4: Conditions
+Condition: CircuitBreakerTripped
+    When consecutive failures to a destination exceed the configured threshold within the evaluation window
+    Then open the circuit breaker, immediately reject all requests to that destination with 503, emit circuit-open event, and schedule half-open probe after cooldown period
+
+Condition: CertificateNearExpiry
+    When a service certificate is within 24 hours of expiration
+    Then trigger proactive certificate rotation, push new certificate via xDS, and log rotation event; if rotation fails within 2 hours, escalate to critical alert
+
+Condition: ControlPlaneDisconnected
+    When sidecar loses connection to control plane for more than 30 seconds
+    Then continue with cached configuration, emit warning metric, switch to degraded observability mode with reduced sampling, and attempt reconnection with exponential backoff
+
+Condition: RoutingRuleConflict
+    When two or more traffic rules match the same request with conflicting actions
+    Then apply the rule with highest priority; if equal priority, apply most specific match (longest path prefix); log conflict for operator review
+
+Condition: BackpressureDetected
+    When telemetry export pipeline latency exceeds 5 seconds or drop rate exceeds 1%
+    Then reduce tracing sampling rate by 50%, prioritize error traces, defer metric export to next interval, and emit backpressure warning
+
+# Level 5: Events
+Event: OnSidecarInjected
+    On new pod created in mesh-enabled namespace
+    Action: Inject sidecar container, configure iptables redirect rules, register with control plane, fetch initial xDS configuration, begin certificate provisioning, start health checking
+
+Event: OnTrafficShiftCompleted
+    On canary traffic weight shift reaches 100% or is rolled back
+    Action: Promote new version as primary or revert to stable, emit deployment metric, clean up old deployment resources, update service entry endpoints, notify deployment pipeline
+
+Event: OnCertificateRotated
+    On new certificate distributed to sidecar and connections drained
+    Action: Mark old certificate as revoked, update certificate inventory, emit rotation metric, schedule next rotation based on new certificate expiry, audit log the rotation event
+
+Event: OnCircuitStateChange
+    On circuit breaker transitions between open, half-open, or closed
+    Action: Emit circuit state change metric, notify dependent services via health check update, log failure statistics that triggered the change, adjust retry budgets accordingly
+
+Event: OnPolicyViolation
+    On request denied by policy enforcement in enforcement mode
+    Action: Emit denial metric with policy ID, log detailed audit entry with request context, notify security team if violation rate exceeds threshold, consider escalating to stricter enforcement
+
+# Level 6: Concurrency
+Parallel:
+    Sidecar proxy request forwarding with independent connection pools per destination
+    Certificate rotation across multiple services simultaneously
+    Telemetry collection and export pipeline
+    xDS configuration distribution to all sidecars
+    Health checking of all mesh endpoints
+
+# Level 7: Optimization
+Optimize: Sidecar proxy latency overhead
+    Priority: Minimize P99 latency addition to below 2ms by using io_uring for network I/O, connection pooling with keep-alive, and zero-copy header parsing
+
+Optimize: Control plane push efficiency
+    Priority: Use incremental xDS to push only changed configuration; batch multiple changes into single push; debounce rapid configuration changes within 100ms window
+
+Optimize: Telemetry resource consumption
+    Priority: Adaptive sampling that reduces collection under load; aggregate metrics at sidecar before export; use protobuf encoding for trace spans to minimize serialization overhead
+
+# Level 8: Learning
+Learn: Optimal circuit breaker thresholds per service
+    Goal: Set circuit breaker failure thresholds that catch genuine failures without overreacting to transient errors
+    Adapt: consecutiveFailureThreshold and evaluationWindow
+    Based: Historical error rate patterns, time-of-day traffic variability, and downstream service recovery time distributions over the last 7 days
+
+Learn: Optimal tracing sampling rate
+    Goal: Collect enough traces for statistical significance while minimizing overhead
+    Adapt: tracingSamplingRate per service
+    Based: Request volume, error rate, and latency percentiles; increase sampling for anomalous patterns and decrease for stable operations
+
+Learn: Certificate rotation timing
+    Goal: Rotate certificates at the optimal time to minimize connection disruption
+    Adapt: rotationWindowStart (hours before expiry)
+    Based: Connection lifetime distributions, peak traffic periods, and historical rotation failure rates per service
+
+# Level 9: Security
+Security:
+    Encrypt: All inter-service traffic using mTLS with SPIFFE identity verification
+    Encrypt: Control plane communication using separate internal CA with mutual authentication
+    Encrypt: Certificate private keys at rest using HSM-backed key management
+    Protect: Sidecar proxy configuration against tampering via signed xDS payloads
+    Protect: Service identities against spoofing via SPIFFE SVID validation
+    Protect: Telemetry data against injection by validating traceparent headers against cryptographic spans
+    Protect: Policy rules against unauthorized modification via RBAC on control plane API
+
+# Level 10: Native
+Native: Rust
+{
+use std::sync::Arc;
+use tokio::net::TcpListener;
+use tokio::sync::RwLock;
+
+struct SidecarProxy {
+    config: Arc<RwLock<ProxyConfig>>,
+    connection_pool: ConnectionPool,
+    cert_manager: CertificateManager,
+    telemetry: TelemetryCollector,
+    circuit_breakers: Arc<RwLock<HashMap<String, CircuitBreaker>>>,
+    policy_engine: PolicyEngine,
+}
+
+impl SidecarProxy {
+    async fn handle_inbound(&self, mut stream: TcpStream) -> Result<(), ProxyError> {
+        let config = self.config.read().await;
+        
+        // Perform mTLS handshake
+        let tls_stream = self.cert_manager
+            .accept_with_mtls(&mut stream).await?;
+        
+        // Parse request headers
+        let request = parse_request(tls_stream).await?;
+        
+        // Enforce policy
+        if !self.policy_engine.evaluate(&request).await? {
+            return Err(ProxyError::PolicyDenied);
+        }
+        
+        // Check circuit breaker
+        let dest = &request.destination_service;
+        let breakers = self.circuit_breakers.read().await;
+        if let Some(cb) = breakers.get(dest) {
+            if cb.is_open() {
+                return Err(ProxyError::CircuitOpen);
+            }
+        }
+        
+        // Apply routing rules
+        let endpoint = config.resolve_route(&request)?;
+        
+        // Forward with tracing
+        let span = self.telemetry.start_span("proxy-forward");
+        let response = self.connection_pool
+            .forward(endpoint, request).await?;
+        self.telemetry.finish_span(span, &response);
+        
+        Ok(())
+    }
+    
+    async fn run(&self, listener: TcpListener) -> Result<(), ProxyError> {
+        loop {
+            let (stream, _) = listener.accept().await?;
+            let proxy = self.clone();
+            tokio::spawn(async move {
+                if let Err(e) = proxy.handle_inbound(stream).await {
+                    proxy.telemetry.record_error(&e);
+                }
+            });
+        }
+    }
+}

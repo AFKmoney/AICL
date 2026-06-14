@@ -1,0 +1,528 @@
+# AICL Example: Telemedicine Platform
+# Comprehensive telemedicine platform with video consultations, scheduling, prescriptions, remote monitoring, and insurance verification
+
+# === LEVEL 1: ARCHITECTURE ===
+
+Goal: Build a secure, scalable telemedicine platform that enables high-quality virtual healthcare delivery through video consultations, intelligent scheduling, e-prescribing, remote patient monitoring, and automated insurance verification while ensuring regulatory compliance across all operating jurisdictions.
+
+Constraint: Platform must comply with state-specific telehealth parity laws and prescribing regulations across all operating jurisdictions.
+
+Constraint: Video consultations must support end-to-end encryption with HIPAA-compliant WebRTC infrastructure and minimum 720p resolution.
+
+Constraint: Remote monitoring data must be processed within 30 seconds of receipt for critical value detection and alerting.
+
+Constraint: System must support multilingual consultations with real-time translation for at least 12 languages.
+
+Risk: Video connection failure during active consultation could disrupt patient care and clinical assessment.
+Recovery: Implement automatic reconnection with session state preservation; provide PSTN audio fallback within 5 seconds of video loss; maintain consultation transcript buffer for seamless resumption; notify both parties of reconnection in progress.
+
+Risk: Misdiagnosis due to limited physical examination capability in virtual setting could harm patients and create liability.
+Recovery: Deploy AI-assisted visual examination tools with image enhancement; mandate structured virtual examination protocols by specialty; require in-person follow-up scheduling for cases exceeding virtual assessment confidence threshold; document virtual examination limitations in encounter notes.
+
+Risk: E-prescribing errors from delayed or mismatched prescriptions could result in patient harm.
+Recovery: Implement real-time prescription verification against active medication list and allergy profile; require pharmacist confirmation before dispensing controlled substances; deploy NCPDP SCRIPT v2017 standard with mandatory two-factor prescriber authentication; maintain 72-hour prescription audit trail.
+
+Risk: Insurance verification failures could lead to unexpected patient costs and billing disputes.
+Recovery: Cache insurance eligibility results with 24-hour TTL; implement batch pre-verification 48 hours before scheduled appointments; provide real-time cost estimation to patients before consultation; establish financial assistance workflow for verification failures.
+
+Risk: Remote monitoring device data inaccuracy could trigger false alerts or miss critical deterioration.
+Recovery: Implement multi-point data validation against clinical plausibility ranges; cross-reference with patient baseline and recent trends; require clinical confirmation before acting on single anomalous reading; calibrate device confidence scores based on signal quality metrics.
+
+Risk: Cross-jurisdictional licensing violations could expose providers to disciplinary action.
+Recovery: Maintain real-time provider license verification database by jurisdiction; block appointment scheduling in states where provider lacks active license; generate monthly license expiration reports; implement automatic encounter routing to licensed providers only.
+
+Layer: TelemedicinePlatform
+    SubLayer: ConsultationServices
+        # Video/audio sessions, screen sharing, examination tools
+    SubLayer: SchedulingEngine
+        # Provider availability, patient matching, timezone handling
+    SubLayer: PrescriptionServices
+        # E-prescribing, pharmacy routing, controlled substance management
+    SubLayer: RemoteMonitoring
+        # Device integration, data ingestion, alert management, trend analysis
+    SubLayer: InsuranceVerification
+        # Eligibility checking, benefit verification, cost estimation, claims
+
+Validation: Video session encryption verified before consultation start with automatic session termination on encryption failure.
+Validation: Provider active license status validated against jurisdiction of patient location before consultation.
+Validation: E-prescription validated against NCPDP SCRIPT standard and PDMP requirements before transmission.
+Validation: Remote monitoring data validated against device calibration profile and clinical plausibility ranges.
+Validation: Insurance eligibility confirmed with payer within 24 hours of scheduled appointment.
+Validation: Patient identity verified through multi-factor authentication before accessing health information.
+Validation: Consultation recording consent obtained and documented before session initiation.
+
+# === LEVEL 2: ENTITIES ===
+
+Entity VirtualConsultation
+    consultationId: string
+    patientId: string
+    providerId: string
+    scheduledDateTime: datetime
+    actualStartTime: datetime
+    actualEndTime: datetime
+    consultationType: string
+    consultationStatus: string
+    videoSessionId: string
+    recordingConsent: boolean
+    recordingUrl: string
+    patientLocation: dict
+    providerLocation: dict
+    clinicalNotes: string
+    diagnosisCodes: list
+    followUpRequired: boolean
+    qualityScore: float
+
+Entity ProviderProfile
+    providerId: string
+    firstName: string
+    lastName: string
+    credentials: string
+    specialties: list
+    activeLicenses: list
+    npiNumber: string
+    deaNumber: string
+    availabilitySchedule: dict
+    consultationRate: float
+    languages: list
+    rating: float
+    totalConsultations: integer
+    telehealthEnabled: boolean
+    acceptingNewPatients: boolean
+
+Entity PatientDevice
+    deviceId: string
+    patientId: string
+    deviceType: string
+    manufacturer: string
+    model: string
+    serialNumber: string
+    firmwareVersion: string
+    pairingDate: datetime
+    lastCalibrationDate: datetime
+    dataTypes: list
+    transmissionFrequency: string
+    batteryLevel: float
+    connectionStatus: string
+    alertThresholds: dict
+
+Entity MonitoringReading
+    readingId: string
+    deviceId: string
+    patientId: string
+    readingType: string
+    value: float
+    unit: string
+    readingDateTime: datetime
+    receivedDateTime: datetime
+    qualityIndicator: float
+    isCritical: boolean
+    baselineDeviation: float
+    trendDirection: string
+    notes: string
+
+Entity EPrescription
+    prescriptionId: string
+    patientId: string
+    providerId: string
+    consultationId: string
+    medicationId: string
+    medicationName: string
+    dosage: string
+    frequency: string
+    route: string
+    quantity: integer
+    refills: integer
+    daysSupply: integer
+    pharmacyId: string
+    transmissionStatus: string
+    controlledSchedule: string
+    pdmpChecked: boolean
+    createdDateTime: datetime
+    sentDateTime: datetime
+
+Entity InsuranceVerification
+    verificationId: string
+    patientId: string
+    payerId: string
+    policyNumber: string
+    verificationDateTime: datetime
+    eligibilityStatus: string
+    telehealthCoverage: boolean
+    copayAmount: float
+    coinsurancePercent: float
+    deductibleMet: float
+    deductibleTotal: float
+    priorAuthRequired: boolean
+    priorAuthNumber: string
+    visitLimitRemaining: integer
+    networkStatus: string
+    expirationDateTime: datetime
+
+Entity ConsultationSchedule
+    scheduleId: string
+    providerId: string
+    date: datetime
+    availableSlots: list
+    bookedSlots: list
+    bufferMinutes: integer
+    maxDailyConsultations: integer
+    timezone: string
+    breakSlots: list
+    onCallStatus: boolean
+
+# === LEVEL 3: BEHAVIORS ===
+
+Behavior InitiateConsultation
+    Input: patientId: string, providerId: string, consultationType: string, reason: string, patientLocation: dict
+    Output: sessionDetails: dict, connectionToken: string, preConsultationChecklist: list
+    Action:
+        Verify provider license is active in patient's jurisdiction
+        Confirm insurance eligibility and telehealth coverage
+        Generate encrypted WebRTC session with unique room token
+        Validate patient device compatibility for video/audio
+        Load patient medical history and active medication list
+        Pre-populate consultation template with patient data
+        Send secure connection links to both parties with 15-minute early access
+
+Behavior ProcessRemoteMonitoring
+    Input: deviceId: string, readingData: dict, patientId: string
+    Output: processedReading: dict, alertStatus: dict, trendUpdate: dict
+    Action:
+        Validate device identity and data integrity signature
+        Apply calibration corrections based on device profile
+        Compare reading against patient-specific baseline and thresholds
+        Calculate trend direction and rate of change
+        Determine if reading exceeds critical alert thresholds
+        Update patient monitoring dashboard with new data point
+        Trigger clinical alert if critical value detected with provider notification
+
+Behavior SubmitEPrescription
+    Input: prescriptionData: dict, providerId: string, patientId: string, pharmacyId: string
+    Output: prescriptionConfirmation: dict, transmissionId: string, pdmpRecord: dict
+    Action:
+        Validate prescriber DEA registration for controlled substances
+        Check Prescription Drug Monitoring Program for patient history
+        Screen for drug interactions against active medication list
+        Verify patient allergy and adverse reaction history
+        Format prescription per NCPDP SCRIPT v2017 standard
+        Transmit to selected pharmacy via Surescripts network
+        Record prescription in patient medication history
+
+Behavior VerifyInsuranceEligibility
+    Input: patientId: string, payerId: string, policyNumber: string, serviceType: string
+    Output: verificationResult: dict, coverageDetails: dict, estimatedCost: dict
+    Action:
+        Submit 270/271 EDI transaction to payer for real-time eligibility
+        Verify telehealth coverage specific to patient's state of residence
+        Calculate patient financial responsibility including copay and deductible
+        Check prior authorization requirements for requested service type
+        Determine network status and any out-of-network penalties
+        Cache verification results with TTL based on payer specifications
+        Present estimated cost to patient before consultation confirmation
+
+Behavior ManageProviderSchedule
+    Input: providerId: string, scheduleData: dict, dateRange: dict, timezone: string
+    Output: updatedSchedule: dict, availableSlots: list, conflictAlerts: list
+    Action:
+        Validate schedule against jurisdictional telehealth regulations
+        Apply provider availability preferences and blackout periods
+        Calculate optimal slot duration by consultation type
+        Maintain buffer time between consultations for documentation
+        Detect and resolve scheduling conflicts across linked calendars
+        Sync schedule updates to provider calendar and patient-facing booking
+        Generate on-call rotation if provider participates in after-hours coverage
+
+Behavior GenerateConsultationSummary
+    Input: consultationId: string, transcriptData: dict, providerNotes: dict, diagnosisCodes: list
+    Output: summaryDocument: dict, patientInstructions: dict, followUpOrder: dict
+    Action:
+        Extract key clinical findings from consultation transcript using NLP
+        Compile structured consultation summary with diagnosis and plan
+        Generate patient-friendly after-visit summary with instructions
+        Create follow-up appointment recommendation based on clinical assessment
+        Submit billing codes with supporting documentation
+        Update patient record with encounter data and outcomes
+        Send summary to patient portal and primary care provider
+
+Behavior HandleConsultationEmergency
+    Input: consultationId: string, emergencyType: string, patientLocation: dict, providerAssessment: dict
+    Output: emergencyResponse: dict, dispatchConfirmation: dict, documentationRecord: dict
+    Action:
+        Activate emergency protocol based on provider assessment
+        Determine patient location for emergency services dispatch
+        Initiate 911 coordination with patient location data
+        Maintain video connection until emergency services arrive
+        Document emergency events with timestamps for medical record
+        Notify emergency contacts on file for patient
+        Generate incident report for quality review committee
+
+# === LEVEL 4: CONDITIONS ===
+
+Condition: CriticalMonitoringAlert
+    When remote monitoring reading exceeds patient-specific critical threshold with quality indicator above 0.8
+    Then escalate alert to assigned provider within 2 minutes; send SMS and push notification to patient; if no provider acknowledgment within 10 minutes, escalate to covering provider and on-call team; log alert in patient monitoring record; recommend patient seek immediate care if life-threatening
+
+Condition: ProviderLicenseInvalid
+    When provider license verification fails for patient's jurisdiction at time of scheduling or consultation
+    Then prevent appointment booking in unlicensed jurisdiction; display license status to provider with renewal instructions; route patient to available licensed provider; log license validation failure for compliance audit; notify credentialing team of license issue
+
+Condition: InsuranceCoverageDenied
+    When insurance verification returns denial for telehealth services for patient's location and service type
+    Then notify patient of coverage denial with estimated self-pay cost; offer financial assistance program information; provide option to proceed with self-pay or reschedule; log denial for payer contract review; suggest alternative covered service types if available
+
+Condition: VideoQualityDegradation
+    When video consultation connection quality drops below minimum threshold (720p, 30fps) for more than 30 seconds
+    Then automatically attempt quality recovery through codec adjustment; offer PSTN audio fallback to maintain consultation continuity; log quality degradation event with diagnostic data; flag consultation for quality review if clinical assessment may be impacted; schedule technical follow-up if persistent
+
+Condition: PrescriptionInteractionWarning
+    When e-prescription screening detects moderate or severe drug interaction with active medications
+    Then display interaction details to prescriber with clinical evidence; require documented clinical rationale for proceeding; offer alternative medication suggestions; if severe interaction, require peer consultation before transmission; log interaction override for pharmacy verification
+
+Condition: DeviceDataAnomaly
+    When remote monitoring device transmits data that fails calibration validation or is physiologically implausible
+    Then flag reading as unreliable with quality indicator below threshold; request patient to recalibrate device; exclude anomalous reading from trend analysis; notify clinical team of potential device malfunction; schedule device replacement if pattern persists across 3 consecutive readings
+
+# === LEVEL 5: EVENTS ===
+
+Event: ConsultationStarted
+    On video consultation session successfully established between patient and provider
+    Action: Begin consultation timer; activate clinical documentation tools; start recording if consented; notify scheduling system of session start; load patient monitoring data dashboard; enable e-prescribing capability for session; set consultation status to in-progress
+
+Event: MonitoringCriticalValue
+    On remote monitoring reading processed and classified as critical
+    Action: Generate high-priority alert to assigned provider; send patient notification with guidance; activate emergency protocol if life-threatening value; log critical event in monitoring record; update care plan with alert occurrence; trigger quality review for repeated critical values
+
+Event: PrescriptionTransmitted
+    On e-prescription successfully transmitted to pharmacy
+    Action: Confirm delivery to patient via portal notification; update patient medication list; record transmission in PDMP for controlled substances; schedule medication adherence follow-up; link prescription to consultation encounter; generate pharmacy pickup reminder
+
+Event: InsuranceVerificationExpired
+    On cached insurance verification result exceeds TTL and becomes stale
+    Action: Automatically initiate re-verification with payer; flag affected upcoming appointments; notify patient if verification fails; hold appointment confirmation until updated verification received; update financial responsibility estimate
+
+Event: ConsultationCompleted
+    On provider ends consultation session and initiates documentation
+    Action: Generate after-visit summary from consultation data; submit billing claim with appropriate telehealth modifiers; schedule follow-up if indicated; update patient encounter record; trigger patient satisfaction survey; release provider slot for next patient
+
+Event: DeviceDisconnected
+    On remote monitoring device loses connectivity for more than configured threshold
+    Action: Attempt automatic device re-pairing; notify patient of device disconnection; alert clinical team if critical monitoring device; log disconnection event with duration; switch to manual patient-reported data collection if extended outage; schedule technical support contact
+
+# === LEVEL 6: CONCURRENCY ===
+
+Parallel:
+    Video stream processing and clinical documentation tools running concurrently during consultation
+    Remote monitoring data ingestion and alert evaluation executing simultaneously across all active patients
+    Insurance verification and appointment scheduling running concurrently for new booking requests
+    E-prescription validation and PDMP checking executing in parallel for controlled substance orders
+    Provider schedule synchronization and patient notification dispatching concurrently on schedule changes
+    Consultation recording transcription and clinical NLP analysis running in parallel post-consultation
+    Multi-device monitoring aggregation and baseline trend calculation executing concurrently per patient
+
+# === LEVEL 7: OPTIMIZATION ===
+
+Optimize: Video consultation connection quality and reliability
+    Priority: Achieve 99.5% successful consultation connections; maintain video latency under 150ms; minimize connection setup time to under 10 seconds; optimize for variable bandwidth conditions
+
+Optimize: Provider utilization and consultation throughput
+    Priority: Maximize provider consultation time to 85% of scheduled hours; minimize no-show rate below 10%; optimize scheduling algorithms for provider preferences and patient needs
+
+Optimize: Remote monitoring alert specificity
+    Priority: Reduce false positive critical alerts by 40% while maintaining 100% sensitivity for true critical events; achieve positive predictive value above 75% for monitoring alerts
+
+Optimize: Insurance verification speed and accuracy
+    Priority: Achieve real-time verification response under 5 seconds for 90% of requests; reduce verification failures below 5%; maintain verification accuracy above 98%
+
+Optimize: Patient onboarding and consultation readiness
+    Priority: Reduce time from registration to first consultation to under 15 minutes; achieve device pairing success rate above 95% on first attempt; minimize technical support escalations
+
+# === LEVEL 8: LEARNING ===
+
+Learn: Consultation no-show prediction
+    Goal: Predict patient no-show probability with 82% accuracy using appointment history, demographic features, weather, and engagement metrics
+    Adapt: Overbooking strategy and appointment reminder scheduling
+    Based: Predicted no-show risk score, historical overbooking outcomes, and patient engagement patterns
+
+Learn: Monitoring alert optimization model
+    Goal: Personalize alert thresholds to reduce false positives by 40% while maintaining zero missed critical events
+    Adapt: Patient-specific monitoring thresholds and alert routing priority
+    Based: Individual patient baseline trends, alert outcome verification, and clinical response patterns
+
+Learn: Video quality prediction
+    Goal: Predict video consultation quality degradation 60 seconds before occurrence with 75% accuracy
+    Adapt: Proactive codec switching and bandwidth adaptation strategy
+    Based: Network quality indicators, device performance metrics, and historical connection quality patterns
+
+Learn: Provider-patient matching effectiveness
+    Goal: Predict patient satisfaction score for provider assignment with 70% accuracy using specialty match, communication style, and patient preferences
+    Adapt: Provider recommendation and scheduling algorithm
+    Based: Post-consultation satisfaction surveys, clinical outcome data, and patient preference declarations
+
+Learn: Prescription adherence prediction
+    Goal: Predict 30-day medication adherence probability with 75% accuracy from e-prescription and patient engagement data
+    Adapt: Follow-up communication strategy and adherence intervention timing
+    Based: Prescription fill patterns, portal engagement frequency, and monitoring data consistency
+
+# === LEVEL 9: SECURITY ===
+
+Security:
+    Encrypt: All video and audio streams end-to-end using DTLS-SRTP with Perfect Forward Secrecy
+    Encrypt: Patient health data in transit using TLS 1.3 and at rest using AES-256-GCM
+    Encrypt: E-prescription transmissions using S/MIME with dual digital signatures
+    Protect: Video session tokens with time-limited validity and single-use constraints
+    Protect: Patient location data with geofencing rules and location obfuscation for non-clinical use
+    Protect: Provider credential and license data with encrypted storage and access-logged retrieval
+    Protect: Remote monitoring data streams with device authentication and message integrity verification
+    Protect: Insurance verification responses with field-level encryption and payer-specific key management
+    Protect: Consultation recordings with access-controlled encrypted storage and auto-expiry policies
+    Protect: API endpoints with OAuth 2.0, PKCE, and scoped tokens with 1-hour maximum lifetime
+
+# === LEVEL 10: NATIVE ===
+
+Native: Python
+{
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
+import hashlib
+import json
+
+class TelemedicinePlatform:
+    def __init__(self, db, video_service, prescription_gateway, insurance_service, monitoring_engine):
+        self.db = db
+        self.video = video_service
+        self.rx_gateway = prescription_gateway
+        self.insurance = insurance_service
+        self.monitor = monitoring_engine
+        self.license_registry = {}
+        self.critical_thresholds = {}
+
+    def initiate_consultation(self, patient_id: str, provider_id: str, consult_type: str, patient_location: Dict) -> Dict:
+        state = patient_location.get("state", "")
+        if not self._verify_provider_license(provider_id, state):
+            return {"error": f"Provider not licensed in {state}", "code": "LICENSE_INVALID"}
+
+        verification = self.insurance.verify_eligibility(
+            patient_id=patient_id,
+            state=state,
+            service_type=consult_type
+        )
+        if not verification.get("telehealth_covered"):
+            return {"error": "Telehealth not covered", "code": "COVERAGE_DENIED", "details": verification}
+
+        session = self.video.create_room(
+            provider_id=provider_id,
+            patient_id=patient_id,
+            encryption_required=True,
+            recording_consent=False,
+            fallback_audio=True
+        )
+
+        consultation = {
+            "consultationId": f"CONS-{hashlib.sha256(f'{patient_id}{provider_id}{datetime.now().isoformat()}'.encode()).hexdigest()[:10]}",
+            "patientId": patient_id,
+            "providerId": provider_id,
+            "consultationType": consult_type,
+            "consultationStatus": "SCHEDULED",
+            "videoSessionId": session["roomId"],
+            "patientLocation": patient_location,
+            "scheduledDateTime": datetime.now().isoformat(),
+        }
+        self.db.insert("consultations", consultation)
+        return {
+            "sessionDetails": consultation,
+            "connectionToken": session["patientToken"],
+            "preChecklist": self._generate_pre_checklist(consult_type)
+        }
+
+    def process_monitoring_reading(self, device_id: str, reading_data: Dict) -> Dict:
+        device = self.db.get("devices", device_id)
+        if not device:
+            return {"error": "Device not found"}
+
+        quality = self._assess_reading_quality(reading_data, device)
+        if quality < 0.5:
+            return {"status": "UNRELIABLE", "qualityIndicator": quality, "action": "RECALIBRATE"}
+
+        patient_id = device["patientId"]
+        baseline = self.monitor.get_patient_baseline(patient_id, reading_data["readingType"])
+        deviation = abs(reading_data["value"] - baseline.get("mean", reading_data["value"]))
+        std_devs = deviation / max(baseline.get("stdDev", 1), 0.001)
+
+        is_critical = std_devs > self.critical_thresholds.get(reading_data["readingType"], 3.0)
+
+        reading = {
+            "readingId": f"MON-{hashlib.sha256(f'{device_id}{datetime.now().isoformat()}'.encode()).hexdigest()[:10]}",
+            "deviceId": device_id,
+            "patientId": patient_id,
+            "readingType": reading_data["readingType"],
+            "value": reading_data["value"],
+            "unit": reading_data.get("unit", ""),
+            "qualityIndicator": quality,
+            "isCritical": is_critical,
+            "baselineDeviation": std_devs,
+            "readingDateTime": reading_data.get("timestamp", datetime.now().isoformat()),
+        }
+        self.db.insert("monitoring_readings", reading)
+
+        if is_critical:
+            self._trigger_critical_alert(patient_id, reading)
+
+        return {"status": "PROCESSED", "reading": reading, "isCritical": is_critical}
+
+    def submit_e_prescription(self, rx_data: Dict, provider_id: str, patient_id: str) -> Dict:
+        interactions = self.rx_gateway.check_interactions(
+            patient_id=patient_id,
+            new_medication=rx_data["medicationId"]
+        )
+        severe_interactions = [i for i in interactions if i["severity"] in ["SEVERE", "CONTRAINDICATED"]]
+        if severe_interactions:
+            return {"status": "INTERACTION_BLOCKED", "interactions": severe_interactions}
+
+        if rx_data.get("controlledSchedule") in ["II", "IIN", "III", "IIIN"]:
+            pdmp_result = self.rx_gateway.query_pdmp(provider_id, patient_id)
+            if not pdmp_result.get("cleared"):
+                return {"status": "PDMP_FLAGGED", "details": pdmp_result}
+
+        transmission = self.rx_gateway.transmit(
+            prescription=rx_data,
+            pharmacy_id=rx_data["pharmacyId"],
+            provider_id=provider_id
+        )
+        return {"status": "TRANSMITTED", "prescriptionId": transmission["rxId"], "confirmation": transmission}
+
+    def _verify_provider_license(self, provider_id: str, state: str) -> bool:
+        license_info = self.license_registry.get(provider_id, {})
+        state_licenses = license_info.get("activeLicenses", [])
+        return any(lic["state"] == state and lic["status"] == "ACTIVE" for lic in state_licenses)
+
+    def _assess_reading_quality(self, reading: Dict, device: Dict) -> float:
+        if not device.get("lastCalibrationDate"):
+            return 0.3
+        cal_days = (datetime.now() - datetime.fromisoformat(device["lastCalibrationDate"])).days
+        if cal_days > 90:
+            return 0.4
+        battery = device.get("batteryLevel", 0)
+        if battery < 10:
+            return 0.3
+        return min(1.0, 0.5 + 0.5 * max(0, 1 - cal_days / 180))
+
+    def _trigger_critical_alert(self, patient_id: str, reading: Dict):
+        provider = self.monitor.get_assigned_provider(patient_id)
+        self.db.insert("critical_alerts", {
+            "patientId": patient_id,
+            "providerId": provider,
+            "readingId": reading["readingId"],
+            "alertType": "CRITICAL_MONITORING",
+            "createdDateTime": datetime.now().isoformat(),
+            "status": "PENDING_ACKNOWLEDGMENT"
+        })
+
+    def _generate_pre_checklist(self, consult_type: str) -> List[str]:
+        base = ["Verify audio and video", "Confirm identity", "Review medical history"]
+        type_specific = {
+            "NEW_PATIENT": ["Complete intake form", "Upload insurance card", "Verify pharmacy"],
+            "FOLLOW_UP": ["Update medication list", "Prepare symptom diary", "Have monitoring device ready"],
+            "URGENT_CARE": ["Describe chief complaint", "Take temperature if possible", "Note symptom duration"],
+        }
+        return base + type_specific.get(consult_type, [])
+}

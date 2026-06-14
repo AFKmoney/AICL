@@ -1,0 +1,394 @@
+# AICL Example: Serverless Platform
+# Implements a serverless/function-as-a-service platform with function runtime management,
+# cold start optimization, event triggers, auto-scaling, billing, and execution isolation.
+
+# Level 1: Architecture
+Goal: Provide an elastic serverless compute platform that executes user-defined functions in response to events with sub-second cold start times, automatic scaling from zero to thousands of concurrent invocations, per-invocation billing, and secure multi-tenant isolation.
+
+Constraint: Cold start latency must not exceed 500ms for interpreted runtimes and 2s for compiled runtimes
+Constraint: Function execution timeout must be strictly enforced at configured limit (max 15 minutes)
+Constraint: Concurrent invocations per function must scale from 0 to 1000 within 60 seconds
+Constraint: Billing must be metered per invocation with 1ms granularity
+Constraint: Function isolation must prevent cross-tenant data access and resource interference
+
+Risk: Cold start latency spikes causing SLA violations during traffic bursts
+Recovery: Maintain warm execution pool with pre-initialized containers; predictive pre-warming based on traffic patterns; reserved concurrency for latency-sensitive functions; snapshot-based restore for sub-100ms cold starts
+
+Risk: Noisy neighbor causing performance degradation for co-located functions
+Recovery: Strict resource isolation via Firecracker microVMs; per-function CPU and memory limits enforced by cgroups; network bandwidth shaping; dedicated worker pools for premium functions
+
+Risk: Event source failure causing missed function invocations
+Recovery: At-least-once delivery with idempotent execution; dead-letter queue for failed invocations; event source retry with exponential backoff; checkpoint-based offset tracking for stream sources
+
+Risk: Runaway function execution consuming excessive resources
+Recovery: Hard execution timeout enforced at runtime level; memory limit with OOM kill; CPU throttling via cgroups; per-function concurrent invocation cap; automatic suspension after repeated failures
+
+Risk: Billing metering inaccuracy from distributed counter drift
+Recovery: Atomic timestamped execution records; dual-path metering (real-time estimate + reconciled billing); periodic reconciliation with audit trail; per-invocation billing records persisted before response
+
+Risk: Security breach via function escape to host system
+Recovery: Defense in depth: microVM isolation, seccomp, AppArmor, read-only filesystem, non-root execution, network policies, and regular CVE patching; immediate quarantine on detection
+
+Layer: FunctionRuntime
+    SubLayer: ContainerPool
+    SubLayer: ColdStartOptimizer
+    SubLayer: ExecutionEngine
+    SubLayer: ResourceEnforcer
+Layer: EventIngestion
+    SubLayer: TriggerManager
+    SubLayer: EventQueue
+    SubLayer: DLQProcessor
+Layer: ScalingController
+    SubLayer: ConcurrencyManager
+    SubLayer: WorkerProvisioner
+    SubLayer: ScalePredictor
+Layer: BillingMetering
+    SubLayer: ExecutionRecorder
+    SubLayer: UsageAggregator
+    SubLayer: InvoiceGenerator
+
+Validation: Function deployment package must not exceed 250MB uncompressed
+Constraint: Each function invocation must have a unique invocation ID for tracing
+Validation: Reserved concurrency must not exceed account-level concurrency limit
+Validation: Event trigger configurations must be validated before activation
+Validation: Execution timeout must be enforced even if function code ignores signals
+Validation: Billing records must be immutable once written
+
+# Level 2: Entities
+Entity Function
+    functionId: string
+    functionName: string
+    runtime: string
+    handler: string
+    codeSize: integer
+    memorySize: integer
+    timeout: integer
+    reservedConcurrency: integer
+    environment: dict
+    layers: list
+    lastModified: datetime
+    version: string
+
+Entity Invocation
+    invocationId: string
+    functionId: string
+    triggerType: string
+    startTime: datetime
+    endTime: datetime
+    duration: float
+    memoryUsed: integer
+    billedDuration: float
+    status: string
+    errorType: string
+    requestId: string
+    logOutput: string
+
+Entity ExecutionEnvironment
+    envId: string
+    functionId: string
+    workerNode: string
+    state: string
+    createdAt: datetime
+    lastInvocation: datetime
+    invocationCount: integer
+    memoryAllocation: integer
+    isActive: boolean
+    snapshotId: string
+
+Entity EventTrigger
+    triggerId: string
+    functionId: string
+    triggerType: string
+    sourceArn: string
+    batchSize: integer
+    maximumBatchingWindow: integer
+    filterPattern: dict
+    enabled: boolean
+    lastTriggered: datetime
+    failedInvocations: integer
+
+Entity ConcurrencyState
+    functionId: string
+    reservedConcurrency: integer
+    availableConcurrency: integer
+    activeInvocations: integer
+    pendingInvocations: integer
+    throttleCount: integer
+    scaleTargetConcurrency: integer
+    lastScaleTime: datetime
+
+Entity BillingRecord
+    recordId: string
+    accountId: string
+    functionId: string
+    invocationId: string
+    startTime: datetime
+    endTime: datetime
+    durationMs: integer
+    memoryMB: integer
+    computeCharge: float
+    requestCharge: float
+    region: string
+    writtenAt: datetime
+
+# Level 3: Behaviors
+Behavior InvokeFunction
+    Input: functionId: string, payload: bytes, invocationType: string
+    Output: response: bytes, invocationId: string, duration: float, billedDuration: float
+    Action:
+        Validate function exists and is in active state
+        Check concurrency limits; throttle if exceeded
+        Acquire execution environment from warm pool or create new
+        Inject event payload and context into function runtime
+        Start execution timer with configured timeout
+        Execute function handler with resource limits enforced
+        Capture response, logs, and metrics
+        Return environment to warm pool if reusable
+        Record billing with millisecond granularity
+        Return response or error with invocation ID
+
+Behavior PreWarmEnvironment
+    Input: functionId: string, runtime: string, memorySize: integer, count: integer
+    Output: envIds: list, warmTime: float
+    Action:
+        Predict upcoming demand based on historical patterns
+        Provision container with function code and runtime
+        Initialize runtime environment (load handler, set env vars)
+        Optionally create snapshot for fast restore
+        Add to warm pool with availability timestamp
+        Track warm pool size against reserved concurrency
+        Emit pre-warm metric with provisioning time
+
+Behavior ProcessEventTrigger
+    Input: triggerId: string, events: list
+    Output: invocationIds: list, successCount: integer, failureCount: integer
+    Action:
+        Validate trigger is enabled and function is active
+        Batch events according to trigger configuration
+        Apply filter pattern to remove non-matching events
+        For each batch, invoke function with event payload
+        Handle partial batch failures with retry logic
+        Send failed invocations to DLQ after max retries
+        Update trigger metrics (success/failure counts)
+        Acknowledge event source to advance checkpoint
+
+Behavior ScaleConcurrency
+    Input: functionId: string, currentLoad: float, targetUtilization: float
+    Output: newConcurrency: integer, provisionedWorkers: integer
+    Action:
+        Measure current concurrent invocations and queue depth
+        Calculate desired concurrency based on target utilization
+        Respect reserved and account concurrency limits
+        If scaling up, provision new execution environments
+        If scaling down, allow warm pool to drain naturally
+        Implement scale-up cooldown of 30s and scale-down of 300s
+        Emit scaling decision metric with reasoning
+
+Behavior EnforceTimeout
+    Input: invocationId: string, timeoutSeconds: integer
+    Output: terminated: boolean, terminationReason: string
+    Action:
+        Set hard deadline timer at invocation start
+        If function completes before deadline, cancel timer
+        If deadline reached, send SIGTERM to function process
+        Wait 500ms graceful shutdown period
+        If still running, send SIGKILL and destroy environment
+        Record timeout error in invocation log
+        Emit timeout metric with function ID
+
+Behavior RecordBilling
+    Input: functionId: string, invocationId: string, durationMs: integer, memoryMB: integer
+    Output: recordId: string, computeCharge: float, requestCharge: float
+    Action:
+        Calculate billed duration (rounded up to nearest ms)
+        Compute compute charge = durationMs * memoryMB * rate
+        Compute request charge per invocation
+        Create immutable billing record with timestamp
+        Persist to billing store before returning invocation response
+        Aggregate hourly usage for account-level reporting
+        Emit billing metric with cost breakdown
+
+# Level 4: Conditions
+Condition: ConcurrencyLimitReached
+    When active invocations equal reserved concurrency for a function
+    Then throttle additional invocations with 429 TooManyRequests; queue invocations if async; emit throttle metric; trigger emergency scaling if account limit permits
+
+Condition: ColdStartSpike
+    When more than 10 cold starts occur within 5 seconds for a single function
+    Then activate predictive pre-warming with increased pool size; check if traffic pattern matches known spike; emit cold-start-spike metric; increase warm pool target by 50%
+
+Condition: FunctionErrorRateHigh
+    When function error rate exceeds 10% over a 5-minute rolling window
+    Then emit error-rate alert; if exceeding 50%, circuit break and return error immediately; send notification to function owner; capture error details in DLQ for analysis
+
+Condition: WorkerPoolExhausted
+    When no available workers in the execution pool for new invocations
+    Then queue invocations with admission control; provision new workers urgently; if provision timeout, fail fast with 503; emit worker-pool-exhausted metric
+
+Condition: DLQThresholdReached
+    When dead-letter queue depth exceeds 10000 messages per function
+    Then pause event trigger to prevent further failures; alert function owner with error summary; enable manual replay mechanism; emit DLQ-critical metric
+
+# Level 5: Events
+Event: OnFunctionDeployed
+    On new function version deployed to the platform
+    Action: Invalidate warm pool for previous version, begin pre-warming new version, update routing to canary or all-at-once, validate health check invocation succeeds, emit deployment metric
+
+Event: OnColdStartExecuted
+    On function invocation requires new execution environment
+    Action: Record cold start duration metric, update warm pool sizing algorithm, check if pre-warming should have prevented, emit cold-start metric with runtime and memory configuration
+
+Event: OnInvocationCompleted
+    On function execution finishes (success or failure)
+    Action: Record execution metrics, persist billing record, return environment to warm pool if healthy, update concurrency counters, emit completion metric with duration and status
+
+Event: OnScaleDecision
+    On scaling controller adjusts concurrency for a function
+    Action: Provision or decommission execution environments, update concurrency state, log scaling reason and metrics, emit scale-decision metric, enforce cooldown periods
+
+Event: OnDLQMessageAdded
+    On failed invocation message added to dead-letter queue
+    Action: Increment DLQ depth counter, emit DLQ metric, notify function owner if threshold reached, preserve full invocation context for replay, schedule DLQ retention cleanup
+
+# Level 6: Concurrency
+Parallel:
+    Independent function invocations across worker nodes
+    Event trigger processing from multiple sources
+    Warm pool maintenance and pre-warming
+    Billing record persistence and aggregation
+    Concurrency scaling decisions per function
+
+# Level 7: Optimization
+Optimize: Cold start latency
+    Priority: Snapshot-based environment restoration; pre-warmed pool with predictive sizing; lightweight microVM (Firecracker) for fast boot; runtime-specific initialization optimizations; lazy loading of function code
+
+Optimize: Invocation throughput
+    Priority: Connection pooling for downstream services; keep-alive between invocations; batch event processing for stream triggers; efficient serialization (MessagePack over JSON); lock-free concurrency tracking
+
+Optimize: Cost efficiency
+    Priority: Granular billing with 1ms resolution; automatic scale-to-zero; memory right-sizing recommendations; spot worker nodes for non-critical functions; tiered pricing for committed usage
+
+# Level 8: Learning
+Learn: Optimal warm pool size per function
+    Goal: Minimize cold starts while minimizing idle resource cost
+    Adapt: warmPoolTargetSize per function
+    Based: Historical invocation patterns (time-of-day, day-of-week), cold start frequency, and traffic prediction models over 14-day windows
+
+Learn: Optimal memory allocation per function
+    Goal: Right-size memory allocation to minimize cost while meeting performance targets
+    Adapt: recommendedMemorySize per function
+    Based: Actual memory usage patterns, execution duration vs. memory correlation, and cost-performance trade-off analysis
+
+Learn: Predictive scaling triggers
+    Goal: Pre-scale before anticipated traffic bursts to eliminate cold starts
+    Adapt: scalingTriggerThreshold and preWarmDuration per function
+    Based: Recurring traffic patterns, event trigger schedules, and known traffic surge events from historical data
+
+# Level 9: Security
+Security:
+    Encrypt: Function code at rest using AES-256 with per-tenant keys
+    Encrypt: Invocation payloads in transit using TLS 1.3
+    Encrypt: Environment variables and secrets using envelope encryption with KMS
+    Protect: Function isolation via microVM boundaries with minimal attack surface
+    Protect: Network access via per-function security groups and VPC configuration
+    Protect: Against credential leakage via IAM roles with least-privilege execution roles
+    Protect: Billing data integrity via append-only immutable log with cryptographic verification
+
+# Level 10: Native
+Native: Rust
+{
+use std::sync::Arc;
+use tokio::sync::{Semaphore, RwLock};
+use std::time::{Duration, Instant};
+
+struct FunctionRuntime {
+    pool: Arc<WarmPool>,
+    concurrency_limiter: Arc<Semaphore>,
+    billing: Arc<BillingRecorder>,
+    metrics: Arc<MetricsCollector>,
+    config: FunctionConfig,
+}
+
+struct WarmPool {
+    environments: RwLock<Vec<ExecutionEnv>>,
+    function_id: String,
+    target_size: usize,
+    max_size: usize,
+}
+
+struct ExecutionEnv {
+    id: String,
+    container_id: String,
+    state: EnvState,
+    created_at: Instant,
+    last_used: Instant,
+    invocation_count: u64,
+}
+
+#[derive(PartialEq)]
+enum EnvState {
+    Idle,
+    InUse,
+    PreWarming,
+    Draining,
+}
+
+impl FunctionRuntime {
+    async fn invoke(&self, payload: &[u8]) -> Result<InvocationResult, InvokeError> {
+        let start = Instant::now();
+        
+        // Acquire concurrency permit
+        let permit = self.concurrency_limiter.try_acquire()
+            .map_err(|_| InvokeError::Throttled)?;
+        
+        // Get execution environment
+        let (env, cold_start) = match self.pool.acquire().await {
+            Some(env) => (env, false),
+            None => {
+                let env = self.pool.provision_new().await?;
+                (env, true)
+            }
+        };
+        
+        if cold_start {
+            self.metrics.record_cold_start(&self.config.function_id);
+        }
+        
+        // Execute with timeout enforcement
+        let timeout = Duration::from_secs(self.config.timeout as u64);
+        let result = tokio::time::timeout(timeout, self.execute(&env, payload)).await;
+        
+        let duration = start.elapsed();
+        let billed_ms = (duration.as_millis() as u64).max(1);
+        
+        // Record billing
+        self.billing.record(BillingRecord {
+            function_id: self.config.function_id.clone(),
+            duration_ms: duration.as_millis() as u64,
+            billed_ms,
+            memory_mb: self.config.memory_size,
+            compute_charge: self.calculate_charge(billed_ms),
+            timestamp: chrono::Utc::now(),
+        }).await;
+        
+        // Return env to pool
+        self.pool.release(env).await;
+        drop(permit);
+        
+        match result {
+            Ok(Ok(response)) => Ok(InvocationResult {
+                response,
+                duration: duration.as_secs_f64(),
+                cold_start,
+            }),
+            Ok(Err(e)) => Err(e),
+            Err(_) => Err(InvokeError::Timeout),
+        }
+    }
+    
+    fn calculate_charge(&self, billed_ms: u64) -> f64 {
+        let gb_seconds = (self.config.memory_size as f64 / 1024.0) 
+            * (billed_ms as f64 / 1000.0);
+        gb_seconds * 0.0000166667 // per GB-second rate
+    }
+}

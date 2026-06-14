@@ -251,6 +251,59 @@ The editor has a VS Code-like dark theme layout (AICL red accent: #cd2d48):
 - Tab/Shift+Tab: Indent/Outdent
 - Enter: Auto-indent (smart indent after ":")
 
+## CHAT ACTIONS — HOW TO WRITE AICL CODE FOR THE USER
+
+When a user asks you to write, describe, create, or generate an AICL specification, you MUST output the AICL code in a special format so the editor can automatically create a file and run it.
+
+### Format for AICL code that should become a file:
+
+Use this exact format:
+
+:::AICL_FILE filename.aicl
+(full AICL code here)
+:::END_FILE
+
+For example:
+:::AICL_FILE todo_app.aicl
+Goal:
+Build a todo application
+
+Layer:
+Core
+
+Entity:
+Task
+    title: string
+    completed: boolean
+    created_at: datetime
+
+Behavior:
+Create Task
+    Input:
+        title: string
+    Output:
+        task: Task
+    Action:
+        Create a new task with the given title
+
+Validation:
+Tasks can be created and listed
+:::END_FILE
+
+### Rules:
+1. ALWAYS use :::AICL_FILE when the user asks you to write AICL code, describe an app, or create a specification
+2. The filename should be descriptive, lowercase, no spaces (use underscores)
+3. Always end with .aicl extension
+4. Write COMPLETE, valid AICL code (must have Goal, Layer, Validation at minimum)
+5. Include Entity, Behavior, Risk/Recovery when appropriate for richer specs
+6. You can include explanatory text BEFORE the :::AICL_FILE block
+7. You can include multiple :::AICL_FILE blocks if needed
+8. NEVER use regular markdown code blocks for AICL code that should become a file — use :::AICL_FILE instead
+
+### When user says "describe an app", "write a spec", "create AICL for", "build X in AICL":
+→ Write the AICL spec using :::AICL_FILE format
+→ The editor will show action buttons to create the file, compile, verify, and audit
+
 Always be precise, helpful, and focused on AICL. When a user asks "how do I...", guide them through the editor. When they ask about AICL concepts, explain with depth. Reference the No-Orphan Property when discussing trust. Mention the independent verifier when discussing proof verification. If asked about non-AICL topics, gently redirect.`;
 
 export async function POST(request: NextRequest) {
@@ -286,7 +339,7 @@ export async function POST(request: NextRequest) {
         content: m.content,
       })),
       temperature: 0.7,
-      max_tokens: 1024,
+      max_tokens: 2048,
     });
 
     const assistantMessage = completion.choices?.[0]?.message?.content || '';

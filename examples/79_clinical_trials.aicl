@@ -1,0 +1,545 @@
+# AICL Example: Clinical Trial Management System
+# Full lifecycle clinical trial management including protocol design, patient enrollment, data capture, adverse events, and regulatory compliance
+
+# === LEVEL 1: ARCHITECTURE ===
+
+Goal: Provide a comprehensive clinical trial management platform that supports end-to-end trial lifecycle from protocol design through regulatory submission, ensuring patient safety, data integrity, regulatory compliance (FDA 21 CFR Part 11, ICH-GCP), and efficient site and investigator management.
+
+Constraint: System must comply with FDA 21 CFR Part 11 electronic records and signatures requirements including audit trails, access controls, and data integrity verification.
+
+Constraint: All clinical data capture must conform to CDISC ODM and SDTM standards for regulatory submission readiness.
+
+Constraint: Adverse event reporting must comply with MedDRA coding and support expedited safety reporting per ICH E2A guidelines within 24-hour regulatory timelines.
+
+Constraint: Patient privacy must be maintained through de-identification per HIPAA Safe Harbor and 21 CFR Part 11 requirements for all research data.
+
+Risk: Data integrity compromise in clinical trial database could invalidate study results and delay regulatory submission.
+Recovery: Implement 21 CFR Part 11 compliant audit trail with reason-for-change documentation; deploy continuous data integrity monitoring with checksum verification; activate point-in-time database restore capability; notify sponsor and regulatory team of integrity event within 2 hours; initiate independent data audit.
+
+Risk: Missed serious adverse event reporting deadline could result in regulatory action and patient safety risk.
+Recovery: Implement automated SAE detection and routing with timer-based escalation; maintain 24/7 safety team on-call rotation; deploy redundant notification channels including secure email, SMS, and direct phone; generate pre-populated MedWatch and CIOMS forms for rapid submission; escalate to Chief Medical Officer if reporting SLA is at risk.
+
+Risk: Patient enrollment shortfall could extend trial timelines and increase costs significantly.
+Recovery: Deploy predictive enrollment modeling with real-time site performance tracking; activate patient recruitment campaigns with digital outreach; implement protocol amendment fast-track for eligibility expansion; engage backup sites with pre-qualified investigator teams; adjust randomization strategy for remaining enrollment targets.
+
+Risk: Protocol deviation at study site could compromise data quality and patient safety.
+Recovery: Implement real-time protocol deviation detection with automated alerts; trigger immediate site contact and corrective action plan; escalate repeated deviations to sponsor monitoring team; generate deviation reports for IRB notification; assess impact on data integrity and statistical validity.
+
+Risk: Unblinding of treatment assignment could compromise trial integrity and necessitate protocol modification.
+Recovery: Implement multi-layer blinding controls with separate unblinding authorization; maintain emergency unblinding with 24-hour sponsor approval workflow; document all unblinding events with reason and authorization; assess impact on ongoing trial integrity; notify DSMB and regulatory authority if study-wide unblinding occurs.
+
+Risk: Regulatory inspection finding of non-compliance could result in warning letter or clinical hold.
+Recovery: Maintain continuous compliance monitoring dashboard; deploy automated inspection-readiness checks; maintain TMF completeness index above 95%; generate corrective and preventive action plans within 48 hours of finding notification; engage regulatory affairs consultants for response preparation.
+
+Layer: ClinicalTrialManagement
+    SubLayer: ProtocolDesign
+        # Study design, endpoints, eligibility criteria, statistical analysis plan
+    SubLayer: SiteManagement
+        # Site selection, activation, monitoring, regulatory document management
+    SubLayer: PatientManagement
+        # Enrollment, screening, randomization, visit scheduling, retention
+    SubLayer: DataCapture
+        # EDC, ePRO, lab data integration, query management, data cleaning
+    SubLayer: SafetyReporting
+        # Adverse events, SAE processing, MedDRA coding, expedited reporting
+    SubLayer: RegulatoryCompliance
+        # Submission tracking, TMF management, inspection readiness, 21 CFR Part 11
+
+Validation: All clinical data entries validated against edit checks defined in annotated CRF before database commit.
+Validation: Electronic signatures validated against 21 CFR Part 11 requirements including signer identity, timestamp, and reason for signing.
+Validation: Randomization assignment validated against stratification factors and allocation ratio before unblinded release.
+Validation: Adverse event coding validated against current MedDRA dictionary version before regulatory submission.
+Validation: Trial Master File document completeness validated against TMF Reference Model on weekly schedule.
+Validation: Site regulatory document currency validated before patient enrollment authorization.
+Validation: Statistical analysis outputs validated against pre-specified SAP with dual-programmer verification.
+
+# === LEVEL 2: ENTITIES ===
+
+Entity StudyProtocol
+    protocolId: string
+    studyId: string
+    protocolVersion: string
+    studyTitle: string
+    studyPhase: string
+    indication: string
+    studyDesign: string
+    primaryEndpoint: string
+    secondaryEndpoints: list
+    inclusionCriteria: list
+    exclusionCriteria: list
+    sampleSize: integer
+    randomizationScheme: dict
+    blindingType: string
+    treatmentArms: list
+    visitSchedule: list
+    statisticalAnalysisPlan: dict
+    amendmentHistory: list
+    approvalStatus: string
+
+Entity StudySite
+    siteId: string
+    studyId: string
+    siteName: string
+    institutionName: string
+    principalInvestigatorId: string
+    address: dict
+    country: string
+    enrollmentTarget: integer
+    currentEnrollment: integer
+    activationDate: datetime
+    regulatoryApprovalDate: datetime
+    irbApprovalNumber: string
+    siteStatus: string
+    monitoringTier: string
+    lastMonitoringDate: datetime
+    regulatoryDocuments: list
+
+Entity TrialSubject
+    subjectId: string
+    studyId: string
+    siteId: string
+    screeningNumber: string
+    randomizationNumber: string
+    treatmentArm: string
+    enrollmentDate: datetime
+    status: string
+    withdrawalDate: datetime
+    withdrawalReason: string
+    visitHistory: list
+    adverseEvents: list
+    concomitantMedications: list
+    protocolDeviations: list
+    informedConsentDate: datetime
+    icfVersion: string
+
+Entity AdverseEvent
+    aeId: string
+    subjectId: string
+    studyId: string
+    siteId: string
+    eventTerm: string
+    meddraCode: string
+    meddraPT: string
+    severity: string
+    seriousness: string
+    startDate: datetime
+    endDate: datetime
+    outcome: string
+    causalityAssessment: string
+    actionTaken: string
+    relatedToStudyDrug: boolean
+    saeCriteria: list
+    reportingDeadline: datetime
+    reportSubmittedDate: datetime
+    narrative: string
+
+Entity ClinicalDataPoint
+    dataPointId: string
+    subjectId: string
+    studyId: string
+    visitId: string
+    formId: string
+    fieldId: string
+    fieldValue: any
+    dataCollectionDate: datetime
+    entryDateTime: datetime
+    entryUserId: string
+    changeReason: string
+    queryStatus: string
+    queryText: string
+    verificationStatus: string
+    sourceDataVerification: boolean
+    auditTrail: list
+
+Entity RegulatoryDocument
+    documentId: string
+    studyId: string
+    siteId: string
+    documentType: string
+    documentTitle: string
+    versionNumber: string
+    effectiveDate: datetime
+    expiryDate: datetime
+    filingCategory: string
+    storageLocation: string
+    reviewStatus: string
+    reviewerId: string
+    approvalDate: datetime
+    relatedDocuments: list
+    metadata: dict
+
+Entity MonitoringVisit
+    visitId: string
+    studyId: string
+    siteId: string
+    monitorId: string
+    visitType: string
+    plannedDate: datetime
+    actualDate: datetime
+    visitStatus: string
+    findings: list
+    actionItems: list
+    sourceDocVerification: dict
+    enrollmentReview: dict
+    deviationCount: integer
+    followUpRequired: boolean
+    reportSubmissionDate: datetime
+
+# === LEVEL 3: BEHAVIORS ===
+
+Behavior DesignProtocol
+    Input: studyParameters: dict, endpoints: list, eligibilityCriteria: dict, statisticalPlan: dict
+    Output: protocolDocument: dict, reviewComments: list, regulatoryReadiness: dict
+    Action:
+        Validate study design against ICH E8 and E9 guidelines
+        Verify primary endpoint is clinically meaningful and statistically powered
+        Check eligibility criteria for internal consistency and feasibility
+        Generate statistical analysis plan template with power calculations
+        Create visit schedule with required assessments per timepoint
+        Assign protocol version number with change tracking
+        Submit protocol for medical and regulatory review workflow
+
+Behavior EnrollSubject
+    Input: subjectData: dict, studyId: string, siteId: string, screeningResults: dict
+    Output: enrollmentRecord: dict, randomizationAssignment: dict, visitSchedule: dict
+    Action:
+        Verify informed consent obtained with current ICF version
+        Evaluate subject against all inclusion and exclusion criteria
+        Check for duplicate enrollment across study sites via global subject registry
+        Execute randomization algorithm with stratification factors
+        Assign treatment arm per randomization result with blinding maintenance
+        Generate subject visit schedule aligned with protocol timepoints
+        Activate subject in EDC system with required forms and visit windows
+
+Behavior CaptureClinicalData
+    Input: subjectId: string, visitId: string, formData: dict, dataCollectionDate: datetime, entryUserId: string
+    Output: dataRecord: dict, editCheckResults: list, queries: list
+    Action:
+        Apply real-time edit checks against CRF specifications
+        Validate data ranges, logical consistency, and protocol compliance
+        Generate automatic queries for data discrepancies or missing values
+        Record data entry with 21 CFR Part 11 compliant audit trail
+        Apply electronic signature upon data finalization
+        Route queries to appropriate site personnel for resolution
+        Update data cleaning dashboard with query metrics
+
+Behavior ProcessAdverseEvent
+    Input: aeData: dict, subjectId: string, studyId: string, reporterId: string
+    Output: aeRecord: dict, meddraCoding: dict, safetyReport: dict, escalationActions: list
+    Action:
+        Code adverse event term against current MedDRA dictionary
+        Determine seriousness criteria and reporting obligations per ICH E2A
+        Assess causality against study treatment per protocol definitions
+        Calculate regulatory reporting deadlines based on seriousness criteria
+        Generate pre-populated CIOMS and MedWatch forms for expedited reporting
+        Route SAE to safety team for expedited review and regulatory submission
+        Update DSMB safety summary with new event data
+
+Behavior ConductMonitoringVisit
+    Input: siteId: string, studyId: string, visitType: string, monitorId: string, monitoringPlan: dict
+    Output: visitReport: dict, findings: list, actionItems: list, sdvResults: dict
+    Action:
+        Review site enrollment progress against targets and projections
+        Conduct source document verification for selected data points
+        Assess regulatory document currency and completeness
+        Review adverse event reporting timeliness and completeness
+        Identify and document protocol deviations with root cause analysis
+        Generate monitoring visit report with findings and action items
+        Track action item resolution with site follow-up schedule
+
+Behavior GenerateRegulatorySubmission
+    Input: studyId: string, submissionType: string, dataPackage: dict, regulatoryAuthority: string
+    Output: submissionPackage: dict, conformanceReport: dict, submissionConfirmation: string
+    Action:
+        Compile clinical data in CDISC SDTM and ADaM formats
+        Generate define.xml and data reviewer's guide
+        Validate datasets against Pinnacle 21 validation rules
+        Compile CSR sections per ICH E3 structure
+        Include safety narratives for all SAEs and deaths
+        Perform quality review against submission checklist
+        Submit via electronic gateway to regulatory authority
+
+Behavior ManageTrialMasterFile
+    Input: studyId: string, documentOperation: string, documentData: dict, siteId: string
+    Output: tmfRecord: dict, completenessReport: dict, inspectionReadinessScore: float
+    Action:
+        Classify document per TMF Reference Model taxonomy
+        Validate document metadata against regulatory requirements
+        Apply version control and supersession rules
+        Calculate TMF completeness index by zone and section
+        Generate inspection readiness assessment with gap analysis
+        Route documents for review and approval workflow
+        Archive documents with retention schedule per regulatory requirements
+
+# === LEVEL 4: CONDITIONS ===
+
+Condition: SeriousAdverseEventDetected
+    When adverse event meets one or more seriousness criteria (death, life-threatening, hospitalization, disability, congenital anomaly, medically important)
+    Then initiate expedited safety reporting workflow within 24 hours; notify sponsor safety team and DSMB immediately; generate CIOMS form for regulatory submission within 7 calendar days; assess unblinding necessity with independent safety review; implement site-level safety measures; update Investigator's Brochure if new safety signal
+
+Condition: EnrollmentRateBelowTarget
+    When cumulative site enrollment falls below 80% of projected enrollment for any 3-month rolling period
+    Then trigger enrollment remediation plan; analyze enrollment barriers by site and region; activate patient recruitment campaign with digital channels; evaluate eligibility criteria relaxation through protocol amendment; engage high-performing sites for enrollment acceleration; report enrollment risk to steering committee
+
+Condition: DataQualityThresholdBreached
+    When data query rate exceeds 15% of total data entries or critical edit check failure rate exceeds 5% at any site
+    Then generate data quality alert to clinical data management team; increase source document verification rate at affected site; deploy targeted data cleaning campaign; schedule additional monitoring visit for data quality focus; assess need for site retraining; escalate persistent quality issues to sponsor
+
+Condition: ProtocolDeviationRepeated
+    When same category of protocol deviation occurs 3 or more times at a single site within 60 days
+    Then escalate to sponsor clinical operations team; require site corrective action plan within 14 days; increase monitoring frequency at affected site; notify IRB of repeated deviation pattern; assess impact on data integrity and patient safety; consider site suspension if corrective actions are insufficient
+
+Condition: RegulatoryDocumentExpired
+    When site regulatory document (IRB approval, investigator CV, lab certification) passes expiration date without renewal
+    Then suspend new patient enrollment at affected site immediately; notify site regulatory coordinator and sponsor; generate document renewal request with 30-day deadline; flag affected subjects for protocol compliance review; require current documents before enrollment reinstatement; log document gap in TMF compliance tracking
+
+Condition: UnblindingEventOccurred
+    When treatment assignment is unblinded for any subject outside of pre-specified unblinding procedures
+    Then document unblinding event with reason, authorizer, and timestamp; notify sponsor medical monitor and DSMB within 4 hours; assess impact on trial integrity and statistical validity; determine if subject should continue in study; implement additional blinding safeguards to prevent further events; report to regulatory authority if required per protocol
+
+# === LEVEL 5: EVENTS ===
+
+Event: SubjectEnrolled
+    On subject successfully passes screening and is randomized into study
+    Action: Activate subject in EDC with all required forms; generate visit schedule with window calculations; notify site coordinator of enrollment confirmation; update site enrollment metrics and projections; trigger first visit task list; record enrollment in global subject registry to prevent duplicate enrollment
+
+Event: AdverseEventReported
+    On new adverse event entered into safety database
+    Action: Auto-code event term against MedDRA dictionary; assess seriousness criteria and reporting obligations; route to safety physician for causality assessment; generate query for missing required fields; update subject safety profile; trigger expedited reporting workflow if SAE criteria met
+
+Event: DataQueryGenerated
+    On edit check or monitoring activity generates data clarification query
+    Action: Route query to appropriate site data entry personnel; set query response deadline per data management plan; track query aging metrics for site and study; escalate overdue queries per escalation timeline; update data cleaning progress dashboard; link query resolution to audit trail
+
+Event: MonitoringVisitCompleted
+    On monitoring visit report finalized and submitted
+    Action: Distribute visit report to site and sponsor stakeholders; generate action items with assigned owners and deadlines; update site risk assessment based on visit findings; adjust monitoring plan frequency if risk profile changed; update TMF with visit documentation; track action item completion for follow-up visit
+
+Event: RegulatorySubmissionFiled
+    On regulatory submission package transmitted to health authority
+    Action: Record submission date and tracking number in regulatory database; set expected response date based on authority timeline; prepare for potential information requests; notify study team of submission milestone; update trial status in public registries; archive submission package in TMF
+
+Event: ProtocolAmendmentApproved
+    On protocol amendment receives IRB and regulatory approval
+    Action: Update protocol version in all systems; notify all sites of amendment implementation requirements; update EDC forms to reflect protocol changes; reconsent currently enrolled subjects if required; revise informed consent form with new version; update monitoring plan for amended procedures; recalculate enrollment projections if criteria changed
+
+# === LEVEL 6: CONCURRENCY ===
+
+Parallel:
+    Subject enrollment screening and randomization algorithm executing concurrently across multiple sites
+    Clinical data capture and real-time edit check evaluation running simultaneously at point of entry
+    Adverse event coding against MedDRA and seriousness assessment executing in parallel during safety reporting
+    SDTM dataset generation and Pinnacle 21 validation running concurrently during submission preparation
+    TMF document ingestion and completeness index calculation executing simultaneously during document management
+    Source document verification and data query generation running in parallel during monitoring visits
+    Statistical interim analysis and DSMB safety summary generation executing concurrently for interim looks
+
+# === LEVEL 7: OPTIMIZATION ===
+
+Optimize: Patient enrollment velocity across study sites
+    Priority: Achieve enrollment targets within 110% of planned timeline; minimize screen failure rate below 25%; reduce time from site activation to first patient enrolled to under 45 days
+
+Optimize: Data cleaning efficiency and query resolution time
+    Priority: Reduce average query resolution time to under 7 days; achieve database lock readiness within 30 days of last patient last visit; maintain data quality score above 95%
+
+Optimize: Safety reporting timeliness and completeness
+    Priority: Achieve 100% SAE reporting within regulatory timelines; reduce adverse event coding errors below 2%; ensure all safety narratives completed within 5 business days
+
+Optimize: Monitoring visit efficiency and risk-based coverage
+    Priority: Optimize monitoring frequency based on site risk assessment; reduce on-site monitoring days by 30% through risk-based approach; achieve 100% action item resolution within follow-up visit
+
+Optimize: Regulatory submission readiness and quality
+    Priority: Achieve first-pass Pinnacle 21 validation success rate above 90%; maintain TMF completeness index above 95% at all times; reduce submission preparation cycle time by 25%
+
+# === LEVEL 8: LEARNING ===
+
+Learn: Enrollment prediction model
+    Goal: Predict study-level enrollment completion date with 85% accuracy using site performance, seasonal patterns, and geographic factors
+    Adapt: Site activation priorities and patient recruitment investment allocation
+    Based: Rolling enrollment velocity data, site historical performance, and recruitment channel effectiveness metrics
+
+Learn: Adverse event signal detection
+    Goal: Identify safety signals from accumulated adverse event data earlier than traditional methods with 80% sensitivity
+    Adapt: DSMB safety review focus areas and expedited safety analysis triggers
+    Based: Statistical signal detection algorithms, MedDRA SMQ patterns, and temporal clustering of adverse events
+
+Learn: Site risk prediction
+    Goal: Predict site-level compliance and data quality risks with 75% accuracy for risk-based monitoring optimization
+    Adapt: Monitoring visit frequency and source document verification sampling rates
+    Based: Site performance indicators, deviation patterns, query aging metrics, and historical inspection findings
+
+Learn: Protocol deviation pattern recognition
+    Goal: Classify and predict protocol deviation types by site and procedure with 70% accuracy for proactive prevention
+    Adapt: Site training priorities and protocol clarification communications
+    Based: Deviation category frequency, site staffing patterns, and procedure complexity scoring
+
+Learn: Data query prediction
+    Goal: Predict likely data queries at point of entry with 65% accuracy to enable proactive data quality improvement
+    Adapt: Real-time data entry guidance and CRF design optimization
+    Based: Historical query patterns by field, common data entry errors, and edit check effectiveness analysis
+
+# === LEVEL 9: SECURITY ===
+
+Security:
+    Encrypt: All clinical data at rest using AES-256 with column-level encryption for subject-identifying fields
+    Encrypt: All data transmissions between sites and central systems using TLS 1.3 with mutual authentication
+    Encrypt: Electronic signatures using FIPS 140-2 validated cryptographic modules per 21 CFR Part 11
+    Protect: Subject identity through de-identification with mapping stored in separate encrypted vault
+    Protect: Randomization codes with multi-layer access control and emergency unblinding authorization workflow
+    Protect: Safety database with field-level access controls limiting visibility by role and study assignment
+    Protect: TMF documents with digital rights management, watermarking, and access-logged retrieval
+    Protect: API endpoints with OAuth 2.0 with scoped access per study, site, and role
+    Protect: Audit trails with write-once storage and cryptographic integrity verification
+    Protect: Submission datasets with digital signatures and checksums for regulatory authenticity verification
+
+# === LEVEL 10: NATIVE ===
+
+Native: Python
+{
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
+import hashlib
+import random
+
+class ClinicalTrialManagementSystem:
+    def __init__(self, db, safety_db, randomization_service, edc_service, regulatory_gateway):
+        self.db = db
+        self.safety = safety_db
+        self.randomizer = randomization_service
+        self.edc = edc_service
+        self.regulatory = regulatory_gateway
+        self.meddra_version = "26.1"
+        self.reporting_timelines = {
+            "DEATH": timedelta(hours=24),
+            "LIFE_THREATENING": timedelta(hours=24),
+            "HOSPITALIZATION": timedelta(days=7),
+            "DISABILITY": timedelta(days=7),
+            "CONGENITAL_ANOMALY": timedelta(days=7),
+        }
+
+    def enroll_subject(self, subject_data: Dict, study_id: str, site_id: str, screening_results: Dict) -> Dict:
+        eligibility = self._evaluate_eligibility(subject_data, screening_results, study_id)
+        if not eligibility["meets_criteria"]:
+            return {"status": "SCREEN_FAIL", "reasons": eligibility["failed_criteria"]}
+
+        duplicate_check = self._check_duplicate_enrollment(subject_data, study_id)
+        if duplicate_check["is_duplicate"]:
+            return {"status": "DUPLICATE_DETECTED", "details": duplicate_check}
+
+        randomization = self.randomizer.assign(
+            study_id=study_id,
+            site_id=site_id,
+            stratification_factors=screening_results.get("stratification", {}),
+            unblinded=False
+        )
+
+        subject = {
+            "subjectId": f"SUBJ-{site_id}-{random.randint(1000, 9999)}",
+            "studyId": study_id,
+            "siteId": site_id,
+            "screeningNumber": screening_results["screeningNumber"],
+            "randomizationNumber": randomization["randomization_number"],
+            "treatmentArm": randomization["treatment_arm"],
+            "enrollmentDate": datetime.now().isoformat(),
+            "status": "ENROLLED",
+            "informedConsentDate": subject_data["consentDate"],
+            "icfVersion": subject_data["icfVersion"],
+            "visitHistory": [],
+            "adverseEvents": [],
+            "protocolDeviations": [],
+        }
+        self.db.insert("subjects", subject)
+        visit_schedule = self._generate_visit_schedule(study_id, subject["enrollmentDate"])
+        return {"status": "ENROLLED", "subject": subject, "visitSchedule": visit_schedule}
+
+    def process_adverse_event(self, ae_data: Dict, subject_id: str, study_id: str, reporter_id: str) -> Dict:
+        meddra_coding = self.safety.code_meddra(ae_data["eventTerm"], self.meddra_version)
+        seriousness = self._assess_seriouness(ae_data)
+        causality = self._assess_causality(ae_data, study_id)
+
+        ae_record = {
+            "aeId": f"AE-{hashlib.sha256(f'{subject_id}{datetime.now().isoformat()}'.encode()).hexdigest()[:8]}",
+            "subjectId": subject_id,
+            "studyId": study_id,
+            "eventTerm": ae_data["eventTerm"],
+            "meddraCode": meddra_coding["code"],
+            "meddraPT": meddra_coding["preferredTerm"],
+            "severity": ae_data.get("severity", "UNKNOWN"),
+            "seriousness": seriousness["category"],
+            "startDate": ae_data.get("startDate"),
+            "outcome": ae_data.get("outcome", "ONGOING"),
+            "causalityAssessment": causality["assessment"],
+            "relatedToStudyDrug": causality["related"],
+            "saeCriteria": seriousness["met_criteria"],
+            "reportingDeadline": None,
+            "narrative": ae_data.get("narrative", ""),
+        }
+
+        if seriousness["is_serious"]:
+            deadline = datetime.now() + self.reporting_timelines.get(
+                seriousness["met_criteria"][0] if seriousness["met_criteria"] else "HOSPITALIZATION",
+                timedelta(days=7)
+            )
+            ae_record["reportingDeadline"] = deadline.isoformat()
+            self.safety.initiate_expedited_reporting(ae_record, study_id)
+
+        self.db.insert("adverse_events", ae_record)
+        return {
+            "aeRecord": ae_record,
+            "meddraCoding": meddra_coding,
+            "isSAE": seriousness["is_serious"],
+            "reportingRequired": seriousness["is_serious"],
+        }
+
+    def _evaluate_eligibility(self, subject_data: Dict, screening: Dict, study_id: str) -> Dict:
+        protocol = self.db.get("protocols", study_id)
+        failed = []
+        for criterion in protocol.get("inclusionCriteria", []):
+            if not self._check_criterion(subject_data, screening, criterion):
+                failed.append(f"Inclusion not met: {criterion['description']}")
+        for criterion in protocol.get("exclusionCriteria", []):
+            if self._check_criterion(subject_data, screening, criterion):
+                failed.append(f"Exclusion met: {criterion['description']}")
+        return {"meets_criteria": len(failed) == 0, "failed_criteria": failed}
+
+    def _assess_seriouness(self, ae_data: Dict) -> Dict:
+        criteria_met = []
+        if ae_data.get("resultedInDeath"):
+            criteria_met.append("DEATH")
+        if ae_data.get("lifeThreatening"):
+            criteria_met.append("LIFE_THREATENING")
+        if ae_data.get("requiredHospitalization"):
+            criteria_met.append("HOSPITALIZATION")
+        if ae_data.get("causedDisability"):
+            criteria_met.append("DISABILITY")
+        if ae_data.get("congenitalAnomaly"):
+            criteria_met.append("CONGENITAL_ANOMALY")
+        return {
+            "is_serious": len(criteria_met) > 0,
+            "category": "SERIOUS" if criteria_met else "NON_SERIOUS",
+            "met_criteria": criteria_met,
+        }
+
+    def _assess_causality(self, ae_data: Dict, study_id: str) -> Dict:
+        related = ae_data.get("causality", "UNRELATED") in ["POSSIBLY_RELATED", "PROBABLY_RELATED", "DEFINITELY_RELATED"]
+        return {
+            "assessment": ae_data.get("causality", "UNRELATED"),
+            "related": related,
+        }
+
+    def _check_duplicate_enrollment(self, subject_data: Dict, study_id: str) -> Dict:
+        return {"is_duplicate": False}
+
+    def _generate_visit_schedule(self, study_id: str, enrollment_date: str) -> List[Dict]:
+        protocol = self.db.get("protocols", study_id)
+        schedule = []
+        base_date = datetime.fromisoformat(enrollment_date)
+        for visit in protocol.get("visitSchedule", []):
+            visit_date = base_date + timedelta(days=visit.get("dayOffset", 0))
+            schedule.append({
+                "visitName": visit["name"],
+                "plannedDate": visit_date.isoformat(),
+                "window": visit.get("windowDays", 3),
+            })
+        return schedule
+}

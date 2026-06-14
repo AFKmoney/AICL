@@ -1,0 +1,1618 @@
+     1→'use client';
+     2→
+     3→import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+     4→import {
+     5→  Play, Shield, FileSearch, Brain, TreePine, Zap, Trash2,
+     6→  FileText, FolderOpen, Save, Plus, Search, Replace,
+     7→  ChevronRight, ChevronDown, File, X, Check, AlertTriangle,
+     8→  Info, XCircle, CheckCircle, Loader2, Terminal, BookOpen,
+     9→  Copy, Download, RotateCcw, Maximize2, Minimize2, PanelLeftClose,
+    10→  PanelLeftOpen, PanelRightClose, PanelRightOpen,
+    11→  Layers, ShieldCheck, Bug, Lightbulb, GitBranch, Gauge,
+    12→  Code2, MessageSquare, Send, Bot, User, GripHorizontal
+    13→} from 'lucide-react';
+    14→import { Button } from '@/components/ui/button';
+    15→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+    16→import { Badge } from '@/components/ui/badge';
+    17→import { ScrollArea } from '@/components/ui/scroll-area';
+    18→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+    19→import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+    20→import { toast } from '@/hooks/use-toast';
+    21→
+    22→// ============================================================
+    23→// Types
+    24→// ============================================================
+    25→interface FileTab {
+    26→  id: string;
+    27→  name: string;
+    28→  content: string;
+    29→  modified: boolean;
+    30→}
+    31→
+    32→interface OutputEntry {
+    33→  type: 'info' | 'success' | 'warning' | 'error' | 'system';
+    34→  message: string;
+    35→  timestamp: number;
+    36→}
+    37→
+    38→interface VerifyCheck {
+    39→  name: string;
+    40→  status: 'PASS' | 'FAIL' | 'WARN';
+    41→  message: string;
+    42→  details?: string[];
+    43→}
+    44→
+    45→interface Exercise {
+    46→  id: number;
+    47→  title: string;
+    48→  description: string;
+    49→  template: string;
+    50→}
+    51→
+    52→interface ChatMessage {
+    53→  role: 'user' | 'assistant';
+    54→  content: string;
+    55→  timestamp: number;
+    56→}
+    57→
+    58→// ============================================================
+    59→// AICL Syntax Highlighter
+    60→// ============================================================
+    61→const AICL_KEYWORDS = [
+    62→  'Goal', 'Layer', 'Sublayer', 'Validation', 'Risk', 'Recovery',
+    63→  'Constraint', 'Entity', 'Behavior', 'Input', 'Output', 'Action',
+    64→  'Condition', 'When', 'Then', 'Event', 'On', 'Parallel', 'Optimize',
+    65→  'Priority', 'Learn', 'Adapt', 'Based', 'Security', 'Encrypt',
+    66→  'Protect', 'Native', 'Import'
+    67→];
+    68→
+    69→const AICL_TYPES = [
+    70→  'string', 'integer', 'float', 'boolean', 'datetime',
+    71→  'list', 'dict', 'set', 'any', 'void', 'bytes'
+    72→];
+    73→
+    74→function highlightAICL(code: string): string {
+    75→  const lines = code.split('\n');
+    76→  return lines.map(line => {
+    77→    // Comment
+    78→    const commentIdx = line.indexOf('#');
+    79→    if (commentIdx !== -1) {
+    80→      const before = line.substring(0, commentIdx);
+    81→      const comment = line.substring(commentIdx);
+    82→      return highlightLine(before) + `<span class="aicl-comment">${escapeHtml(comment)}</span>`;
+    83→    }
+    84→    return highlightLine(line);
+    85→  }).join('\n');
+    86→}
+    87→
+    88→function highlightLine(line: string): string {
+    89→  let result = escapeHtml(line);
+    90→
+    91→  // Keywords at start of line or after whitespace (word boundary)
+    92→  for (const kw of AICL_KEYWORDS) {
+    93→    const regex = new RegExp(`(^|\\s)(${kw})(?=[:\\s]|$)`, 'g');
+    94→    result = result.replace(regex, `$1<span class="aicl-keyword">${kw}</span>`);
+    95→  }
+    96→
+    97→  // Types
+    98→  for (const t of AICL_TYPES) {
+    99→    const regex = new RegExp(`(\\s|^)(${t})(?=\\s|:|$)`, 'g');
+   100→    result = result.replace(regex, `$1<span class="aicl-type">${t}</span>`);
+   101→  }
+   102→
+   103→  return result;
+   104→}
+   105→
+   106→function escapeHtml(str: string): string {
+   107→  return str
+   108→    .replace(/&/g, '&amp;')
+   109→    .replace(/</g, '&lt;')
+   110→    .replace(/>/g, '&gt;')
+   111→    .replace(/"/g, '&quot;');
+   112→}
+   113→
+   114→// ============================================================
+   115→// Target language file extension map
+   116→// ============================================================
+   117→const TARGET_EXTENSIONS: Record<string, { main: string; test: string }> = {
+   118→  python: { main: 'main.py', test: 'test_main.py' },
+   119→  rust: { main: 'main.rs', test: 'main_test.rs' },
+   120→  javascript: { main: 'main.js', test: 'main.test.js' },
+   121→  go: { main: 'main.go', test: 'main_test.go' },
+   122→};
+   123→
+   124→// ============================================================
+   125→// Default file content
+   126→// ============================================================
+   127→const DEFAULT_FILE = `# AICL - Architecture Compilation Language
+   128→# Start writing your AICL specification here
+   129→
+   130→Goal:
+   131→Build an amazing application
+   132→
+   133→Layer:
+   134→Main Application
+   135→
+   136→Validation:
+   137→Application works correctly
+   138→`;
+   139→
+   140→// ============================================================
+   141→// Main Page Component
+   142→// ============================================================
+   143→export default function AICLEditor() {
+   144→  // --- State ---
+   145→  const [files, setFiles] = useState<FileTab[]>([
+   146→    { id: 'untitled-1', name: 'untitled-1.aicl', content: DEFAULT_FILE, modified: false }
+   147→  ]);
+   148→  const [activeFileId, setActiveFileId] = useState('untitled-1');
+   149→  const [output, setOutput] = useState<OutputEntry[]>([
+   150→    { type: 'system', message: 'AICL Web Editor v1.0.0 — Ready', timestamp: Date.now() }
+   151→  ]);
+   152→  const [replHistory, setReplHistory] = useState<OutputEntry[]>([
+   153→    { type: 'system', message: 'AICL Interactive Shell — Type AICL statements or commands', timestamp: Date.now() }
+   154→  ]);
+   155→  const [replInput, setReplInput] = useState('');
+   156→  const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
+   157→  const [isRunning, setIsRunning] = useState(false);
+   158→  const [targetLang, setTargetLang] = useState('python');
+   159→  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
+   160→  const [rightPanelOpen, setRightPanelOpen] = useState(true);
+   161→  const [bottomPanelOpen, setBottomPanelOpen] = useState(true);
+   162→  const [leftPanelTab, setLeftPanelTab] = useState<'files' | 'exercises'>('files');
+   163→  const [bottomPanelTab, setBottomPanelTab] = useState<'output' | 'repl' | 'exercises' | 'chat'>('output');
+   164→  const [examples, setExamples] = useState<{ id: string; name: string; title: string; description: string; source: string }[]>([]);
+   165→  const [exercises, setExercises] = useState<Exercise[]>([]);
+   166→  const [activeExercise, setActiveExercise] = useState<number | null>(null);
+   167→  const [findOpen, setFindOpen] = useState(false);
+   168→  const [findText, setFindText] = useState('');
+   169→  const [replaceText, setReplaceText] = useState('');
+   170→  const [fileCounter, setFileCounter] = useState(2);
+   171→  const [rightPanelContent, setRightPanelContent] = useState<'output' | 'tree' | 'code' | 'tests'>('output');
+   172→  const [treeData, setTreeData] = useState('');
+   173→  const [compiledCode, setCompiledCode] = useState('');
+   174→  const [testCode, setTestCode] = useState('');
+   175→  const [mainFile, setMainFile] = useState('');
+   176→  const [testFile, setTestFile] = useState('');
+   177→  const [projectFiles, setProjectFiles] = useState<{ name: string; content: string }[]>([]);
+   178→  const [buildInstructions, setBuildInstructions] = useState('');
+   179→
+   180→  // Chat state
+   181→  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+   182→  const [chatInput, setChatInput] = useState('');
+   183→  const [chatConnected, setChatConnected] = useState(false);
+   184→  const [isChatLoading, setIsChatLoading] = useState(false);
+   185→
+   186→  // Bottom panel resize state
+   187→  const [bottomPanelHeight, setBottomPanelHeight] = useState(208);
+   188→
+   189→  const textareaRef = useRef<HTMLTextAreaElement>(null);
+   190→  const replInputRef = useRef<HTMLInputElement>(null);
+   191→  const findInputRef = useRef<HTMLInputElement>(null);
+   192→  const chatInputRef = useRef<HTMLInputElement>(null);
+   193→  const chatScrollRef = useRef<HTMLDivElement>(null);
+   194→  const bottomPanelRef = useRef<HTMLDivElement>(null);
+   195→  const isDraggingBottom = useRef(false);
+   196→  const dragStartY = useRef(0);
+   197→  const dragStartHeight = useRef(0);
+   198→
+   199→  const activeFile = files.find(f => f.id === activeFileId) || files[0];
+   200→
+   201→  // --- Load examples and exercises on mount ---
+   202→  useEffect(() => {
+   203→    fetch('/api/examples').then(r => r.json()).then(data => {
+   204→      if (data.examples) setExamples(data.examples);
+   205→    }).catch(() => {});
+   206→
+   207→    fetch('/api/exercises').then(r => r.json()).then(data => {
+   208→      if (data.exercises) setExercises(data.exercises);
+   209→    }).catch(() => {});
+   210→  }, []);
+   211→
+   212→  // --- Bottom panel resize handlers ---
+   213→  const handleBottomDragStart = useCallback((e: React.MouseEvent) => {
+   214→    e.preventDefault();
+   215→    isDraggingBottom.current = true;
+   216→    dragStartY.current = e.clientY;
+   217→    dragStartHeight.current = bottomPanelHeight;
+   218→
+   219→    const handleMouseMove = (ev: MouseEvent) => {
+   220→      if (!isDraggingBottom.current) return;
+   221→      const delta = dragStartY.current - ev.clientY;
+   222→      const newHeight = Math.min(500, Math.max(100, dragStartHeight.current + delta));
+   223→      setBottomPanelHeight(newHeight);
+   224→    };
+   225→
+   226→    const handleMouseUp = () => {
+   227→      isDraggingBottom.current = false;
+   228→      document.removeEventListener('mousemove', handleMouseMove);
+   229→      document.removeEventListener('mouseup', handleMouseUp);
+   230→    };
+   231→
+   232→    document.addEventListener('mousemove', handleMouseMove);
+   233→    document.addEventListener('mouseup', handleMouseUp);
+   234→  }, [bottomPanelHeight]);
+   235→
+   236→  // --- File operations ---
+   237→  const updateFileContent = useCallback((fileId: string, content: string) => {
+   238→    setFiles(prev => prev.map(f => f.id === fileId ? { ...f, content, modified: true } : f));
+   239→  }, []);
+   240→
+   241→  const newFile = useCallback(() => {
+   242→    const id = `untitled-${fileCounter}`;
+   243→    const newTab: FileTab = {
+   244→      id,
+   245→      name: `${id}.aicl`,
+   246→      content: `# New AICL File\n\nGoal:\nDescribe your goal\n\nLayer:\nMain\n\nValidation:\nCheck correctness\n`,
+   247→      modified: false,
+   248→    };
+   249→    setFiles(prev => [...prev, newTab]);
+   250→    setActiveFileId(id);
+   251→    setFileCounter(prev => prev + 1);
+   252→  }, [fileCounter]);
+   253→
+   254→  const closeFile = useCallback((fileId: string) => {
+   255→    setFiles(prev => {
+   256→      const newFiles = prev.filter(f => f.id !== fileId);
+   257→      if (newFiles.length === 0) {
+   258→        const id = `untitled-${fileCounter}`;
+   259→        newFiles.push({ id, name: `${id}.aicl`, content: DEFAULT_FILE, modified: false });
+   260→        setFileCounter(c => c + 1);
+   261→        setActiveFileId(id);
+   262→      } else if (fileId === activeFileId) {
+   263→        setActiveFileId(newFiles[0].id);
+   264→      }
+   265→      return newFiles;
+   266→    });
+   267→  }, [activeFileId, fileCounter]);
+   268→
+   269→  const openExample = useCallback((example: typeof examples[0]) => {
+   270→    const id = `example-${example.id}`;
+   271→    const existing = files.find(f => f.id === id);
+   272→    if (existing) {
+   273→      setActiveFileId(id);
+   274→      return;
+   275→    }
+   276→    setFiles(prev => [...prev, {
+   277→      id,
+   278→      name: example.name,
+   279→      content: example.source,
+   280→      modified: false,
+   281→    }]);
+   282→    setActiveFileId(id);
+   283→  }, [files]);
+   284→
+   285→  // --- Output helpers (declared first since used by other callbacks) ---
+   286→  const addOutput = useCallback((type: OutputEntry['type'], message: string) => {
+   287→    setOutput(prev => [...prev, { type, message, timestamp: Date.now() }]);
+   288→  }, []);
+   289→
+   290→  const addReplLine = useCallback((type: OutputEntry['type'], message: string) => {
+   291→    setReplHistory(prev => [...prev, { type, message, timestamp: Date.now() }]);
+   292→  }, []);
+   293→
+   294→  const clearOutput = useCallback(() => {
+   295→    setOutput([]);
+   296→    addOutput('system', 'Output cleared');
+   297→  }, [addOutput]);
+   298→
+   299→  const openExercise = useCallback((exercise: Exercise) => {
+   300→    const id = `exercise-${exercise.id}`;
+   301→    const existing = files.find(f => f.id === id);
+   302→    if (existing) {
+   303→      setActiveFileId(id);
+   304→      return;
+   305→    }
+   306→    setFiles(prev => [...prev, {
+   307→      id,
+   308→      name: `exercise_${exercise.id}_${exercise.title.toLowerCase().replace(/\s+/g, '_')}.aicl`,
+   309→      content: exercise.template,
+   310→      modified: false,
+   311→    }]);
+   312→    setActiveFileId(id);
+   313→    setActiveExercise(exercise.id);
+   314→    setBottomPanelTab('exercises');
+   315→  }, [files]);
+   316→
+   317→  const saveFile = useCallback(() => {
+   318→    const blob = new Blob([activeFile.content], { type: 'text/plain' });
+   319→    const url = URL.createObjectURL(blob);
+   320→    const a = document.createElement('a');
+   321→    a.href = url;
+   322→    a.download = activeFile.name;
+   323→    a.click();
+   324→    URL.revokeObjectURL(url);
+   325→    setFiles(prev => prev.map(f => f.id === activeFileId ? { ...f, modified: false } : f));
+   326→    addOutput('info', `File saved: ${activeFile.name}`);
+   327→  }, [activeFile, activeFileId, addOutput]);
+   328→
+   329→  const loadFile = useCallback(() => {
+   330→    const input = document.createElement('input');
+   331→    input.type = 'file';
+   332→    input.accept = '.aicl,.txt';
+   333→    input.onchange = (e) => {
+   334→      const file = (e.target as HTMLInputElement).files?.[0];
+   335→      if (file) {
+   336→        const reader = new FileReader();
+   337→        reader.onload = (ev) => {
+   338→          const content = ev.target?.result as string;
+   339→          const id = `file-${Date.now()}`;
+   340→          setFiles(prev => [...prev, {
+   341→            id,
+   342→            name: file.name,
+   343→            content,
+   344→            modified: false,
+   345→          }]);
+   346→          setActiveFileId(id);
+   347→        };
+   348→        reader.readAsText(file);
+   349→      }
+   350→    };
+   351→    input.click();
+   352→  }, []);
+   353→
+   354→  // --- Toolbar actions ---
+   355→  const runCompile = useCallback(async () => {
+   356→    setIsRunning(true);
+   357→    addOutput('info', `Compiling ${activeFile.name} → ${targetLang}...`);
+   358→    try {
+   359→      const res = await fetch('/api/compile', {
+   360→        method: 'POST',
+   361→        headers: { 'Content-Type': 'application/json' },
+   362→        body: JSON.stringify({ source: activeFile.content, target: targetLang }),
+   363→      });
+   364→      const data = await res.json();
+   365→
+   366→      if (data.success) {
+   367→        addOutput('success', `Compilation successful! (${data.stages_completed?.length || 0} stages)`);
+   368→        addOutput('info', `TODOs remaining: ${data.todos_remaining}`);
+   369→        addOutput('info', `Audit coverage: ${((data.audit_coverage || 0) * 100).toFixed(0)}%`);
+   370→        if (data.proof_valid) {
+   371→          addOutput('success', 'Proof of Origin: Valid ✓');
+   372→        }
+   373→        if (data.warnings?.length) {
+   374→          data.warnings.forEach((w: string) => addOutput('warning', `Warning: ${w}`));
+   375→        }
+   376→        addOutput('info', `Generated ${(data.main_code || '').split('\n').length} lines of ${targetLang} code`);
+   377→        // Store compiled code for Code tab
+   378→        setCompiledCode(data.main_code || '');
+   379→        setTestCode(data.test_code || '');
+   380→        setMainFile(data.main_file || '');
+   381→        setTestFile(data.test_file || '');
+   382→        setProjectFiles(data.project_files || []);
+   383→        setBuildInstructions(data.build_instructions || '');
+   384→        if (data.tree) setTreeData(data.tree);
+   385→        setRightPanelContent('code');
+   386→      } else {
+   387→        addOutput('error', 'Compilation failed!');
+   388→        data.errors?.forEach((e: string) => addOutput('error', e));
+   389→      }
+   390→    } catch (err) {
+   391→      addOutput('error', `Compile error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+   392→    }
+   393→    setIsRunning(false);
+   394→  }, [activeFile, targetLang, addOutput]);
+   395→
+   396→  const runVerify = useCallback(async () => {
+   397→    setIsRunning(true);
+   398→    addOutput('info', `Verifying ${activeFile.name}...`);
+   399→    try {
+   400→      const res = await fetch('/api/verify', {
+   401→        method: 'POST',
+   402→        headers: { 'Content-Type': 'application/json' },
+   403→        body: JSON.stringify({ source: activeFile.content }),
+   404→      });
+   405→      const data = await res.json();
+   406→      addOutput(data.overall === 'PASS' ? 'success' : data.overall === 'ERROR' ? 'error' : 'warning',
+   407→        `Verification: ${data.overall} (${data.passed || 0} passed, ${data.warnings || 0} warnings, ${data.failed || 0} failed)`);
+   408→      data.checks?.forEach((c: VerifyCheck) => {
+   409→        const icon = c.status === 'PASS' ? '✓' : c.status === 'FAIL' ? '✗' : '⚠';
+   410→        addOutput(
+   411→          c.status === 'PASS' ? 'success' : c.status === 'FAIL' ? 'error' : 'warning',
+   412→          `${icon} ${c.name}: ${c.message}`
+   413→        );
+   414→      });
+   415→      setRightPanelContent('output');
+   416→    } catch (err) {
+   417→      addOutput('error', `Verify error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+   418→    }
+   419→    setIsRunning(false);
+   420→  }, [activeFile, addOutput]);
+   421→
+   422→  const runAudit = useCallback(async () => {
+   423→    setIsRunning(true);
+   424→    addOutput('info', `Auditing ${activeFile.name}...`);
+   425→    try {
+   426→      const res = await fetch('/api/audit', {
+   427→        method: 'POST',
+   428→        headers: { 'Content-Type': 'application/json' },
+   429→        body: JSON.stringify({ source: activeFile.content }),
+   430→      });
+   431→      const data = await res.json();
+   432→      if (data.error) {
+   433→        addOutput('error', `Audit error: ${data.error}`);
+   434→      } else {
+   435→        const coveragePercent = ((data.coverage || 0) * 100).toFixed(1);
+   436→        addOutput('success', `Audit Coverage: ${coveragePercent}%`);
+   437→        addOutput('info', `Total artifacts: ${data.total_artifacts || 0}`);
+   438→        addOutput('info', `With provenance: ${data.artifacts_with_provenance || 0}`);
+   439→        addOutput(data.orphan_count > 0 ? 'warning' : 'success',
+   440→          `Orphan artifacts: ${data.orphan_count || 0}`);
+   441→        if (data.orphan_names?.length) {
+   442→          data.orphan_names.forEach((n: string) => addOutput('warning', `  Orphan: ${n}`));
+   443→        }
+   444→      }
+   445→      setRightPanelContent('output');
+   446→    } catch (err) {
+   447→      addOutput('error', `Audit error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+   448→    }
+   449→    setIsRunning(false);
+   450→  }, [activeFile, addOutput]);
+   451→
+   452→  const runExplain = useCallback(async () => {
+   453→    setIsRunning(true);
+   454→    addOutput('info', `Explaining ${activeFile.name}...`);
+   455→    try {
+   456→      const res = await fetch('/api/explain', {
+   457→        method: 'POST',
+   458→        headers: { 'Content-Type': 'application/json' },
+   459→        body: JSON.stringify({ source: activeFile.content }),
+   460→      });
+   461→      const data = await res.json();
+   462→      if (data.error) {
+   463→        addOutput('error', `Explain error: ${data.error}`);
+   464→      } else {
+   465→        addOutput('success', `Provenance: ${data.total_records || 0} decision records`);
+   466→        data.decisions?.forEach((d: { type: string; source: string; confidence: number; pattern?: string }) => {
+   467→          addOutput('info', `  [${d.type}] ${d.source} (confidence: ${(d.confidence * 100).toFixed(0)}%)${d.pattern ? ` via ${d.pattern}` : ''}`);
+   468→        });
+   469→      }
+   470→      setRightPanelContent('output');
+   471→    } catch (err) {
+   472→      addOutput('error', `Explain error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+   473→    }
+   474→    setIsRunning(false);
+   475→  }, [activeFile, addOutput]);
+   476→
+   477→  const runTree = useCallback(async () => {
+   478→    setIsRunning(true);
+   479→    addOutput('info', `Generating architecture tree for ${activeFile.name}...`);
+   480→    try {
+   481→      const res = await fetch('/api/tree', {
+   482→        method: 'POST',
+   483→        headers: { 'Content-Type': 'application/json' },
+   484→        body: JSON.stringify({ source: activeFile.content }),
+   485→      });
+   486→      const data = await res.json();
+   487→      if (data.error) {
+   488→        addOutput('error', `Tree error: ${data.error}`);
+   489→      } else {
+   490→        addOutput('success', 'Architecture tree generated');
+   491→        setRightPanelContent('tree');
+   492→      }
+   493→    } catch (err) {
+   494→      addOutput('error', `Tree error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+   495→    }
+   496→    setIsRunning(false);
+   497→  }, [activeFile, addOutput]);
+   498→
+   499→  const runOptimize = useCallback(async () => {
+   500→    setIsRunning(true);
+   501→    addOutput('info', `Optimizing ${activeFile.name}...`);
+   502→    try {
+   503→      const res = await fetch('/api/optimize', {
+   504→        method: 'POST',
+   505→        headers: { 'Content-Type': 'application/json' },
+   506→        body: JSON.stringify({ source: activeFile.content }),
+   507→      });
+   508→      const data = await res.json();
+   509→      if (data.error) {
+   510→        addOutput('error', `Optimize error: ${data.error}`);
+   511→      } else {
+   512→        addOutput('success', `Optimization complete (score: ${((data.improvement_score || 0) * 100).toFixed(0)}%)`);
+   513→        data.actions?.forEach((a: { type: string; description: string; risk: string; affected_elements?: string[] }) => {
+   514→          addOutput('info', `  [${a.type}] ${a.description} (risk: ${a.risk})`);
+   515→        });
+   516→      }
+   517→      setRightPanelContent('output');
+   518→    } catch (err) {
+   519→      addOutput('error', `Optimize error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+   520→    }
+   521→    setIsRunning(false);
+   522→  }, [activeFile, addOutput]);
+   523→
+   524→  // --- Chat ---
+   525→  const handleChatSubmit = useCallback(async () => {
+   526→    const msg = chatInput.trim();
+   527→    if (!msg || isChatLoading) return;
+   528→
+   529→    const userMessage: ChatMessage = { role: 'user', content: msg, timestamp: Date.now() };
+   530→    setChatMessages(prev => [...prev, userMessage]);
+   531→    setChatInput('');
+   532→    setIsChatLoading(true);
+   533→
+   534→    try {
+   535→      const apiMessages = [...chatMessages, userMessage].map(m => ({
+   536→        role: m.role,
+   537→        content: m.content,
+   538→      }));
+   539→
+   540→      const res = await fetch('/api/chat', {
+   541→        method: 'POST',
+   542→        headers: { 'Content-Type': 'application/json' },
+   543→        body: JSON.stringify({ messages: apiMessages, context: activeFile.content }),
+   544→      });
+   545→      const data = await res.json();
+   546→
+   547→      if (data.error) {
+   548→        setChatMessages(prev => [...prev, {
+   549→          role: 'assistant',
+   550→          content: `Error: ${data.error}`,
+   551→          timestamp: Date.now(),
+   552→        }]);
+   553→      } else {
+   554→        setChatConnected(data.connected || false);
+   555→        setChatMessages(prev => [...prev, {
+   556→          role: 'assistant',
+   557→          content: data.message || 'No response',
+   558→          timestamp: Date.now(),
+   559→        }]);
+   560→      }
+   561→    } catch (err) {
+   562→      setChatMessages(prev => [...prev, {
+   563→        role: 'assistant',
+   564→        content: `Connection error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+   565→        timestamp: Date.now(),
+   566→      }]);
+   567→      setChatConnected(false);
+   568→    }
+   569→    setIsChatLoading(false);
+   570→  }, [chatInput, chatMessages, isChatLoading, activeFile.content]);
+   571→
+   572→  // Auto-scroll chat
+   573→  useEffect(() => {
+   574→    if (chatScrollRef.current) {
+   575→      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+   576→    }
+   577→  }, [chatMessages, isChatLoading]);
+   578→
+   579→  // --- REPL ---
+   580→  const handleReplSubmit = useCallback(async () => {
+   581→    const cmd = replInput.trim();
+   582→    if (!cmd) return;
+   583→
+   584→    addReplLine('info', `>>> ${cmd}`);
+   585→    setReplInput('');
+   586→
+   587→    if (cmd.startsWith(':')) {
+   588→      const parts = cmd.slice(1).split(/\s+/);
+   589→      const command = parts[0];
+   590→      const args = parts.slice(1);
+   591→
+   592→      switch (command) {
+   593→        case 'help':
+   594→          addReplLine('system', 'AICL Shell Commands:');
+   595→          addReplLine('system', '  :help           - Show this help');
+   596→          addReplLine('system', '  :compile [lang] - Compile current file (python/rust/javascript/go)');
+   597→          addReplLine('system', '  :verify         - Verify current file');
+   598→          addReplLine('system', '  :audit          - Audit current file');
+   599→          addReplLine('system', '  :explain        - Explain provenance');
+   600→          addReplLine('system', '  :tree           - Show architecture tree');
+   601→          addReplLine('system', '  :optimize       - Optimize architecture');
+   602→          addReplLine('system', '  :clear          - Clear shell');
+   603→          addReplLine('system', '  :load <name>    - Load example file');
+   604→          addReplLine('system', '  :exercises      - List exercises');
+   605→          break;
+   606→        case 'compile':
+   607→          setTargetLang(args[0] || 'python');
+   608→          // Trigger compile
+   609→          addReplLine('info', `Compiling to ${args[0] || 'python'}...`);
+   610→          try {
+   611→            const res = await fetch('/api/compile', {
+   612→              method: 'POST',
+   613→              headers: { 'Content-Type': 'application/json' },
+   614→              body: JSON.stringify({ source: activeFile.content, target: args[0] || 'python' }),
+   615→            });
+   616→            const data = await res.json();
+   617→            if (data.success) {
+   618→              addReplLine('success', 'Compilation successful!');
+   619→              addReplLine('info', data.main_code?.split('\n').slice(0, 5).join('\n') + '\n...');
+   620→            } else {
+   621→              addReplLine('error', 'Compilation failed');
+   622→              data.errors?.forEach((e: string) => addReplLine('error', e));
+   623→            }
+   624→          } catch (err) {
+   625→            addReplLine('error', String(err));
+   626→          }
+   627→          break;
+   628→        case 'verify': {
+   629→          try {
+   630→            const res = await fetch('/api/verify', {
+   631→              method: 'POST',
+   632→              headers: { 'Content-Type': 'application/json' },
+   633→              body: JSON.stringify({ source: activeFile.content }),
+   634→            });
+   635→            const data = await res.json();
+   636→            addReplLine(data.overall === 'PASS' ? 'success' : 'warning', `Verification: ${data.overall}`);
+   637→            data.checks?.forEach((c: VerifyCheck) => {
+   638→              addReplLine(c.status === 'PASS' ? 'success' : c.status === 'FAIL' ? 'error' : 'warning',
+   639→                `  ${c.status} ${c.name}: ${c.message}`);
+   640→            });
+   641→          } catch (err) {
+   642→            addReplLine('error', String(err));
+   643→          }
+   644→          break;
+   645→        }
+   646→        case 'audit': {
+   647→          try {
+   648→            const res = await fetch('/api/audit', {
+   649→              method: 'POST',
+   650→              headers: { 'Content-Type': 'application/json' },
+   651→              body: JSON.stringify({ source: activeFile.content }),
+   652→            });
+   653→            const data = await res.json();
+   654→            addReplLine('success', `Audit coverage: ${((data.coverage || 0) * 100).toFixed(1)}%`);
+   655→            addReplLine('info', `Artifacts: ${data.total_artifacts}, Orphans: ${data.orphan_count}`);
+   656→          } catch (err) {
+   657→            addReplLine('error', String(err));
+   658→          }
+   659→          break;
+   660→        }
+   661→        case 'tree': {
+   662→          try {
+   663→            const res = await fetch('/api/tree', {
+   664→              method: 'POST',
+   665→              headers: { 'Content-Type': 'application/json' },
+   666→              body: JSON.stringify({ source: activeFile.content }),
+   667→            });
+   668→            const data = await res.json();
+   669→            if (data.tree) {
+   670→              data.tree.split('\n').forEach((line: string) => addReplLine('info', line));
+   671→            }
+   672→          } catch (err) {
+   673→            addReplLine('error', String(err));
+   674→          }
+   675→          break;
+   676→        }
+   677→        case 'optimize': {
+   678→          try {
+   679→            const res = await fetch('/api/optimize', {
+   680→              method: 'POST',
+   681→              headers: { 'Content-Type': 'application/json' },
+   682→              body: JSON.stringify({ source: activeFile.content }),
+   683→            });
+   684→            const data = await res.json();
+   685→            addReplLine('success', `Optimization score: ${((data.improvement_score || 0) * 100).toFixed(0)}%`);
+   686→            data.actions?.forEach((a: { type: string; description: string; risk: string }) => {
+   687→              addReplLine('info', `  [${a.type}] ${a.description}`);
+   688→            });
+   689→          } catch (err) {
+   690→            addReplLine('error', String(err));
+   691→          }
+   692→          break;
+   693→        }
+   694→        case 'explain': {
+   695→          try {
+   696→            const res = await fetch('/api/explain', {
+   697→              method: 'POST',
+   698→              headers: { 'Content-Type': 'application/json' },
+   699→              body: JSON.stringify({ source: activeFile.content }),
+   700→            });
+   701→            const data = await res.json();
+   702→            addReplLine('success', `${data.total_records} provenance records`);
+   703→            data.decisions?.slice(0, 10).forEach((d: { type: string; source: string; confidence: number }) => {
+   704→              addReplLine('info', `  [${d.type}] ${d.source} (${(d.confidence * 100).toFixed(0)}%)`);
+   705→            });
+   706→          } catch (err) {
+   707→            addReplLine('error', String(err));
+   708→          }
+   709→          break;
+   710→        }
+   711→        case 'clear':
+   712→          setReplHistory([]);
+   713→          break;
+   714→        case 'load': {
+   715→          const exName = args[0];
+   716→          const ex = examples.find(e => e.id === exName || e.name.includes(exName));
+   717→          if (ex) {
+   718→            openExample(ex);
+   719→            addReplLine('success', `Loaded: ${ex.name}`);
+   720→          } else {
+   721→            addReplLine('error', `Example not found: ${exName}`);
+   722→            addReplLine('info', `Available: ${examples.map(e => e.id).join(', ')}`);
+   723→          }
+   724→          break;
+   725→        }
+   726→        case 'exercises':
+   727→          exercises.forEach(ex => {
+   728→            addReplLine('info', `  ${ex.id}. ${ex.title}`);
+   729→          });
+   730→          break;
+   731→        default:
+   732→          addReplLine('error', `Unknown command: :${command}. Type :help for available commands.`);
+   733→      }
+   734→    } else {
+   735→      // Try to parse as AICL
+   736→      try {
+   737→        const res = await fetch('/api/verify', {
+   738→          method: 'POST',
+   739→          headers: { 'Content-Type': 'application/json' },
+   740→          body: JSON.stringify({ source: cmd }),
+   741→        });
+   742→        const data = await res.json();
+   743→        if (data.overall === 'PASS' || data.overall === 'FAIL') {
+   744→          addReplLine(data.overall === 'PASS' ? 'success' : 'warning', `Parsed: ${data.overall}`);
+   745→          data.checks?.forEach((c: VerifyCheck) => {
+   746→            addReplLine(c.status === 'PASS' ? 'success' : 'warning', `  ${c.status} ${c.name}`);
+   747→          });
+   748→        }
+   749→      } catch {
+   750→        addReplLine('error', 'Parse error');
+   751→      }
+   752→    }
+   753→  }, [replInput, activeFile, examples, exercises, openExample, addReplLine]);
+   754→
+   755→  // --- Editor key handling ---
+   756→  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+   757→    const ta = e.currentTarget;
+   758→
+   759→    // Tab → insert 4 spaces
+   760→    if (e.key === 'Tab') {
+   761→      e.preventDefault();
+   762→      const start = ta.selectionStart;
+   763→      const end = ta.selectionEnd;
+   764→      const content = activeFile.content;
+   765→      if (e.shiftKey) {
+   766→        // Shift+Tab: remove 4 spaces
+   767→        const lineStart = content.lastIndexOf('\n', start - 1) + 1;
+   768→        const line = content.substring(lineStart, start);
+   769→        if (line.startsWith('    ')) {
+   770→          const newContent = content.substring(0, lineStart) + content.substring(lineStart + 4);
+   771→          updateFileContent(activeFileId, newContent);
+   772→          setTimeout(() => {
+   773→            ta.selectionStart = ta.selectionEnd = start - 4;
+   774→          }, 0);
+   775→        }
+   776→      } else {
+   777→        const newContent = content.substring(0, start) + '    ' + content.substring(end);
+   778→        updateFileContent(activeFileId, newContent);
+   779→        setTimeout(() => {
+   780→          ta.selectionStart = ta.selectionEnd = start + 4;
+   781→        }, 0);
+   782→      }
+   783→      return;
+   784→    }
+   785→
+   786→    // Enter → auto-indent
+   787→    if (e.key === 'Enter') {
+   788→      e.preventDefault();
+   789→      const start = ta.selectionStart;
+   790→      const content = activeFile.content;
+   791→      const lineStart = content.lastIndexOf('\n', start - 1) + 1;
+   792→      const currentLine = content.substring(lineStart, start);
+   793→      const indent = currentLine.match(/^\s*/)?.[0] || '';
+   794→
+   795→      // If the line ends with a colon, add extra indent
+   796→      const trimmedLine = currentLine.trimEnd();
+   797→      const needsIndent = trimmedLine.endsWith(':');
+   798→
+   799→      const newIndent = needsIndent ? indent + '    ' : indent;
+   800→      const newContent = content.substring(0, start) + '\n' + newIndent + content.substring(ta.selectionEnd);
+   801→      updateFileContent(activeFileId, newContent);
+   802→      setTimeout(() => {
+   803→        ta.selectionStart = ta.selectionEnd = start + 1 + newIndent.length;
+   804→      }, 0);
+   805→      return;
+   806→    }
+   807→
+   808→    // Ctrl+S → Save
+   809→    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+   810→      e.preventDefault();
+   811→      saveFile();
+   812→      return;
+   813→    }
+   814→
+   815→    // Ctrl+F → Find
+   816→    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+   817→      e.preventDefault();
+   818→      setFindOpen(true);
+   819→      setTimeout(() => findInputRef.current?.focus(), 50);
+   820→      return;
+   821→    }
+   822→
+   823→    // Ctrl+H → Replace
+   824→    if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
+   825→      e.preventDefault();
+   826→      setFindOpen(true);
+   827→      return;
+   828→    }
+   829→
+   830→    // Escape → Close find
+   831→    if (e.key === 'Escape') {
+   832→      setFindOpen(false);
+   833→    }
+   834→  }, [activeFile, activeFileId, updateFileContent, saveFile]);
+   835→
+   836→  // --- Cursor position tracking ---
+   837→  const handleCursorChange = useCallback(() => {
+   838→    const ta = textareaRef.current;
+   839→    if (!ta) return;
+   840→    const pos = ta.selectionStart;
+   841→    const content = ta.value;
+   842→    const lines = content.substring(0, pos).split('\n');
+   843→    setCursorPos({ line: lines.length, col: lines[lines.length - 1].length + 1 });
+   844→  }, []);
+   845→
+   846→  // --- Auto-complete ---
+   847→  const handleAutoComplete = useCallback(() => {
+   848→    const ta = textareaRef.current;
+   849→    if (!ta) return;
+   850→    const pos = ta.selectionStart;
+   851→    const content = activeFile.content;
+   852→    const lineStart = content.lastIndexOf('\n', pos - 1) + 1;
+   853→    const textBefore = content.substring(lineStart, pos);
+   854→    const wordMatch = textBefore.match(/(\w+)$/);
+   855→    if (!wordMatch) return;
+   856→
+   857→    const word = wordMatch[1];
+   858→    if (word.length < 2) return;
+   859→
+   860→    const match = AICL_KEYWORDS.find(k => k.toLowerCase().startsWith(word.toLowerCase()) && k !== word);
+   861→    if (match) {
+   862→      const completion = match.substring(word.length);
+   863→      const newContent = content.substring(0, pos) + completion + content.substring(pos);
+   864→      updateFileContent(activeFileId, newContent);
+   865→      setTimeout(() => {
+   866→        ta.selectionStart = ta.selectionEnd = pos + completion.length;
+   867→      }, 0);
+   868→    }
+   869→  }, [activeFile, activeFileId, updateFileContent]);
+   870→
+   871→  // --- Find/Replace ---
+   872→  const handleFindNext = useCallback(() => {
+   873→    const ta = textareaRef.current;
+   874→    if (!ta || !findText) return;
+   875→    const content = activeFile.content;
+   876→    const startFrom = ta.selectionEnd;
+   877→    const idx = content.indexOf(findText, startFrom);
+   878→    if (idx >= 0) {
+   879→      ta.focus();
+   880→      ta.setSelectionRange(idx, idx + findText.length);
+   881→    } else {
+   882→      // Wrap around
+   883→      const idx2 = content.indexOf(findText);
+   884→      if (idx2 >= 0) {
+   885→        ta.focus();
+   886→        ta.setSelectionRange(idx2, idx2 + findText.length);
+   887→      } else {
+   888→        toast({ title: 'Not found', description: `"${findText}" not found` });
+   889→      }
+   890→    }
+   891→  }, [activeFile, findText]);
+   892→
+   893→  const handleReplaceAll = useCallback(() => {
+   894→    if (!findText) return;
+   895→    const newContent = activeFile.content.replaceAll(findText, replaceText);
+   896→    updateFileContent(activeFileId, newContent);
+   897→    addOutput('info', `Replaced all occurrences of "${findText}" with "${replaceText}"`);
+   898→  }, [activeFile, activeFileId, findText, replaceText, updateFileContent, addOutput]);
+   899→
+   900→  // --- Highlighted code for overlay ---
+   901→  const highlightedCode = useMemo(() => highlightAICL(activeFile.content), [activeFile.content]);
+   902→
+   903→  // --- Line numbers ---
+   904→  const lineNumbers = useMemo(() => {
+   905→    const count = activeFile.content.split('\n').length;
+   906→    return Array.from({ length: count }, (_, i) => i + 1);
+   907→  }, [activeFile.content]);
+   908→
+   909→  // --- Check exercise ---
+   910→  const checkExercise = useCallback(async () => {
+   911→    if (!activeExercise) return;
+   912→    setIsRunning(true);
+   913→    try {
+   914→      const res = await fetch('/api/verify', {
+   915→        method: 'POST',
+   916→        headers: { 'Content-Type': 'application/json' },
+   917→        body: JSON.stringify({ source: activeFile.content }),
+   918→      });
+   919→      const data = await res.json();
+   920→
+   921→      // Check if TODOs are still present
+   922→      const hasTodos = activeFile.content.includes('TODO');
+   923→
+   924→      if (hasTodos) {
+   925→        toast({
+   926→          title: 'Exercise Incomplete',
+   927→          description: 'Some TODO items remain. Complete them before checking.',
+   928→          variant: 'destructive',
+   929→        });
+   930→      } else if (data.overall === 'PASS') {
+   931→        toast({
+   932→          title: 'Exercise Complete!',
+   933→          description: 'Your AICL specification passes all verification checks.',
+   934→        });
+   935→      } else {
+   936→        toast({
+   937→          title: 'Verification Issues',
+   938→          description: `Your spec has ${data.failed || 0} failing checks. Review and fix them.`,
+   939→          variant: 'destructive',
+   940→        });
+   941→      }
+   942→    } catch {
+   943→      toast({ title: 'Error', description: 'Could not check exercise', variant: 'destructive' });
+   944→    }
+   945→    setIsRunning(false);
+   946→  }, [activeExercise, activeFile]);
+   947→
+   948→  // Load tree when panel opens
+   949→  useEffect(() => {
+   950→    if (rightPanelContent === 'tree' && !treeData) {
+   951→      fetch('/api/tree', {
+   952→        method: 'POST',
+   953→        headers: { 'Content-Type': 'application/json' },
+   954→        body: JSON.stringify({ source: activeFile.content }),
+   955→      }).then(r => r.json()).then(data => {
+   956→        setTreeData(data.tree || data.error || 'No tree data');
+   957→      }).catch(() => setTreeData('Error loading tree'));
+   958→    }
+   959→  }, [rightPanelContent, activeFile.content, treeData]);
+   960→
+   961→  // --- Helper: get target file names ---
+   962→  const targetExts = TARGET_EXTENSIONS[targetLang] || TARGET_EXTENSIONS.python;
+   963→  const mainFileName = mainFile || targetExts.main;
+   964→  const testFileName = testFile || targetExts.test;
+   965→
+   966→  // ============================================================
+   967→  // RENDER
+   968→  // ============================================================
+   969→  return (
+   970→    <TooltipProvider delayDuration={300}>
+   971→      <div className="h-screen flex flex-col bg-[#1e1e1e] text-[#d4d4d4] overflow-hidden">
+   972→        {/* ======== TOOLBAR ======== */}
+   973→        <div className="flex items-center gap-1 px-2 py-1 bg-[#252526] border-b border-[#3c3c3c] flex-shrink-0">
+   974→          {/* Left: Logo + File ops */}
+   975→          <div className="flex items-center gap-1 mr-2">
+   976→            <div className="flex items-center gap-1.5 px-2">
+   977→              <div className="w-4 h-4 rounded bg-[#cd2d48] flex items-center justify-center">
+   978→                <span className="text-white text-[8px] font-bold">A</span>
+   979→              </div>
+   980→              <span className="text-xs font-semibold text-[#cd2d48]">AICL</span>
+   981→            </div>
+   982→            <div className="w-px h-4 bg-[#3c3c3c]" />
+   983→          </div>
+   984→
+   985→          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30]" onClick={newFile}><Plus className="h-3.5 w-3.5 mr-1" />New</Button></TooltipTrigger><TooltipContent>New File</TooltipContent></Tooltip>
+   986→          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30]" onClick={loadFile}><FolderOpen className="h-3.5 w-3.5 mr-1" />Open</Button></TooltipTrigger><TooltipContent>Open File</TooltipContent></Tooltip>
+   987→          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30]" onClick={saveFile}><Save className="h-3.5 w-3.5 mr-1" />Save</Button></TooltipTrigger><TooltipContent>Save (Ctrl+S)</TooltipContent></Tooltip>
+   988→
+   989→          <div className="w-px h-4 bg-[#3c3c3c] mx-1" />
+   990→
+   991→          {/* Target language selector */}
+   992→          <Select value={targetLang} onValueChange={setTargetLang}>
+   993→            <SelectTrigger className="h-7 w-[110px] text-xs bg-[#2d2d30] border-[#3c3c3c]">
+   994→              <SelectValue />
+   995→            </SelectTrigger>
+   996→            <SelectContent className="bg-[#252526] border-[#3c3c3c]">
+   997→              <SelectItem value="python">Python</SelectItem>
+   998→              <SelectItem value="rust">Rust</SelectItem>
+   999→              <SelectItem value="javascript">JavaScript</SelectItem>
+  1000→              <SelectItem value="go">Go</SelectItem>
+  1001→            </SelectContent>
+  1002→          </Select>
+  1003→
+  1004→          <div className="w-px h-4 bg-[#3c3c3c] mx-1" />
+  1005→
+  1006→          {/* AICL Actions */}
+  1007→          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30] text-[#4ec9b0]" onClick={runCompile} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Play className="h-3.5 w-3.5 mr-1" />}Compile</Button></TooltipTrigger><TooltipContent>Compile AICL source code</TooltipContent></Tooltip>
+  1008→          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30] text-[#569cd6]" onClick={runVerify} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5 mr-1" />}Verify</Button></TooltipTrigger><TooltipContent>Verify specification quality</TooltipContent></Tooltip>
+  1009→          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30] text-[#dcdcaa]" onClick={runAudit} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <FileSearch className="h-3.5 w-3.5 mr-1" />}Audit</Button></TooltipTrigger><TooltipContent>Audit compilation provenance</TooltipContent></Tooltip>
+  1010→          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30] text-[#c586c0]" onClick={runExplain} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Brain className="h-3.5 w-3.5 mr-1" />}Explain</Button></TooltipTrigger><TooltipContent>Explain compilation provenance</TooltipContent></Tooltip>
+  1011→          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30] text-[#6a9955]" onClick={runTree} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <TreePine className="h-3.5 w-3.5 mr-1" />}Tree</Button></TooltipTrigger><TooltipContent>Architecture tree</TooltipContent></Tooltip>
+  1012→          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30] text-[#ce9178]" onClick={runOptimize} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Zap className="h-3.5 w-3.5 mr-1" />}Optimize</Button></TooltipTrigger><TooltipContent>Optimize architecture</TooltipContent></Tooltip>
+  1013→
+  1014→          <div className="w-px h-4 bg-[#3c3c3c] mx-1" />
+  1015→
+  1016→          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30]" onClick={clearOutput}><Trash2 className="h-3.5 w-3.5 mr-1" />Clear</Button></TooltipTrigger><TooltipContent>Clear output</TooltipContent></Tooltip>
+  1017→
+  1018→          {/* Chat toggle */}
+  1019→          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30] text-[#c586c0]" onClick={() => { setBottomPanelOpen(true); setBottomPanelTab('chat'); }}><MessageSquare className="h-3.5 w-3.5 mr-1" />Chat</Button></TooltipTrigger><TooltipContent>Chat with CogNet-1B</TooltipContent></Tooltip>
+  1020→
+  1021→          {/* Spacer */}
+  1022→          <div className="flex-1" />
+  1023→
+  1024→          {/* Right: Search */}
+  1025→          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30]" onClick={() => { setFindOpen(!findOpen); setTimeout(() => findInputRef.current?.focus(), 50); }}><Search className="h-3.5 w-3.5 mr-1" />Find</Button></TooltipTrigger><TooltipContent>Find & Replace (Ctrl+F)</TooltipContent></Tooltip>
+  1026→        </div>
+  1027→
+  1028→        {/* ======== FILE TABS ======== */}
+  1029→        <div className="flex items-center bg-[#252526] border-b border-[#3c3c3c] flex-shrink-0 overflow-x-auto">
+  1030→          {files.map(file => (
+  1031→            <div
+  1032→              key={file.id}
+  1033→              className={`flex items-center gap-1 px-3 py-1.5 text-xs cursor-pointer border-r border-[#3c3c3c] group min-w-0 ${
+  1034→                file.id === activeFileId ? 'bg-[#1e1e1e] text-white border-t-2 border-t-[#cd2d48]' : 'bg-[#2d2d30] text-[#808080] hover:bg-[#2d2d30]'
+  1035→              }`}
+  1036→              onClick={() => setActiveFileId(file.id)}
+  1037→            >
+  1038→              <File className="h-3 w-3 text-[#4ec9b0] flex-shrink-0" />
+  1039→              <span className="truncate max-w-[120px]">{file.name}</span>
+  1040→              {file.modified && <span className="w-2 h-2 rounded-full bg-[#cd2d48] flex-shrink-0" />}
+  1041→              <button
+  1042→                className="ml-1 opacity-0 group-hover:opacity-100 hover:text-white flex-shrink-0"
+  1043→                onClick={(e) => { e.stopPropagation(); closeFile(file.id); }}
+  1044→              >
+  1045→                <X className="h-3 w-3" />
+  1046→              </button>
+  1047→            </div>
+  1048→          ))}
+  1049→          <button
+  1050→            className="px-2 py-1.5 text-[#808080] hover:text-white hover:bg-[#2d2d30] text-xs"
+  1051→            onClick={newFile}
+  1052→          >
+  1053→            <Plus className="h-3.5 w-3.5" />
+  1054→          </button>
+  1055→        </div>
+  1056→
+  1057→        {/* ======== FIND/REPLACE BAR ======== */}
+  1058→        {findOpen && (
+  1059→          <div className="flex items-center gap-2 px-3 py-1.5 bg-[#252526] border-b border-[#3c3c3c] flex-shrink-0">
+  1060→            <div className="flex items-center gap-1 flex-1">
+  1061→              <Search className="h-3.5 w-3.5 text-[#808080]" />
+  1062→              <input
+  1063→                ref={findInputRef}
+  1064→                className="bg-[#3c3c3c] border border-[#4f4f4f] rounded px-2 py-1 text-xs text-[#d4d4d4] w-48 focus:outline-none focus:border-[#cd2d48]"
+  1065→                placeholder="Find..."
+  1066→                value={findText}
+  1067→                onChange={(e) => setFindText(e.target.value)}
+  1068→                onKeyDown={(e) => { if (e.key === 'Enter') handleFindNext(); if (e.key === 'Escape') setFindOpen(false); }}
+  1069→              />
+  1070→              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={handleFindNext}>Next</Button>
+  1071→            </div>
+  1072→            <div className="flex items-center gap-1 flex-1">
+  1073→              <Replace className="h-3.5 w-3.5 text-[#808080]" />
+  1074→              <input
+  1075→                className="bg-[#3c3c3c] border border-[#4f4f4f] rounded px-2 py-1 text-xs text-[#d4d4d4] w-48 focus:outline-none focus:border-[#cd2d48]"
+  1076→                placeholder="Replace..."
+  1077→                value={replaceText}
+  1078→                onChange={(e) => setReplaceText(e.target.value)}
+  1079→              />
+  1080→              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={handleReplaceAll}>Replace All</Button>
+  1081→            </div>
+  1082→            <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => setFindOpen(false)}>
+  1083→              <X className="h-3.5 w-3.5" />
+  1084→            </Button>
+  1085→          </div>
+  1086→        )}
+  1087→
+  1088→        {/* ======== MAIN CONTENT ======== */}
+  1089→        <div className="flex-1 flex overflow-hidden min-h-0">
+  1090→          {/* --- Left Panel --- */}
+  1091→          {leftPanelOpen && (
+  1092→            <>
+  1093→              <div className="w-60 bg-[#252526] border-r border-[#3c3c3c] flex flex-col flex-shrink-0 overflow-hidden">
+  1094→                {/* Panel Tabs */}
+  1095→                <div className="flex border-b border-[#3c3c3c] flex-shrink-0">
+  1096→                  <button
+  1097→                    className={`flex-1 px-3 py-2 text-xs font-medium ${leftPanelTab === 'files' ? 'text-[#cd2d48] border-b-2 border-[#cd2d48]' : 'text-[#808080] hover:text-[#d4d4d4]'}`}
+  1098→                    onClick={() => setLeftPanelTab('files')}
+  1099→                  >
+  1100→                    <FolderOpen className="h-3.5 w-3.5 inline mr-1" />Examples
+  1101→                  </button>
+  1102→                  <button
+  1103→                    className={`flex-1 px-3 py-2 text-xs font-medium ${leftPanelTab === 'exercises' ? 'text-[#cd2d48] border-b-2 border-[#cd2d48]' : 'text-[#808080] hover:text-[#d4d4d4]'}`}
+  1104→                    onClick={() => setLeftPanelTab('exercises')}
+  1105→                  >
+  1106→                    <BookOpen className="h-3.5 w-3.5 inline mr-1" />Exercises
+  1107→                  </button>
+  1108→                </div>
+  1109→
+  1110→                {/* Examples */}
+  1111→                {leftPanelTab === 'files' && (
+  1112→                  <ScrollArea className="flex-1 h-0">
+  1113→                    <div className="p-2">
+  1114→                      <div className="text-xs text-[#808080] uppercase tracking-wider mb-2 px-2">AICL Examples</div>
+  1115→                      {examples.map(ex => (
+  1116→                        <button
+  1117→                          key={ex.id}
+  1118→                          className="w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded hover:bg-[#2d2d30] group text-left"
+  1119→                          onClick={() => openExample(ex)}
+  1120→                        >
+  1121→                          <FileText className="h-3.5 w-3.5 text-[#4ec9b0] flex-shrink-0" />
+  1122→                          <div className="min-w-0">
+  1123→                            <div className="truncate text-[#d4d4d4]">{ex.title}</div>
+  1124→                            <div className="text-[#808080] truncate">{ex.description}</div>
+  1125→                          </div>
+  1126→                        </button>
+  1127→                      ))}
+  1128→
+  1129→                      <div className="text-xs text-[#808080] uppercase tracking-wider mb-2 mt-4 px-2">Open Files</div>
+  1130→                      {files.map(f => (
+  1131→                        <button
+  1132→                          key={f.id}
+  1133→                          className={`w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded group text-left ${f.id === activeFileId ? 'bg-[#2d2d30] text-white' : 'hover:bg-[#2d2d30] text-[#d4d4d4]'}`}
+  1134→                          onClick={() => setActiveFileId(f.id)}
+  1135→                        >
+  1136→                          <File className="h-3.5 w-3.5 text-[#4ec9b0] flex-shrink-0" />
+  1137→                          <span className="truncate">{f.name}</span>
+  1138→                          {f.modified && <span className="w-1.5 h-1.5 rounded-full bg-[#cd2d48] flex-shrink-0" />}
+  1139→                        </button>
+  1140→                      ))}
+  1141→                    </div>
+  1142→                  </ScrollArea>
+  1143→                )}
+  1144→
+  1145→                {/* Exercises */}
+  1146→                {leftPanelTab === 'exercises' && (
+  1147→                  <ScrollArea className="flex-1 h-0">
+  1148→                    <div className="p-2">
+  1149→                      <div className="text-xs text-[#808080] uppercase tracking-wider mb-2 px-2">Progressive Exercises</div>
+  1150→                      {exercises.map(ex => (
+  1151→                        <button
+  1152→                          key={ex.id}
+  1153→                          className={`w-full flex items-start gap-2 px-2 py-2 text-xs rounded hover:bg-[#2d2d30] text-left ${activeExercise === ex.id ? 'bg-[#2d2d30] border-l-2 border-[#cd2d48]' : ''}`}
+  1154→                          onClick={() => openExercise(ex)}
+  1155→                        >
+  1156→                          <div className="w-5 h-5 rounded-full bg-[#2d2d30] flex items-center justify-center flex-shrink-0 mt-0.5 border border-[#3c3c3c]">
+  1157→                            <span className="text-[10px] text-[#cd2d48] font-bold">{ex.id}</span>
+  1158→                          </div>
+  1159→                          <div className="min-w-0 flex-1 overflow-hidden">
+  1160→                            <div className="text-[#d4d4d4] font-medium truncate">{ex.title}</div>
+  1161→                            <div className="text-[#808080] line-clamp-2 mt-0.5">{ex.description}</div>
+  1162→                          </div>
+  1163→                        </button>
+  1164→                      ))}
+  1165→                    </div>
+  1166→                  </ScrollArea>
+  1167→                )}
+  1168→              </div>
+  1169→              <div className="resize-handle w-1 bg-[#3c3c3c] hover:bg-[#cd2d48] cursor-col-resize flex-shrink-0" />
+  1170→            </>
+  1171→          )}
+  1172→
+  1173→          {/* --- Center: Code Editor --- */}
+  1174→          <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+  1175→            {/* Auto-complete hint */}
+  1176→            <div className="flex items-center gap-2 px-3 py-1 bg-[#252526] border-b border-[#3c3c3c] flex-shrink-0">
+  1177→              <span className="text-[10px] text-[#808080]">
+  1178→                Ctrl+Space: Auto-complete | Tab: Indent | Shift+Tab: Outdent | Enter: Auto-indent
+  1179→              </span>
+  1180→              <div className="flex-1" />
+  1181→              <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs hover:bg-[#2d2d30]" onClick={() => setLeftPanelOpen(!leftPanelOpen)}>
+  1182→                {leftPanelOpen ? <PanelLeftClose className="h-3.5 w-3.5" /> : <PanelLeftOpen className="h-3.5 w-3.5" />}
+  1183→              </Button></TooltipTrigger><TooltipContent>Toggle left panel</TooltipContent></Tooltip>
+  1184→              <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs hover:bg-[#2d2d30]" onClick={() => setRightPanelOpen(!rightPanelOpen)}>
+  1185→                {rightPanelOpen ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRightOpen className="h-3.5 w-3.5" />}
+  1186→              </Button></TooltipTrigger><TooltipContent>Toggle right panel</TooltipContent></Tooltip>
+  1187→            </div>
+  1188→
+  1189→            {/* Editor Area */}
+  1190→            <div className="flex-1 relative overflow-hidden">
+  1191→              {/* Line numbers + Highlighted overlay + Textarea */}
+  1192→              <div className="absolute inset-0 flex">
+  1193→                {/* Line numbers */}
+  1194→                <div className="w-12 bg-[#1e1e1e] text-right pr-3 pt-2 select-none overflow-hidden flex-shrink-0">
+  1195→                  {lineNumbers.map(n => (
+  1196→                    <div key={n} className="text-[11px] leading-[21px] text-[#4f4f4f] font-mono">{n}</div>
+  1197→                  ))}
+  1198→                </div>
+  1199→
+  1200→                {/* Code area */}
+  1201→                <div className="flex-1 relative">
+  1202→                  {/* Syntax highlighted background */}
+  1203→                  <pre
+  1204→                    className="absolute inset-0 pt-2 pl-0 pr-4 overflow-auto pointer-events-none editor-textarea whitespace-pre text-[#d4d4d4]"
+  1205→                    aria-hidden="true"
+  1206→                    dangerouslySetInnerHTML={{ __html: highlightedCode }}
+  1207→                    style={{ font: '14px/1.5 var(--font-geist-mono), "Consolas", monospace' }}
+  1208→                  />
+  1209→
+  1210→                  {/* Actual textarea */}
+  1211→                  <textarea
+  1212→                    ref={textareaRef}
+  1213→                    className="absolute inset-0 pt-2 pl-0 pr-4 editor-textarea bg-transparent text-transparent caret-[#d4d4d4] resize-none focus:outline-none whitespace-pre overflow-auto"
+  1214→                    value={activeFile.content}
+  1215→                    onChange={(e) => updateFileContent(activeFileId, e.target.value)}
+  1216→                    onKeyDown={handleKeyDown}
+  1217→                    onKeyUp={handleCursorChange}
+  1218→                    onClick={handleCursorChange}
+  1219→                    onScroll={(e) => {
+  1220→                      const pre = e.currentTarget.previousElementSibling as HTMLElement;
+  1221→                      if (pre) pre.scrollTop = e.currentTarget.scrollTop;
+  1222→                      const lineNumContainer = e.currentTarget.parentElement?.previousElementSibling as HTMLElement;
+  1223→                      if (lineNumContainer) lineNumContainer.scrollTop = e.currentTarget.scrollTop;
+  1224→                    }}
+  1225→                    spellCheck={false}
+  1226→                    autoCapitalize="off"
+  1227→                    autoComplete="off"
+  1228→                    autoCorrect="off"
+  1229→                  />
+  1230→                </div>
+  1231→              </div>
+  1232→            </div>
+  1233→          </div>
+  1234→
+  1235→          {/* --- Right Panel --- */}
+  1236→          {rightPanelOpen && (
+  1237→            <>
+  1238→              <div className="resize-handle w-1 bg-[#3c3c3c] hover:bg-[#cd2d48] cursor-col-resize flex-shrink-0" />
+  1239→              <div className="w-80 bg-[#252526] border-l border-[#3c3c3c] flex flex-col flex-shrink-0 overflow-hidden">
+  1240→                {/* Right panel tabs */}
+  1241→                <div className="flex border-b border-[#3c3c3c] flex-shrink-0">
+  1242→                  {(['output', 'tree', 'code'] as const).map(tab => (
+  1243→                    <button
+  1244→                      key={tab}
+  1245→                      className={`flex-1 px-2 py-1.5 text-[10px] font-medium capitalize ${rightPanelContent === tab ? 'text-[#cd2d48] border-b-2 border-[#cd2d48]' : 'text-[#808080] hover:text-[#d4d4d4]'}`}
+  1246→                      onClick={() => {
+  1247→                        setRightPanelContent(tab);
+  1248→                        if (tab === 'tree') setTreeData('');
+  1249→                      }}
+  1250→                    >
+  1251→                      {tab === 'output' && <FileSearch className="h-3 w-3 inline mr-1" />}
+  1252→                      {tab === 'tree' && <TreePine className="h-3 w-3 inline mr-1" />}
+  1253→                      {tab === 'code' && <Code2 className="h-3 w-3 inline mr-1" />}
+  1254→                      {tab}
+  1255→                    </button>
+  1256→                  ))}
+  1257→                </div>
+  1258→
+  1259→                {/* Output */}
+  1260→                {rightPanelContent === 'output' && (
+  1261→                  <ScrollArea className="flex-1 h-0">
+  1262→                    <div className="p-2 font-mono text-xs">
+  1263→                      {output.map((entry, i) => (
+  1264→                        <div key={i} className={`py-0.5 ${
+  1265→                          entry.type === 'success' ? 'text-[#4ec9b0]' :
+  1266→                          entry.type === 'error' ? 'text-[#f44747]' :
+  1267→                          entry.type === 'warning' ? 'text-[#dcdcaa]' :
+  1268→                          entry.type === 'system' ? 'text-[#808080]' :
+  1269→                          'text-[#d4d4d4]'
+  1270→                        }`}>
+  1271→                          <span className="text-[#4f4f4f] mr-2">
+  1272→                            {new Date(entry.timestamp).toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+  1273→                          </span>
+  1274→                          {entry.type === 'success' && <CheckCircle className="h-3 w-3 inline mr-1" />}
+  1275→                          {entry.type === 'error' && <XCircle className="h-3 w-3 inline mr-1" />}
+  1276→                          {entry.type === 'warning' && <AlertTriangle className="h-3 w-3 inline mr-1" />}
+  1277→                          <span className="whitespace-pre-wrap">{entry.message}</span>
+  1278→                        </div>
+  1279→                      ))}
+  1280→                    </div>
+  1281→                  </ScrollArea>
+  1282→                )}
+  1283→
+  1284→                {/* Tree */}
+  1285→                {rightPanelContent === 'tree' && (
+  1286→                  <ScrollArea className="flex-1 h-0">
+  1287→                    <div className="p-2">
+  1288→                      <pre className="font-mono text-xs text-[#4ec9b0] whitespace-pre">{treeData || 'Click "Tree" in toolbar to generate'}</pre>
+  1289→                    </div>
+  1290→                  </ScrollArea>
+  1291→                )}
+  1292→
+  1293→                {/* Generated Code */}
+  1294→                {rightPanelContent === 'code' && (
+  1295→                  <ScrollArea className="flex-1 h-0">
+  1296→                    <div className="p-2">
+  1297→                      {compiledCode ? (
+  1298→                        <div>
+  1299→                          <div className="flex items-center gap-2 mb-2">
+  1300→                            <Badge variant="outline" className="text-[10px] text-[#4ec9b0] border-[#4ec9b0]">{mainFileName}</Badge>
+  1301→                            <span className="text-[10px] text-[#808080]">{targetLang}</span>
+  1302→                            <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px] hover:bg-[#2d2d30]" onClick={() => { navigator.clipboard.writeText(compiledCode); toast({ title: 'Copied!', description: 'Compiled code copied to clipboard' }); }}>
+  1303→                              <Copy className="h-3 w-3 mr-1" />Copy
+  1304→                            </Button>
+  1305→                          </div>
+  1306→                          <pre className="font-mono text-[11px] text-[#d4d4d4] whitespace-pre bg-[#1e1e1e] p-2 rounded border border-[#3c3c3c] max-h-[50vh] overflow-auto">{compiledCode}</pre>
+  1307→                          {testCode && (
+  1308→                            <div className="mt-3">
+  1309→                              <div className="flex items-center gap-2 mb-2">
+  1310→                                <Badge variant="outline" className="text-[10px] text-[#dcdcaa] border-[#dcdcaa]">{testFileName}</Badge>
+  1311→                                <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px] hover:bg-[#2d2d30]" onClick={() => { navigator.clipboard.writeText(testCode); toast({ title: 'Copied!', description: 'Test code copied to clipboard' }); }}>
+  1312→                                  <Copy className="h-3 w-3 mr-1" />Copy
+  1313→                                </Button>
+  1314→                              </div>
+  1315→                              <pre className="font-mono text-[11px] text-[#d4d4d4] whitespace-pre bg-[#1e1e1e] p-2 rounded border border-[#3c3c3c] max-h-[50vh] overflow-auto">{testCode}</pre>
+  1316→                            </div>
+  1317→                          )}
+  1318→                          {projectFiles.length > 0 && (
+  1319→                            <div className="mt-3">
+  1320→                              <div className="text-xs text-[#808080] uppercase tracking-wider mb-2">Project Files</div>
+  1321→                              {projectFiles.map((pf, idx) => (
+  1322→                                <div key={idx} className="mb-3">
+  1323→                                  <div className="flex items-center gap-2 mb-2">
+  1324→                                    <Badge variant="outline" className="text-[10px] text-[#569cd6] border-[#569cd6]">{pf.name}</Badge>
+  1325→                                    <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px] hover:bg-[#2d2d30]" onClick={() => { navigator.clipboard.writeText(pf.content); toast({ title: 'Copied!', description: `${pf.name} copied to clipboard` }); }}>
+  1326→                                      <Copy className="h-3 w-3 mr-1" />Copy
+  1327→                                    </Button>
+  1328→                                  </div>
+  1329→                                  <pre className="font-mono text-[11px] text-[#d4d4d4] whitespace-pre bg-[#1e1e1e] p-2 rounded border border-[#3c3c3c] max-h-[50vh] overflow-auto">{pf.content}</pre>
+  1330→                                </div>
+  1331→                              ))}
+  1332→                            </div>
+  1333→                          )}
+  1334→                          {buildInstructions && (
+  1335→                            <div className="mt-3">
+  1336→                              <div className="text-xs text-[#808080] uppercase tracking-wider mb-2">Build Instructions</div>
+  1337→                              <pre className="font-mono text-[11px] text-[#6a9955] whitespace-pre-wrap bg-[#1e1e1e] p-2 rounded border border-[#3c3c3c]">{buildInstructions}</pre>
+  1338→                            </div>
+  1339→                          )}
+  1340→                        </div>
+  1341→                      ) : (
+  1342→                        <div className="text-xs text-[#808080]">Click &quot;Compile&quot; in the toolbar to generate code</div>
+  1343→                      )}
+  1344→                    </div>
+  1345→                  </ScrollArea>
+  1346→                )}
+  1347→              </div>
+  1348→            </>
+  1349→          )}
+  1350→        </div>
+  1351→
+  1352→        {/* ======== BOTTOM PANEL ======== */}
+  1353→        {bottomPanelOpen && (
+  1354→          <div
+  1355→            ref={bottomPanelRef}
+  1356→            className="bg-[#252526] border-t border-[#3c3c3c] flex flex-col flex-shrink-0"
+  1357→            style={{ height: bottomPanelHeight }}
+  1358→          >
+  1359→            {/* Resize handle at top of bottom panel */}
+  1360→            <div
+  1361→              className="h-1.5 cursor-row-resize flex items-center justify-center hover:bg-[#cd2d48]/30 transition-colors flex-shrink-0 group"
+  1362→              onMouseDown={handleBottomDragStart}
+  1363→            >
+  1364→              <GripHorizontal className="h-3 w-3 text-[#4f4f4f] group-hover:text-[#cd2d48] transition-colors" />
+  1365→            </div>
+  1366→
+  1367→            {/* Bottom panel tabs */}
+  1368→            <div className="flex items-center border-b border-[#3c3c3c] flex-shrink-0">
+  1369→              {(['output', 'repl', 'exercises', 'chat'] as const).map(tab => (
+  1370→                <button
+  1371→                  key={tab}
+  1372→                  className={`px-3 py-1.5 text-xs font-medium capitalize flex items-center gap-1 ${bottomPanelTab === tab ? 'text-[#cd2d48] border-b-2 border-[#cd2d48]' : 'text-[#808080] hover:text-[#d4d4d4]'}`}
+  1373→                  onClick={() => setBottomPanelTab(tab)}
+  1374→                >
+  1375→                  {tab === 'output' && <FileSearch className="h-3 w-3" />}
+  1376→                  {tab === 'repl' && <Terminal className="h-3 w-3" />}
+  1377→                  {tab === 'exercises' && <BookOpen className="h-3 w-3" />}
+  1378→                  {tab === 'chat' && <MessageSquare className="h-3 w-3" />}
+  1379→                  {tab}
+  1380→                  {tab === 'chat' && (
+  1381→                    <span className="flex items-center gap-1 ml-1">
+  1382→                      <span className={`w-1.5 h-1.5 rounded-full ${chatConnected ? 'bg-[#4ec9b0]' : 'bg-[#f44747]'}`} />
+  1383→                      <span className="text-[9px] text-[#808080]">CogNet-1B</span>
+  1384→                      {!chatConnected && (
+  1385→                        <Badge variant="outline" className="text-[8px] px-1 py-0 h-3.5 text-[#f44747] border-[#f44747]">Offline</Badge>
+  1386→                      )}
+  1387→                    </span>
+  1388→                  )}
+  1389→                </button>
+  1390→              ))}
+  1391→              <div className="flex-1" />
+  1392→              <Button variant="ghost" size="sm" className="h-6 px-2 mr-1 text-xs hover:bg-[#2d2d30]" onClick={() => setBottomPanelOpen(false)}>
+  1393→                <Minimize2 className="h-3 w-3" />
+  1394→              </Button>
+  1395→            </div>
+  1396→
+  1397→            {/* Output tab */}
+  1398→            {bottomPanelTab === 'output' && (
+  1399→              <ScrollArea className="flex-1 h-0">
+  1400→                <div className="p-2 font-mono text-xs">
+  1401→                  {output.map((entry, i) => (
+  1402→                    <div key={i} className={`py-0.5 ${
+  1403→                      entry.type === 'success' ? 'text-[#4ec9b0]' :
+  1404→                      entry.type === 'error' ? 'text-[#f44747]' :
+  1405→                      entry.type === 'warning' ? 'text-[#dcdcaa]' :
+  1406→                      entry.type === 'system' ? 'text-[#808080]' :
+  1407→                      'text-[#d4d4d4]'
+  1408→                    }`}>
+  1409→                      <span className="text-[#4f4f4f] mr-2">
+  1410→                        {new Date(entry.timestamp).toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+  1411→                      </span>
+  1412→                      {entry.message}
+  1413→                    </div>
+  1414→                  ))}
+  1415→                </div>
+  1416→              </ScrollArea>
+  1417→            )}
+  1418→
+  1419→            {/* REPL tab */}
+  1420→            {bottomPanelTab === 'repl' && (
+  1421→              <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+  1422→                <ScrollArea className="flex-1 h-0">
+  1423→                  <div className="p-2 font-mono text-xs">
+  1424→                    {replHistory.map((entry, i) => (
+  1425→                      <div key={i} className={`py-0.5 ${
+  1426→                        entry.type === 'success' ? 'text-[#4ec9b0]' :
+  1427→                        entry.type === 'error' ? 'text-[#f44747]' :
+  1428→                        entry.type === 'warning' ? 'text-[#dcdcaa]' :
+  1429→                        entry.type === 'system' ? 'text-[#808080]' :
+  1430→                        'text-[#d4d4d4]'
+  1431→                      }`}>
+  1432→                        {entry.message}
+  1433→                      </div>
+  1434→                    ))}
+  1435→                  </div>
+  1436→                </ScrollArea>
+  1437→                <div className="flex items-center gap-2 px-2 py-1 border-t border-[#3c3c3c] flex-shrink-0">
+  1438→                  <span className="text-[#cd2d48] font-mono text-xs">{'>>>'}</span>
+  1439→                  <input
+  1440→                    ref={replInputRef}
+  1441→                    className="flex-1 bg-transparent text-xs text-[#d4d4d4] font-mono focus:outline-none"
+  1442→                    placeholder="Type AICL or :help for commands..."
+  1443→                    value={replInput}
+  1444→                    onChange={(e) => setReplInput(e.target.value)}
+  1445→                    onKeyDown={(e) => { if (e.key === 'Enter') handleReplSubmit(); }}
+  1446→                  />
+  1447→                </div>
+  1448→              </div>
+  1449→            )}
+  1450→
+  1451→            {/* Exercises tab */}
+  1452→            {bottomPanelTab === 'exercises' && (
+  1453→              <ScrollArea className="flex-1 h-0">
+  1454→                <div className="p-3">
+  1455→                  {activeExercise ? (
+  1456→                    <div>
+  1457→                      {(() => {
+  1458→                        const ex = exercises.find(e => e.id === activeExercise);
+  1459→                        if (!ex) return <div className="text-xs text-[#808080]">No exercise selected</div>;
+  1460→                        return (
+  1461→                          <>
+  1462→                            <div className="flex items-center gap-2 mb-2">
+  1463→                              <Badge variant="outline" className="text-[#cd2d48] border-[#cd2d48] text-xs">Exercise {ex.id}</Badge>
+  1464→                              <span className="text-sm font-medium text-[#d4d4d4]">{ex.title}</span>
+  1465→                            </div>
+  1466→                            <p className="text-xs text-[#808080] mb-3">{ex.description}</p>
+  1467→                            <div className="flex gap-2">
+  1468→                              <Button size="sm" className="h-7 text-xs bg-[#cd2d48] hover:bg-[#a8233b]" onClick={checkExercise} disabled={isRunning}>
+  1469→                                {isRunning ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
+  1470→                                Check
+  1471→                              </Button>
+  1472→                              <Button size="sm" variant="outline" className="h-7 text-xs border-[#3c3c3c] hover:bg-[#2d2d30]" onClick={() => setActiveExercise(null)}>
+  1473→                                Back to list
+  1474→                              </Button>
+  1475→                            </div>
+  1476→                          </>
+  1477→                        );
+  1478→                      })()}
+  1479→                    </div>
+  1480→                  ) : (
+  1481→                    <div>
+  1482→                      <div className="text-xs text-[#808080] mb-3">Select an exercise to start learning AICL:</div>
+  1483→                      {exercises.map(ex => (
+  1484→                        <button
+  1485→                          key={ex.id}
+  1486→                          className="w-full flex items-start gap-2 px-2 py-2 text-xs rounded hover:bg-[#2d2d30] text-left mb-1"
+  1487→                          onClick={() => openExercise(ex)}
+  1488→                        >
+  1489→                          <div className="w-5 h-5 rounded-full bg-[#2d2d30] flex items-center justify-center flex-shrink-0 mt-0.5 border border-[#3c3c3c]">
+  1490→                            <span className="text-[10px] text-[#cd2d48] font-bold">{ex.id}</span>
+  1491→                          </div>
+  1492→                          <div className="min-w-0 flex-1 overflow-hidden">
+  1493→                            <div className="text-[#d4d4d4] font-medium truncate">{ex.title}</div>
+  1494→                            <div className="text-[#808080] line-clamp-2 mt-0.5">{ex.description}</div>
+  1495→                          </div>
+  1496→                        </button>
+  1497→                      ))}
+  1498→                    </div>
+  1499→                  )}
+  1500→                </div>
+  1501→              </ScrollArea>
+  1502→            )}
+  1503→
+  1504→            {/* Chat tab */}
+  1505→            {bottomPanelTab === 'chat' && (
+  1506→              <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+  1507→                {/* Chat messages */}
+  1508→                <div ref={chatScrollRef} className="flex-1 overflow-y-auto">
+  1509→                  <div className="p-2">
+  1510→                    {chatMessages.length === 0 && (
+  1511→                      <div className="flex flex-col items-center justify-center py-6 text-center">
+  1512→                        <Bot className="h-8 w-8 text-[#4f4f4f] mb-2" />
+  1513→                        <div className="text-xs text-[#808080] mb-1">CogNet-1B Chat</div>
+  1514→                        <div className="text-[10px] text-[#4f4f4f] max-w-[280px]">
+  1515→                          Ask questions about AICL syntax, get help debugging, or learn about architecture patterns.
+  1516→                        </div>
+  1517→                      </div>
+  1518→                    )}
+  1519→                    {chatMessages.map((msg, i) => (
+  1520→                      <div
+  1521→                        key={i}
+  1522→                        className={`flex gap-2 mb-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+  1523→                      >
+  1524→                        {msg.role === 'assistant' && (
+  1525→                          <div className="w-6 h-6 rounded-full bg-[#2d2d30] border border-[#3c3c3c] flex items-center justify-center flex-shrink-0 mt-0.5">
+  1526→                            <Bot className="h-3.5 w-3.5 text-[#4ec9b0]" />
+  1527→                          </div>
+  1528→                        )}
+  1529→                        <div
+  1530→                          className={`max-w-[80%] rounded-lg px-3 py-2 text-xs ${
+  1531→                            msg.role === 'user'
+  1532→                              ? 'bg-[#cd2d48]/20 text-[#d4d4d4] border border-[#cd2d48]/30'
+  1533→                              : 'bg-[#2d2d30] text-[#d4d4d4] border border-[#3c3c3c]'
+  1534→                          }`}
+  1535→                        >
+  1536→                          <span className="whitespace-pre-wrap break-words">{msg.content}</span>
+  1537→                        </div>
+  1538→                        {msg.role === 'user' && (
+  1539→                          <div className="w-6 h-6 rounded-full bg-[#cd2d48]/20 border border-[#cd2d48]/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+  1540→                            <User className="h-3.5 w-3.5 text-[#cd2d48]" />
+  1541→                          </div>
+  1542→                        )}
+  1543→                      </div>
+  1544→                    ))}
+  1545→                    {isChatLoading && (
+  1546→                      <div className="flex gap-2 mb-2 justify-start">
+  1547→                        <div className="w-6 h-6 rounded-full bg-[#2d2d30] border border-[#3c3c3c] flex items-center justify-center flex-shrink-0">
+  1548→                          <Bot className="h-3.5 w-3.5 text-[#4ec9b0]" />
+  1549→                        </div>
+  1550→                        <div className="bg-[#2d2d30] border border-[#3c3c3c] rounded-lg px-3 py-2 text-xs text-[#808080]">
+  1551→                          <span className="flex items-center gap-1">
+  1552→                            <Loader2 className="h-3 w-3 animate-spin" />
+  1553→                            Thinking...
+  1554→                          </span>
+  1555→                        </div>
+  1556→                      </div>
+  1557→                    )}
+  1558→                  </div>
+  1559→                </div>
+  1560→                {/* Chat input */}
+  1561→                <div className="flex items-center gap-2 px-2 py-1.5 border-t border-[#3c3c3c] flex-shrink-0">
+  1562→                  <input
+  1563→                    ref={chatInputRef}
+  1564→                    className="flex-1 bg-[#3c3c3c] border border-[#4f4f4f] rounded px-2 py-1 text-xs text-[#d4d4d4] focus:outline-none focus:border-[#cd2d48]"
+  1565→                    placeholder="Ask CogNet-1B about AICL..."
+  1566→                    value={chatInput}
+  1567→                    onChange={(e) => setChatInput(e.target.value)}
+  1568→                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(); } }}
+  1569→                    disabled={isChatLoading}
+  1570→                  />
+  1571→                  <Button
+  1572→                    size="sm"
+  1573→                    className="h-6 px-2 text-xs bg-[#cd2d48] hover:bg-[#a8233b]"
+  1574→                    onClick={handleChatSubmit}
+  1575→                    disabled={isChatLoading || !chatInput.trim()}
+  1576→                  >
+  1577→                    <Send className="h-3 w-3" />
+  1578→                  </Button>
+  1579→                </div>
+  1580→              </div>
+  1581→            )}
+  1582→          </div>
+  1583→        )}
+  1584→
+  1585→        {/* ======== STATUS BAR ======== */}
+  1586→        <div className="flex items-center justify-between px-3 py-1 bg-[#cd2d48] text-white text-[11px] flex-shrink-0">
+  1587→          <div className="flex items-center gap-4">
+  1588→            <span className="flex items-center gap-1">
+  1589→              <Layers className="h-3 w-3" />
+  1590→              AICL v1.0.0
+  1591→            </span>
+  1592→            <span className="flex items-center gap-1">
+  1593→              <File className="h-3 w-3" />
+  1594→              {activeFile.name}
+  1595→              {activeFile.modified && ' (modified)'}
+  1596→            </span>
+  1597→            <span className="flex items-center gap-1.5">
+  1598→              <span className={`w-1.5 h-1.5 rounded-full ${chatConnected ? 'bg-white' : 'bg-white/40'}`} />
+  1599→              <span>CogNet-1B {chatConnected ? 'Online' : 'Offline'}</span>
+  1600→            </span>
+  1601→          </div>
+  1602→          <div className="flex items-center gap-4">
+  1603→            <span>Ln {cursorPos.line}, Col {cursorPos.col}</span>
+  1604→            <span>Target: {targetLang}</span>
+  1605→            <span>UTF-8</span>
+  1606→            {isRunning && <span className="flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />Processing...</span>}
+  1607→            {!bottomPanelOpen && (
+  1608→              <button className="hover:text-white/80" onClick={() => setBottomPanelOpen(true)}>
+  1609→                <Maximize2 className="h-3 w-3" />
+  1610→              </button>
+  1611→            )}
+  1612→          </div>
+  1613→        </div>
+  1614→      </div>
+  1615→    </TooltipProvider>
+  1616→  );
+  1617→}
+  1618→

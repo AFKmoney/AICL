@@ -1,0 +1,471 @@
+# AICL Example: Video Streaming Platform
+# Transcoding, adaptive bitrate, CDN management, content recommendation, DRM, and live streaming
+
+Goal
+    Design a video streaming platform that delivers high-quality video content to millions
+    of concurrent viewers, supports adaptive bitrate streaming with sub-3-second segment
+    switching, manages a global CDN with intelligent edge caching, provides personalized
+    content recommendations, enforces DRM protection, and enables real-time live streaming
+    with less than 5 seconds end-to-end latency.
+
+Constraint
+    Video segment generation must complete within 2 seconds of source ingestion
+    Adaptive bitrate switching must occur within 3 seconds of bandwidth change detection
+    CDN cache hit ratio must exceed 95% for popular content
+    DRM license acquisition must complete within 500ms
+    Live stream latency must not exceed 5 seconds from encoder to viewer
+    Recommendation API must respond within 100ms at p99
+
+Risk
+    CDN edge node failure causes regional service outage
+Recovery
+    Automatic failover to next-nearest edge node; DNS-level traffic redirection within
+    30 seconds; pre-warmed standby nodes in each region; degraded quality mode with
+    reduced bitrate serving from backup origin
+
+Risk
+    Transcoding pipeline backlog during peak upload periods
+Recovery
+    Auto-scale transcoding workers based on queue depth; prioritize live content over
+    VOD; enable partial transcoding (generate lowest quality first); redirect overflow
+    to spot-instance cloud workers
+
+Risk
+    DRM license server becomes unresponsive locking out legitimate viewers
+Recovery
+    Cache licenses locally on client devices with 24-hour validity; fall back to backup
+    license server; enable offline license mode for premium subscribers; alert operations
+    team for immediate intervention
+
+Risk
+    Bandwidth spike during live events exceeds origin capacity
+Recovery
+    Pre-provision dedicated origin capacity for scheduled events; enable multicast
+    delivery within ISP networks; reduce maximum quality tier temporarily; activate
+    peer-assisted delivery for popular streams
+
+Risk
+    Recommendation engine serves inappropriate or harmful content suggestions
+Recovery
+    Implement multi-layer content safety filters; real-time content classification;
+    human review queue for flagged recommendations; immediate suppression of harmful
+    suggestions; post-incident audit and model retraining
+
+Risk
+    Live stream copyright infringement goes undetected allowing piracy
+Recovery
+    Deploy real-time content fingerprinting on live streams; match against copyright
+    database within 10-second window; automated takedown with manual review queue;
+    repeat offender stream termination; legal compliance reporting
+
+Layer
+    SubLayer: IngestLayer
+        Video upload, live ingest, format validation, source storage
+    SubLayer: TranscodeLayer
+        Encoding pipeline, quality ladder generation, thumbnail extraction, subtitle burning
+    SubLayer: DeliveryLayer
+        CDN management, edge caching, adaptive streaming, segment serving, origin shield
+    SubLayer: DRMLayer
+        License generation, key management, content encryption, rights enforcement
+    SubLayer: RecommendationLayer
+        User profiling, content embedding, similarity matching, diversity injection
+    SubLayer: LiveLayer
+        Stream management, segment timeline, DVR window, chat integration, recording
+
+Validation
+    All transcoded segments must pass quality verification (PSNR > 38dB against source)
+    CDN cache consistency must be verifiable across all edge nodes
+    DRM-protected content must be unplayable without valid license acquisition
+    Adaptive bitrate manifest must include all declared quality levels
+    Live stream segments must maintain continuous timeline without gaps
+    Recommendation results must pass content safety filtering before delivery
+    Origin bandwidth must never exceed provisioned capacity during normal operations
+
+Entity VideoContent
+    contentId: string
+    title: string
+    sourceFormat: string
+    duration: float
+    qualityLadder: list
+    transcodingStatus: string
+    drmScheme: string
+    contentRating: string
+    releaseDate: datetime
+    viewCount: integer
+    availability: dict
+
+Entity TranscodeJob
+    jobId: string
+    contentId: string
+    targetProfile: string
+    targetBitrate: integer
+    targetResolution: string
+    status: string
+    progress: float
+    startedAt: datetime
+    estimatedCompletion: datetime
+    workerId: string
+
+Entity CDNEdge
+    edgeId: string
+    region: string
+    ipAddress: string
+    cacheCapacity: integer
+    cacheUtilization: float
+    bandwidthCapacity: float
+    currentBandwidth: float
+    hitRatio: float
+    status: string
+    lastHealthCheck: datetime
+
+Entity StreamSession
+    sessionId: string
+    viewerId: string
+    contentId: string
+    currentQuality: string
+    bandwidth: float
+    bufferHealth: float
+    startupTime: float
+    rebufferCount: integer
+    region: string
+    deviceType: string
+
+Entity DRMLicense
+    licenseId: string
+    contentId: string
+    userId: string
+    keyId: string
+    encryptionScheme: string
+    acquisitionTime: datetime
+    expirationTime: datetime
+    playbackCount: integer
+    maxPlaybackDevices: integer
+    isOffline: boolean
+
+Entity LiveStream
+    streamId: string
+    broadcasterId: string
+    title: string
+    ingestUrl: string
+    currentSegment: integer
+    viewerCount: integer
+    peakViewerCount: integer
+    latency: float
+    startedAt: datetime
+    recordingEnabled: boolean
+    status: string
+
+Entity RecommendationProfile
+    userId: string
+    watchHistory: list
+    genrePreferences: dict
+    implicitSignals: dict
+    contentEmbedding: list
+    lastUpdated: datetime
+    diversityScore: float
+    freshnessWeight: float
+
+Behavior TranscodeVideo
+    Input:
+        contentId: string
+        sourcePath: string
+        qualityProfiles: list
+    Output:
+        jobId: string
+        outputManifests: list
+    Action:
+        Validate source format and extract metadata
+        Create transcoding job for each quality profile
+        Assign jobs to available transcoding workers
+        Generate HLS/DASH manifests with quality ladder
+        Extract keyframes and generate thumbnail set
+        Burn subtitles and closed captions into relevant profiles
+        Validate output quality against source (PSNR check)
+        Register transcoded assets with CDN for distribution
+
+Behavior DeliverAdaptiveStream
+    Input:
+        sessionId: string
+        contentId: string
+        currentBandwidth: float
+    Output:
+        segmentUrl: string
+        qualityLevel: string
+        manifestUpdate: dict
+    Action:
+        Determine optimal quality level based on current bandwidth
+        Retrieve segment URL from nearest CDN edge
+        Check DRM license validity for content
+        Update stream session with quality and bandwidth info
+        If quality change, trigger adaptive switch with seamless transition
+        Monitor buffer health and adjust quality prediction
+        Return segment with appropriate cache headers
+
+Behavior GenerateDRMLicense
+    Input:
+        contentId: string
+        userId: string
+        deviceInfo: dict
+    Output:
+        license: dict
+        keyDeliveryUrl: string
+    Action:
+        Validate user entitlement for requested content
+        Retrieve content encryption key from secure key management
+        Generate license with device-binding and usage restrictions
+        Set license expiration based on subscription status
+        Record license acquisition in audit log
+        Deliver license through secure key delivery endpoint
+        Track concurrent device usage against maximum limit
+
+Behavior ComputeRecommendations
+    Input:
+        userId: string
+        context: dict
+        maxResults: integer
+    Output:
+        recommendations: list
+        diversityScore: float
+    Action:
+        Retrieve user recommendation profile and recent signals
+        Generate candidate set from collaborative and content-based filtering
+        Score candidates using multi-objective ranking model
+        Apply diversity injection to prevent filter bubbles
+        Filter results through content safety classifiers
+        Adjust for freshness and trending signals
+        Cache results with TTL appropriate to user activity
+        Return ranked recommendations with explanation metadata
+
+Behavior ManageLiveStream
+    Input:
+        streamId: string
+        action: string
+        parameters: dict
+    Output:
+        result: dict
+        viewerNotification: dict
+    Action:
+        Validate broadcaster permissions and stream configuration
+        Allocate ingest endpoint and transcoding resources
+        Start live segment timeline with consistent timestamps
+        Enable DVR window for rewind functionality
+        Monitor stream health (bitrate stability, frame drops)
+        If action is end: finalize recording, trigger VOD transcoding
+        Update viewer count and peak tracking
+        Handle stream interruption with auto-reconnect window
+
+Behavior InvalidateCDNCache
+    Input:
+        contentId: string
+        region: string
+        purgeType: string
+    Output:
+        purgeId: string
+        affectedEdges: list
+    Action:
+        Identify all CDN edges serving the content
+        Generate cache invalidation request for each edge
+        Apply soft or hard purge based on purge type
+        Track purge propagation status across edges
+        Verify cache consistency after propagation completes
+        Log purge event for audit trail
+        Return purge status with affected edge list
+
+Condition
+    When viewer bandwidth drops below current quality threshold for 3 consecutive segments
+    Then switch to lower quality level; prefetch next segments at new quality;
+         notify analytics of quality downgrade event
+
+Condition
+    When live stream ingest is interrupted for more than 10 seconds
+    Then display buffering overlay to viewers; attempt auto-reconnect for 60 seconds;
+         if reconnection fails, end stream and convert to VOD; notify broadcaster
+
+Condition
+    When CDN edge cache hit ratio drops below 85% for any region
+    Then trigger origin shield warming for popular content in that region;
+         prefetch trending content to edge; alert CDN operations team
+
+Condition
+    When DRM license request rate exceeds 1000 per second per content item
+    Then enable license caching at CDN edge; activate backup license servers;
+         implement request coalescing for identical license queries
+
+Condition
+    When content fingerprint matches copyrighted material in live stream
+    Then automatically mute audio or replace with placeholder; notify broadcaster
+         of copyright match; create compliance record; escalate for human review
+
+Event
+    On VideoUploaded
+    Action: Validate format and metadata, create transcoding pipeline, generate
+            placeholder thumbnails, notify content team for review, queue for
+            DRM encryption
+
+Event
+    On StreamQualityChange
+    Action: Log quality transition with bandwidth context, update session analytics,
+            adjust prefetch buffer size, notify adaptive streaming controller
+
+Event
+    On ViewerBuffering
+    Action: Record buffering event with duration and quality context, trigger
+            bandwidth re-estimation, consider quality downgrade if persistent,
+            update QoS metrics dashboard
+
+Event
+    On ContentViolationDetected
+    Action: Remove content from recommendation pool, apply content warning overlay,
+            queue for human moderation review, notify content policy team,
+            preserve evidence for compliance
+
+Event
+    On LiveStreamPeak
+    Action: Pre-provision additional CDN capacity, activate peer-assisted delivery,
+            notify operations team of load event, update capacity forecasting model
+
+Parallel
+    Transcoding pipeline across multiple quality profiles
+    CDN edge cache management across global regions
+    Adaptive bitrate decisions for millions of concurrent streams
+    DRM license generation and delivery
+    Recommendation computation across user segments
+    Live stream segment processing and distribution
+
+Optimize
+    Target: Video startup time
+    Priority: Initial segment served from nearest edge; preload first 3 segments;
+              start at lower quality and ramp up; manifest optimization for fast parse
+
+Optimize
+    Target: CDN bandwidth cost
+    Priority: Maximize cache hit ratio through intelligent prefetching; use origin
+              shielding to reduce origin load; peer-assisted delivery for popular
+              content; regional encoding to reduce cross-region traffic
+
+Learn
+    Target: Adaptive bitrate switching thresholds
+    Goal: Minimize rebuffering events while maximizing average quality delivered
+    Adapt
+        Based: Historical bandwidth patterns per viewer, device capability profiles,
+               and network condition time-series data
+
+Learn
+    Target: Content recommendation ranking
+    Goal: Maximize watch-through rate and subscriber retention through personalization
+    Adapt
+        Based: User engagement signals (watch time, skip rate, add-to-list), content
+               similarity embeddings, and A/B test performance metrics
+
+Learn
+    Target: CDN prefetch prediction
+    Goal: Achieve 98% cache hit ratio for popular content by predicting demand spikes
+    Adapt
+        Based: Content popularity trajectories, regional viewing patterns, scheduled
+               release calendars, and social media trend signals
+
+Security
+    Encrypt: Video content at rest and in transit, DRM encryption keys, license
+             delivery payloads, user viewing history, payment information
+    Protect: Content encryption key management, license server access controls,
+             stream authentication tokens, origin server access restrictions,
+             copyright fingerprint database
+
+Security
+    Encrypt: CDN origin-shield communication, live ingest streams, recommendation
+             personalization data, content safety classification results
+    Protect: Anti-piracy content fingerprinting, stream token validation,
+             geo-restriction enforcement, concurrent stream limits, device
+             binding enforcement for offline content
+
+Native Go
+{
+package streaming
+
+import (
+    "context"
+    "sync"
+    "time"
+)
+
+type QualityLevel struct {
+    Profile    string
+    Bitrate    int
+    Resolution string
+    Codec      string
+}
+
+type StreamSession struct {
+    SessionID      string
+    ViewerID       string
+    ContentID      string
+    CurrentQuality string
+    Bandwidth      float64
+    BufferHealth   float64
+    RebufferCount  int
+    StartTime      time.Time
+}
+
+type CDNEdge struct {
+    EdgeID       string
+    Region       string
+    HitRatio     float64
+    Bandwidth    float64
+    CacheEntries map[string]time.Time
+    mu           sync.RWMutex
+}
+
+type AdaptiveBitrateController struct {
+    qualityLadder []QualityLevel
+    sessions      sync.Map
+}
+
+func NewABRController() *AdaptiveBitrateController {
+    return &AdaptiveBitrateController{
+        qualityLadder: []QualityLevel{
+            {"low", 800000, "480p", "h264"},
+            {"medium", 2500000, "720p", "h264"},
+            {"high", 5000000, "1080p", "h264"},
+            {"ultra", 15000000, "4k", "h265"},
+        },
+    }
+}
+
+func (abr *AdaptiveBitrateController) SelectQuality(bandwidth float64) string {
+    selected := "low"
+    for _, q := range abr.qualityLadder {
+        if float64(q.Bitrate)*1.2 < bandwidth {
+            selected = q.Profile
+        }
+    }
+    return selected
+}
+
+func (edge *CDNEdge) GetSegment(contentID string, segmentNum int) (string, bool) {
+    edge.mu.RLock()
+    defer edge.mu.RUnlock()
+    key := contentID
+    if _, exists := edge.CacheEntries[key]; exists {
+        return key, true
+    }
+    return "", false
+}
+
+func (edge *CDNEdge) InvalidateCache(contentID string) {
+    edge.mu.Lock()
+    defer edge.mu.Unlock()
+    delete(edge.CacheEntries, contentID)
+}
+
+type TranscodePipeline struct {
+    jobs    chan TranscodeJob
+    workers int
+}
+
+type TranscodeJob struct {
+    ContentID  string
+    Profile    string
+    SourcePath string
+    OutputPath string
+}
+}

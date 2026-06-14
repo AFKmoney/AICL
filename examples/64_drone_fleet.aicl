@@ -1,0 +1,454 @@
+# AICL Example: Drone Fleet Management
+# Comprehensive drone fleet management system with flight planning, obstacle avoidance,
+# swarm coordination, regulatory compliance, and payload management for commercial drone operations.
+
+Goal: Manage a commercial drone fleet providing autonomous flight planning, real-time obstacle
+    avoidance, coordinated swarm operations, full regulatory compliance with airspace authorities,
+    and reliable payload delivery with mission-level guarantee.
+
+Constraint: Flight planning must respect no-fly zones, altitude restrictions, and time-of-day
+    regulations with automatic NOTAM integration and real-time airspace deconfliction.
+
+Constraint: Obstacle avoidance must detect and react to obstacles within 50 meters within 100ms
+    using multi-sensor fusion with priority for dynamic obstacles over static terrain.
+
+Constraint: Swarm coordination must maintain inter-drone separation of at least 10 meters and
+    support formation flight with position accuracy within 1 meter.
+
+Constraint: Regulatory compliance must log all flight activities with GPS trace, altitude profile,
+    and operator credentials for audit by aviation authorities.
+
+Constraint: Payload delivery must confirm delivery within 3 meters of target location with
+    photo verification and weight validation before and after delivery.
+
+Risk: Mid-air collision between drones in coordinated swarm operation
+Recovery: Activate emergency separation maneuver with vertical and lateral escape vectors;
+    switch all swarm drones to independent obstacle avoidance mode; log incident for analysis
+
+Risk: Drone loses GPS signal during autonomous flight operation
+Recovery: Switch to inertial navigation with visual odometry; reduce speed to 50%;
+    activate return-to-home using last known position; land at nearest safe zone if prolonged
+
+Risk: Regulatory violation due to airspace incursion or altitude breach
+Recovery: Immediately descend to compliant altitude and exit restricted zone; notify fleet
+    operations and aviation authority; ground affected drone for post-incident review
+
+Risk: Battery depletion during extended mission with insufficient reserve
+Recovery: Calculate nearest reachable landing zone with current charge; abort mission and
+    execute contingency return path; activate emergency landing if return not achievable
+
+Risk: Payload release malfunction causes delivery failure or damage
+Recovery: Attempt secondary release mechanism; if failed, navigate to nearest safe drop
+    zone; hover at minimum safe altitude and await remote operator intervention
+
+Risk: Communication loss between ground station and active drone
+Recovery: Execute pre-programmed lost-link behavior with return-to-home; maintain last
+    authorized flight plan; land safely if communication not restored within 60 seconds
+
+Layer: DroneFleet
+    SubLayer: FlightPlanning
+    SubLayer: ObstacleAvoidance
+    SubLayer: SwarmCoordination
+    SubLayer: ComplianceEngine
+    SubLayer: PayloadManagement
+
+Validation: All flight plans must pass regulatory compliance check before takeoff authorization
+Validation: Obstacle avoidance must react within 100ms of obstacle detection
+Validation: Swarm inter-drone separation must never fall below 10 meters
+Validation: Battery reserve must support return-to-home plus 20% safety margin at all times
+Validation: Payload weight must be validated against drone maximum lift capacity before flight
+Validation: GPS position must be logged at minimum 1Hz during entire flight
+Validation: Lost-link return-to-home must be programmed before every flight authorization
+
+# Level 2: Entities
+
+Entity Drone
+    drone_id: string
+    model: string
+    max_speed_ms: float
+    max_altitude_m: float
+    max_payload_kg: float
+    battery_capacity_mah: integer
+    current_battery_pct: float
+    position: dict
+    flight_status: string
+
+Entity FlightPlan
+    plan_id: string
+    drone_id: string
+    waypoints: list
+    altitude_profile: dict
+    estimated_duration_min: float
+    payload_config: dict
+    compliance_check_id: string
+    status: string
+
+Entity ObstacleMap
+    map_id: string
+    drone_id: string
+    static_obstacles: list
+    dynamic_obstacles: list
+    safe_corridors: list
+    update_timestamp: datetime
+    sensor_sources: list
+
+Entity SwarmFormation
+    formation_id: string
+    formation_type: string
+    drone_ids: list
+    relative_positions: dict
+    leader_id: string
+    separation_minimum_m: float
+    is_active: boolean
+
+Entity ComplianceRecord
+    record_id: string
+    drone_id: string
+    flight_plan_id: string
+    operator_id: string
+    authorization_code: string
+    airspace_class: string
+    altitude_limit_m: float
+    time_restriction: dict
+    notam_references: list
+
+Entity PayloadDelivery
+    delivery_id: string
+    drone_id: string
+    payload_type: string
+    payload_weight_kg: float
+    target_location: dict
+    delivery_status: string
+    pre_delivery_photo: string
+    post_delivery_photo: string
+    delivery_accuracy_m: float
+
+# Level 3: Behaviors
+
+Behavior PlanFlight
+    Input:
+        drone_id: string
+        mission_waypoints: list
+        payload_weight: float
+        time_window: dict
+    Output:
+        flight_plan: dict
+        compliance_status: string
+        estimated_battery_usage: float
+    Action:
+        Validate drone capabilities against mission requirements
+        Generate optimal waypoint sequence with altitude profile
+        Check airspace restrictions and NOTAMs along route
+        Compute battery consumption with safety margin
+        Submit compliance check to regulatory engine
+        Return approved flight plan or rejection with reasons
+
+Behavior AvoidObstacle
+    Input:
+        drone_id: string
+        obstacle_detections: list
+        current_trajectory: dict
+    Output:
+        avoidance_maneuver: dict
+        new_trajectory: dict
+        obstacle_cleared: boolean
+    Action:
+        Classify obstacles as static or dynamic with velocity estimation
+        Compute time-to-contact for each obstacle
+        Generate avoidance maneuver preserving flight constraints
+        Select maneuver minimizing deviation from planned route
+        Update obstacle map and broadcast to swarm members
+
+Behavior CoordinateSwarm
+    Input:
+        formation_id: string
+        mission_command: dict
+        drone_states: dict
+    Output:
+        individual_commands: dict
+        formation_health: dict
+    Action:
+        Compute target positions for each drone in formation
+        Apply virtual spring-damper model for inter-drone spacing
+        Resolve conflicts between formation constraints and obstacles
+        Distribute commands with leader-follower or consensus protocol
+        Monitor formation compliance and adjust as needed
+
+Behavior VerifyCompliance
+    Input:
+        drone_id: string
+        flight_plan: dict
+        operator_credentials: dict
+    Output:
+        compliance_result: string
+        restrictions: list
+        authorization_code: string
+    Action:
+        Validate operator credentials and license status
+        Check flight plan against airspace classification
+        Integrate active NOTAMs and temporary restrictions
+        Verify altitude and speed limits for route segments
+        Issue authorization code or rejection with regulatory citations
+
+Behavior ManagePayload
+    Input:
+        delivery_id: string
+        drone_id: string
+        target_location: dict
+        payload_config: dict
+    Output:
+        delivery_status: string
+        accuracy_m: float
+        verification_photo: string
+    Action:
+        Validate payload weight against drone lift capacity
+        Navigate to target location with precision approach
+        Capture pre-delivery photo at hover position
+        Execute payload release with secondary mechanism backup
+        Capture post-delivery photo and compute delivery accuracy
+
+# Level 4: Conditions
+
+Condition: CollisionImminent
+    When time-to-contact with any obstacle falls below 3 seconds
+    Then execute emergency avoidance maneuver with maximum acceleration away
+        from obstacle, broadcast alert to nearby drones, and log incident
+
+Condition: BatteryCritical
+    When drone battery falls below 20 percent during active mission
+    Then abort current mission waypoint, compute nearest reachable landing
+        zone, and execute return with power-saving flight profile
+
+Condition: AirspaceViolation
+    When drone position enters restricted airspace or exceeds altitude limit
+    Then immediately descend to compliant altitude, exit restricted zone on
+        shortest path, notify operations center, and file incident report
+
+Condition: SwarmSeparationBreach
+    When inter-drone distance falls below minimum separation of 10 meters
+    Then activate emergency separation with vertical escape for lower drone
+        and lateral escape for upper drone, pause formation coordination
+
+Condition: LostLinkTimeout
+    When communication with ground station is lost for more than 60 seconds
+    Then execute pre-programmed return-to-home using onboard navigation,
+        land at home position or nearest safe zone if battery critical
+
+# Level 5: Events
+
+Event: FlightAuthorized
+    On compliance_check_passed_and_authorization_issued
+    Action: Upload flight plan to drone, arm motors with operator confirmation,
+        and begin pre-flight checklist verification sequence
+
+Event: ObstacleAvoided
+    On avoidance_maneuver_successfully_completed
+    Action: Resume original flight trajectory, update obstacle map for fleet,
+        and log avoidance maneuver details for safety analysis
+
+Event: FormationReconfigured
+    On swarm_formation_updated_due_to_drone_addition_or_removal
+    Action: Recompute formation positions, distribute updated relative
+        positions to all swarm members, and verify formation stability
+
+Event: DeliveryCompleted
+    On payload_release_confirmed_and_verification_photo_captured
+    Action: Upload delivery confirmation with photos and GPS accuracy,
+        update delivery tracking system, and compute return flight plan
+
+Event: IncidentReported
+    On regulatory_violation_or_safety_incident_detected
+    Action: File incident report with aviation authority, ground affected
+        drone, preserve flight data recorder, and initiate review process
+
+# Level 6: Concurrency
+
+Parallel:
+    Flight planning and compliance verification for pending missions
+    Real-time obstacle detection and avoidance processing
+    Swarm coordination with formation position computation
+    Battery monitoring and power management across fleet
+    Payload delivery execution with precision navigation
+    Regulatory compliance monitoring during active flights
+    Communication health monitoring with lost-link detection
+
+# Level 7: Optimization
+
+Optimize: Fleet utilization and mission completion rate
+    Priority: Safety separation and obstacle avoidance take absolute precedence
+    Priority: Battery reserve maintained for return-to-home plus safety margin
+    Priority: Formation efficiency optimized for coverage area and flight time
+    Priority: Flight paths optimized for energy efficiency within time constraints
+    Priority: Payload delivery accuracy prioritized over speed for final approach
+
+# Level 8: Learning
+
+Learn: Optimal flight paths accounting for wind patterns and terrain
+    Goal: Reduce average flight time by 15% while maintaining safety margins
+    Adapt: Waypoint selection and altitude profile per route
+        Based: Historical flight data, weather conditions, and energy consumption patterns
+
+Learn: Obstacle avoidance maneuver effectiveness per obstacle type
+    Goal: Minimize trajectory deviation while ensuring zero collision rate
+    Adapt: Avoidance maneuver parameters and reaction thresholds
+        Based: Near-miss incidents, maneuver execution data, and obstacle classification accuracy
+
+Learn: Swarm formation dynamics and communication patterns
+    Goal: Reduce formation convergence time by 30% for formation changes
+    Adapt: Formation control parameters and inter-drone communication frequency
+        Based: Formation stability metrics, communication latency, and convergence time
+
+# Level 9: Security
+
+Security:
+    Encrypt: All drone-ground communication using TLS 1.3 with certificate pinning
+    Encrypt: Swarm inter-drone communication using AES-256 with session key rotation
+    Protect: Flight plan integrity with digital signatures and tamper detection
+    Protect: Operator authentication with multi-factor verification and license validation
+    Protect: Payload release mechanism with dual-command authorization
+    Encrypt: Flight data recorder contents with tamper-evident encryption
+
+# Level 10: Native
+
+Native: Python
+{
+import math
+import time
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Tuple
+from enum import Enum
+
+class FlightStatus(Enum):
+    GROUNDED = "grounded"
+    PREFLIGHT = "preflight"
+    AIRBORNE = "airborne"
+    RETURNING = "returning"
+    EMERGENCY = "emergency"
+    LANDED = "landed"
+
+@dataclass
+class Position:
+    latitude: float
+    longitude: float
+    altitude: float
+
+    def distance_to(self, other: 'Position') -> float:
+        R = 6371000
+        dlat = math.radians(other.latitude - self.latitude)
+        dlon = math.radians(other.longitude - self.longitude)
+        a = (math.sin(dlat/2)**2 +
+             math.cos(math.radians(self.latitude)) *
+             math.cos(math.radians(other.latitude)) *
+             math.sin(dlon/2)**2)
+        return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+
+@dataclass
+class Obstacle:
+    obstacle_id: str
+    position: Position
+    radius_m: float
+    velocity: Tuple[float, float, float]
+    is_dynamic: bool
+    confidence: float
+    detected_at: float
+
+class ObstacleAvoidance:
+    def __init__(self, min_separation_m: float = 10.0,
+                 reaction_time_s: float = 3.0):
+        self.min_separation = min_separation_m
+        self.reaction_time = reaction_time_s
+        self.obstacles: Dict[str, Obstacle] = {}
+
+    def update_obstacles(self, detections: List[dict]):
+        for det in detections:
+            oid = det["obstacle_id"]
+            self.obstacles[oid] = Obstacle(
+                obstacle_id=oid,
+                position=Position(**det["position"]),
+                radius_m=det.get("radius_m", 1.0),
+                velocity=det.get("velocity", (0,0,0)),
+                is_dynamic=det.get("is_dynamic", False),
+                confidence=det.get("confidence", 0.5),
+                detected_at=time.time()
+            )
+
+    def compute_avoidance(self, current_pos: Position,
+                          current_vel: Tuple[float,float,float],
+                          target_waypoint: Position) -> dict:
+        maneuvers = []
+        for oid, obs in self.obstacles.items():
+            dist = current_pos.distance_to(obs.position)
+            time_to_contact = self._compute_ttc(
+                dist, current_vel, obs.velocity)
+            if time_to_contact < self.reaction_time:
+                escape = self._compute_escape_vector(
+                    current_pos, obs.position, current_vel)
+                maneuvers.append({
+                    "obstacle_id": oid,
+                    "time_to_contact": time_to_contact,
+                    "escape_vector": escape,
+                    "priority": 1.0 / max(time_to_contact, 0.1)
+                })
+
+        if not maneuvers:
+            return {"action": "continue", "target": target_waypoint}
+
+        maneuvers.sort(key=lambda m: m["priority"], reverse=True)
+        primary = maneuvers[0]
+        return {
+            "action": "avoid",
+            "escape_vector": primary["escape_vector"],
+            "original_target": target_waypoint,
+            "avoiding_obstacle": primary["obstacle_id"]
+        }
+
+    def _compute_ttc(self, dist: float,
+                     ego_vel: tuple, obs_vel: tuple) -> float:
+        closing_speed = math.sqrt(
+            (ego_vel[0]-obs_vel[0])**2 +
+            (ego_vel[1]-obs_vel[1])**2 +
+            (ego_vel[2]-obs_vel[2])**2
+        )
+        if closing_speed <= 0:
+            return float('inf')
+        return dist / closing_speed
+
+    def _compute_escape_vector(self, ego_pos: Position,
+                                obs_pos: Position,
+                                ego_vel: tuple) -> tuple:
+        away_x = ego_pos.latitude - obs_pos.latitude
+        away_y = ego_pos.longitude - obs_pos.longitude
+        away_z = ego_pos.altitude - obs_pos.altitude + 5.0
+        magnitude = math.sqrt(away_x**2 + away_y**2 + away_z**2)
+        if magnitude == 0:
+            return (0, 0, 1)
+        return (away_x/magnitude, away_y/magnitude, away_z/magnitude)
+
+class SwarmCoordinator:
+    def __init__(self, formation_type: str, separation_m: float = 10.0):
+        self.formation_type = formation_type
+        self.separation_m = separation_m
+        self.drone_positions: Dict[str, Position] = {}
+        self.target_offsets: Dict[str, Tuple[float,float,float]] = {}
+
+    def update_positions(self, positions: Dict[str, dict]):
+        for did, pos in positions.items():
+            self.drone_positions[did] = Position(**pos)
+
+    def compute_commands(self) -> Dict[str, dict]:
+        commands = {}
+        for did, pos in self.drone_positions.items():
+            offset = self.target_offsets.get(did, (0,0,0))
+            target_lat = list(self.drone_positions.values())[0].latitude + offset[0]
+            target_lon = list(self.drone_positions.values())[0].longitude + offset[1]
+            target_alt = list(self.drone_positions.values())[0].altitude + offset[2]
+            commands[did] = {
+                "target_position": {
+                    "latitude": target_lat,
+                    "longitude": target_lon,
+                    "altitude": target_alt
+                },
+                "formation_compliant": True
+            }
+        return commands
+}

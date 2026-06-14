@@ -1,0 +1,406 @@
+# AICL Example: PKI Certificate Authority
+# Full-featured PKI Certificate Authority supporting X.509 certificate lifecycle,
+# OCSP/CRL revocation, chain validation, policy enforcement, and HSM-backed key management
+
+Goal Build an enterprise-grade PKI Certificate Authority with complete X.509 certificate lifecycle management, real-time OCSP and CRL revocation services, rigorous chain validation, configurable certificate policies, and HSM-protected root and intermediate CA keys
+
+Constraint Root CA private key must be stored exclusively in FIPS 140-2 Level 3 HSM with dual-control access
+Constraint Certificate validity period must not exceed 398 days for TLS server certificates per CA/Browser Forum baseline
+Constraint OCSP response must be available within 5 seconds for any valid certificate status query
+Constraint CRL must be published at least every 24 hours with complete revocation information
+Constraint All certificates must include Authority Information Access and CRL Distribution Points extensions
+
+Risk Root CA key compromise enables unrestricted certificate issuance for any domain
+Recovery Immediately revoke root certificate, publish emergency CRL, deploy pre-generated backup root, reissue all certificates from new root hierarchy, and initiate forensic investigation
+Risk Mis-issuance of certificate for domain without proper validation undermines trust model
+Recovery Revoke mis-issued certificate within 24 hours, audit validation logs for similar cases, implement additional validation controls, and notify domain owner and browser vendors
+Risk OCSP responder unavailability prevents real-time revocation checking
+Recovery Deploy geographically distributed OCSP responders with load balancing, maintain 48-hour OCSP response cache, and ensure CRL fallback is always accessible
+Risk CRL growth degrades revocation checking performance for large-scale deployments
+Recovery Implement partitioned CRLs by certificate profile, use delta CRLs for incremental updates, and enforce certificate expiration pruning
+Risk Certificate chain validation bypass due to improper anchor store configuration
+Recovery Enforce strict chain building with required EKU constraints, audit trust anchor stores quarterly, and implement pinning for critical application certificates
+
+Layer PKIAuthority
+    SubLayer: CertificateLifecycle
+        # Certificate issuance, renewal, rekey, and expiration
+    SubLayer: RevocationServices
+        # OCSP responder, CRL generation, and revocation reason tracking
+    SubLayer: ChainValidation
+        # Path building, policy validation, and trust anchor verification
+    SubLayer: PolicyEngine
+        # Certificate policies, EKU enforcement, and naming rules
+    SubLayer: KeyManagementCA
+        # HSM integration, CA key ceremony, and key ceremony auditing
+
+Validation Certificate signature must verify against issuer public key using declared signature algorithm
+Validation Certificate chain must build from end-entity to trusted root through valid intermediate certificates
+Validation Subject Alternative Name must match validated domain control per ACME or manual validation
+Validation Key usage extension must be consistent with certificate profile and intended purpose
+Validation Certificate serial number must be globally unique with minimum 64 bits of entropy
+Validation OCSP response signature must verify against OCSP responder certificate
+Validation CRL signature must verify against CRL issuer certificate
+
+Entity Certificate
+    serial_number: string
+    subject_dn: string
+    issuer_dn: string
+    public_key: bytes
+    signature_algorithm: string
+    not_before: datetime
+    not_after: datetime
+    key_usage: list
+    extended_key_usage: list
+    san_entries: list
+    fingerprint_sha256: string
+    profile: string
+    status: string
+    issuing_ca: string
+
+Entity CertificateAuthority
+    ca_id: string
+    ca_name: string
+    subject_dn: string
+    certificate: Certificate
+    key_type: string
+    key_size: integer
+    hsm_slot: integer
+    path_length: integer
+    is_root: boolean
+    parent_ca: string
+    policy_oids: list
+    crl_endpoint: string
+    ocsp_endpoint: string
+
+Entity RevocationEntry
+    serial_number: string
+    revocation_date: datetime
+    revocation_reason: string
+    revoking_ca: string
+    crl_number: integer
+    ocsp_status: string
+    requestor: string
+    comment: string
+    evidence_ref: string
+
+Entity OCSPResponse
+    responder_id: string
+    produced_at: datetime
+    cert_status: string
+    this_update: datetime
+    next_update: datetime
+    serial_number: string
+    signature_algorithm: string
+    response_bytes: bytes
+    cache_ttl: integer
+    responder_cert: Certificate
+
+Entity CRLDocument
+    crl_number: integer
+    issuer_dn: string
+    this_update: datetime
+    next_update: datetime
+    revoked_entries: list
+    signature_algorithm: string
+    crl_bytes: bytes
+    is_delta: boolean
+    base_crl_number: integer
+    distribution_url: string
+
+Entity ValidationPolicy
+    policy_id: string
+    policy_oid: string
+    name: string
+    description: string
+    max_validity_days: integer
+    required_extensions: list
+    prohibited_extensions: list
+    key_usage_flags: list
+    eku_oids: list
+    naming_constraints: dict
+    validation_method: string
+
+Entity KeyCeremony
+    ceremony_id: string
+    ceremony_date: datetime
+    participants: list
+    hsm_device: string
+    key_type: string
+    key_size: integer
+    purpose: string
+    backup_procedure: string
+    witness_count: integer
+    video_recording_ref: string
+    tamper_evidence_verified: boolean
+
+Behavior IssueCertificate
+    Input:
+        subject_dn: string
+        san_entries: list
+        profile: ValidationPolicy
+        requesting_ca: CertificateAuthority
+        public_key: bytes
+    Output:
+        certificate: Certificate
+        pem_data: string
+    Action:
+        Validate subject DN and SAN entries against profile naming constraints
+        Verify domain control through configured validation method
+        Generate unique serial number with 64-bit minimum entropy
+        Set validity period per profile maximum and requested duration
+        Apply required extensions per profile configuration
+        Encode certificate in DER format
+        Sign certificate using CA HSM-backed private key
+        Record issuance in audit log with full transaction details
+        Return certificate with PEM encoding
+
+Behavior RevokeCertificate
+    Input:
+        serial_number: string
+        revocation_reason: string
+        requestor: string
+        evidence: string
+    Output:
+        revocation_entry: RevocationEntry
+        crl_updated: boolean
+    Action:
+        Verify certificate exists and is not already revoked
+        Validate revocation request authorization
+        Record revocation entry with reason and timestamp
+        Update CRL with new revocation entry
+        Generate updated OCSP response cache entry
+        Publish delta CRL immediately
+        Notify certificate subscriber of revocation
+        Log revocation event with full audit trail
+
+Behavior ValidateChain
+    Input:
+        target_certificate: Certificate
+        intermediate_certs: list
+        trust_anchors: list
+        validation_time: datetime
+    Output:
+        validation_result: boolean
+        chain: list
+        policy_result: dict
+    Action:
+        Build certificate chain from target to trust anchor
+        Verify each certificate signature against issuer public key
+        Check validity periods at specified validation time
+        Validate key usage and EKU consistency along chain
+        Enforce path length constraints from each CA certificate
+        Check revocation status via OCSP and CRL
+        Apply policy constraints from each certificate in chain
+        Return validation result with complete chain and policy details
+
+Behavior GenerateCRL
+    Input:
+        issuing_ca: CertificateAuthority
+        crl_scope: string
+        is_delta: boolean
+    Output:
+        crl: CRLDocument
+    Action:
+        Collect all revocation entries within CRL scope
+        If delta CRL, collect only entries since base CRL
+        Set CRL number sequentially incrementing
+        Include authority key identifier extension
+        Sign CRL with CA HSM-backed private key
+        Publish CRL to distribution point endpoint
+        Update CRL cache with latest version
+        Return CRL document with publication confirmation
+
+Behavior RespondOCSP
+    Input:
+        serial_number: string
+        issuing_ca: CertificateAuthority
+    Output:
+        ocsp_response: OCSPResponse
+    Action:
+        Look up certificate status in revocation database
+        Check certificate validity period
+        Determine status as good, revoked, or unknown
+        Build OCSP response with status and timing information
+        Sign response using OCSP responder key
+        Set cache TTL based on next scheduled CRL update
+        Record OCSP request in access log
+        Return signed OCSP response
+
+Behavior ConductKeyCeremony
+    Input:
+        ceremony_config: KeyCeremony
+        participants: list
+        purpose: string
+    Output:
+        ceremony_record: KeyCeremony
+        ca_certificate: Certificate
+    Action:
+        Verify all required participants are present and authenticated
+        Initialize HSM with tamper-evident verification
+        Generate CA key pair within HSM boundary
+        Create self-signed root or signed intermediate certificate
+        Backup key material to offline HSM using split knowledge
+        Record all ceremony actions with video and witness attestation
+        Seal ceremony record with participant signatures
+        Return ceremony record and CA certificate
+
+Behavior EnforcePolicy
+    Input:
+        certificate_request: dict
+        policy: ValidationPolicy
+        requesting_profile: string
+    Output:
+        compliance_result: boolean
+        violations: list
+    Action:
+        Check subject DN format against naming constraints
+        Validate SAN entries match permitted patterns
+        Verify requested key usage aligns with profile EKU
+        Ensure no prohibited extensions are present
+        Validate key size meets minimum requirements
+        Check validity period within policy maximum
+        Return compliance result with detailed violation list
+
+Condition:
+    When certificate is within 30 days of expiration
+    Then trigger automatic renewal notification and initiate renewal workflow if auto-renewal is configured
+
+Condition:
+    When OCSP responder receives request for serial number not issued by this CA
+    Then respond with unknown status and log potential fraud investigation event
+
+Condition:
+    When revocation request cites keyCompromise reason
+    Then immediately process revocation, generate emergency CRL, and audit all certificates issued with related keys
+
+Condition:
+    When key ceremony participant count drops below minimum required
+    Then halt ceremony proceedings and lock HSM until quorum is restored
+
+Condition:
+    When CRL publication fails to complete within scheduled window
+    Then escalate alert to operations team, retry with exponential backoff, and extend OCSP cache TTL to cover gap
+
+Event:
+    On certificate_issued
+    Action: Record issuance in audit log, update certificate inventory, trigger OCSP pre-generation, notify subscriber, update CA statistics
+
+Event:
+    On certificate_revoked
+    Action: Update revocation database, regenerate CRL, invalidate OCSP cache, notify relying parties, log revocation evidence
+
+Event:
+    On ocsp_request_received
+    Action: Log request with source IP, serve cached or fresh response, update request metrics, detect anomalous query patterns
+
+Event:
+    On key_ceremony_completed
+    Action: Archive ceremony record with participant attestations, verify backup integrity, update CA inventory, publish new CA certificate
+
+Event:
+    On crl_published
+    Action: Verify CRL accessibility at distribution point, update OCSP cache TTL, log CRL metrics, notify subscribers of revocation changes
+
+Parallel:
+    Certificate issuance pipeline with policy validation and HSM signing
+    OCSP response serving with cached responses and signature pre-computation
+    CRL generation and distribution with delta CRL support
+    Chain validation with concurrent path building and verification
+
+Optimize: OCSP response latency for high-volume queries
+    Priority: Achieve sub-100ms OCSP response time through response pre-signing and edge cache distribution
+
+Optimize: Certificate chain validation performance
+    Priority: Reduce chain validation to sub-50ms through certificate caching and pre-built chain optimization
+
+Optimize: CRL generation and distribution efficiency
+    Priority: Minimize CRL generation time through incremental updates and partitioned CRL strategy
+
+Learn: Certificate issuance anomaly detection
+    Goal: Identify potentially fraudulent certificate requests with 98 percent recall by learning normal issuance patterns
+    Adapt: Anomaly scoring thresholds and feature weighting for request classification
+    Based: Historical issuance patterns, subject DN distributions, request frequency baselines, and geographic origin analysis
+
+Learn: Revocation prediction
+    Goal: Predict certificates likely to require revocation within 30 days for proactive security management
+    Adapt: Revocation risk scoring model and early warning thresholds
+    Based: Revocation history patterns, certificate age correlation, domain reputation signals, and compliance audit results
+
+Learn: OCSP traffic prediction
+    Goal: Forecast OCSP query volumes to optimize response pre-signing and cache TTL settings
+    Adapt: Pre-signing batch sizes and cache TTL duration parameters
+    Based: Historical query volume patterns, time-of-day and day-of-week cycles, and certificate expiration event schedules
+
+Security:
+    Encrypt: CA private keys using HSM-protected storage with FIPS 140-2 Level 3 compliance
+    Encrypt: Certificate database at rest using AES-256-XTS with separate key hierarchy per CA
+    Protect: Key ceremony against insider threat using multi-person control with biometric authentication
+    Protect: OCSP responder against DDoS using rate limiting, geographic distribution, and anycast routing
+    Protect: CRL distribution against tampering using signed CRL with integrity verification at download
+    Protect: Certificate signing against unauthorized use using dual-approval workflow and HSM access logging
+
+Native: go
+    {
+    import (
+        "crypto/x509"
+        "crypto/x509/pkix"
+        "crypto/rsa"
+        "crypto/ecdsa"
+        "crypto/rand"
+        "crypto/sha256"
+        "encoding/pem"
+        "time"
+    )
+
+    func IssueCertificate(
+        template *x509.Certificate,
+        caCert *x509.Certificate,
+        caKey interface{},
+        pubKey interface{},
+    ) ([]byte, error) {
+        certBytes, err := x509.CreateCertificate(
+            rand.Reader, template, caCert, pubKey, caKey,
+        )
+        if err != nil {
+            return nil, err
+        }
+        return certBytes, nil
+    }
+
+    func ValidateChain(
+        cert *x509.Certificate,
+        intermediates *x509.CertPool,
+        roots *x509.CertPool,
+    ) ([]*x509.Certificate, error) {
+        opts := x509.VerifyOptions{
+            Intermediates: intermediates,
+            Roots:         roots,
+            CurrentTime:   time.Now(),
+            KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+        }
+        chains, err := cert.Verify(opts)
+        if err != nil {
+            return nil, err
+        }
+        return chains[0], nil
+    }
+
+    func CheckRevocation(cert *x509.Certificate, crl *pkix.CertificateList) bool {
+        for _, revoked := range crl.TBSCertList.RevokedCertificates {
+            if cert.SerialNumber.Cmp(revoked.SerialNumber) == 0 {
+                return true
+            }
+        }
+        return false
+    }
+
+    func ComputeFingerprint(certBytes []byte) string {
+        h := sha256.Sum256(certBytes)
+        return fmt.Sprintf("%x", h)
+    }
+
+    func GenerateSerialNumber() (*big.Int, error) {
+        serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+        return rand.Int(rand.Reader, serialNumberLimit)
+    }
+    }

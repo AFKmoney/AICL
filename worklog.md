@@ -101,3 +101,32 @@ Stage Summary:
 - The AI receives the current editor code as context automatically
 - AI can guide users on how to use every feature of the editor
 - Server is running and chat API is verified working
+
+---
+Task ID: 2
+Agent: main
+Task: Make AI chat take actions — create files, compile, verify from chat
+
+Work Log:
+- Updated chat system prompt with :::AICL_FILE format instructions
+- AI now outputs AICL code in :::AICL_FILE filename.aicl ... :::END_FILE blocks
+- Added parseAICLFiles() function to extract AICL code blocks from AI response
+- Updated ChatMsg type to include aiclFiles field
+- Added 3 chat action functions:
+  - chatCreateFile: creates new file tab from AICL code
+  - chatCreateAndCompile: creates file AND compiles it
+  - chatCreateAndVerify: creates file AND verifies it
+- Updated chat UI to show:
+  - AICL code preview with filename header
+  - "Create File" button (teal) — opens as new tab
+  - "Create + Compile" button (red) — creates and compiles
+  - "Verify" button (blue) — creates and verifies
+- Increased max_tokens from 1024 to 2048 for longer specs
+- Updated chat placeholder to 'Try "Describe a todo app in AICL"...'
+- Rebuilt and tested: AI correctly generates :::AICL_FILE blocks
+
+Stage Summary:
+- AI chat can now write AICL code that becomes actionable files
+- Users click buttons to create files, compile, and verify directly from chat
+- Full workflow: ask AI → get code with action buttons → click → done
+- Server running on port 3000

@@ -1,0 +1,402 @@
+# AICL Example: Fleet Management System
+# Comprehensive fleet management platform with real-time vehicle tracking, predictive maintenance scheduling, route optimization, fuel management, and driver safety monitoring for commercial vehicle operations
+
+Goal: Deliver a fleet management system that maximizes vehicle utilization, minimizes downtime through predictive maintenance, optimizes routes for fuel and time efficiency, ensures driver safety and regulatory compliance, and provides total cost of ownership visibility across the entire fleet lifecycle
+
+Constraint: All vehicle tracking data must comply with ELD mandate and hours-of-service regulations for commercial drivers
+Constraint: Maintenance schedules must follow OEM-recommended service intervals and recall notifications without exception
+Constraint: Route optimization must account for vehicle weight restrictions, low clearance zones, and hazmat routing regulations
+Constraint: Fuel transactions must be matched to vehicle and driver with anomaly detection for unauthorized usage
+Constraint: Driver safety events must be reviewed and adjudicated within 72 hours of occurrence
+
+Risk: Vehicle breakdown on active route causing delivery failure and safety hazard
+Recovery: Dispatch nearest available service vehicle; notify customer of delay with revised ETA; arrange cargo transfer if feasible; update maintenance prediction model with failure data; trigger post-incident review for preventive action improvement
+
+Risk: Fuel theft or unauthorized fuel card usage draining operational budget
+Recovery: Freeze compromised fuel card immediately; audit recent transactions against GPS location data; notify fuel card provider; file incident report; assign replacement card with enhanced controls; adjust fraud detection parameters
+
+Risk: Driver hours-of-service violation resulting in regulatory penalty and safety risk
+Recovery: Force driver rest period compliance via ELD integration; notify fleet manager of violation; generate compliance report for regulatory submission; adjust schedule to prevent recurrence; flag for safety review
+
+Risk: Route optimization failure directing vehicles into restricted or unsafe areas
+Recovery: Implement real-time geofence violation alerts; immediately reroute vehicle to safe path; log incident with location data; update restricted zone database; notify driver and dispatch; review routing algorithm constraints
+
+Risk: Missed maintenance window causing accelerated vehicle degradation and warranty voidance
+Recovery: Flag overdue maintenance with escalating severity alerts; restrict vehicle dispatch until service completed; schedule emergency service appointment; notify fleet manager; update preventive maintenance calendar; audit maintenance compliance across fleet
+
+Risk: Telematics data loss creating blind spots in vehicle and driver monitoring
+Recovery: Switch to cellular backup transmission; cache data locally on device for deferred upload; alert fleet operations of monitoring gap; increase driver check-in frequency; prioritize data recovery on connection restore; log coverage gap duration
+
+Layer: VehicleTracking
+    SubLayer: GPSTelematics
+    SubLayer: ELDMonitoring
+    SubLayer: GeofenceManagement
+    SubLayer: TripRecording
+
+Layer: MaintenanceScheduling
+    SubLayer: PreventiveMaintenance
+    SubLayer: PredictiveDiagnostics
+    SubLayer: WorkOrderManagement
+    SubLayer: PartsInventory
+
+Layer: RouteOptimization
+    SubLayer: RoutePlanning
+    SubLayer: TrafficIntegration
+    SubLayer: RestrictionCompliance
+    SubLayer: MultiStopSequencing
+
+Layer: FuelManagement
+    SubLayer: FuelCardIntegration
+    SubLayer: ConsumptionTracking
+    SubLayer: FraudDetection
+    SubLayer: EfficiencyAnalytics
+
+Layer: DriverSafety
+    SubLayer: BehaviorMonitoring
+    SubLayer: IncidentRecording
+    SubLayer: ComplianceReporting
+    SubLayer: TrainingManagement
+
+Validation: Vehicle assignments must verify valid license, insurance, and inspection status before dispatch
+Validation: Maintenance work orders must reference OEM service bulletin and approved parts list
+Validation: Route plans must validate against vehicle dimension and weight restrictions at every waypoint
+Validation: Fuel transactions must match vehicle GPS location within 1 kilometer radius
+Validation: Driver hours-of-service must project compliance for entire planned route duration
+Validation: Telematics data freshness must not exceed 5 minutes for active vehicles
+
+Entity Vehicle
+    vehicleId: string
+    vin: string
+    make: string
+    model: string
+    year: integer
+    licensePlate: string
+    vehicleType: string
+    grossWeight: float
+    fuelType: string
+    tankCapacity: float
+    currentOdometer: float
+    nextServiceDate: datetime
+    nextServiceMileage: float
+    insuranceExpiry: datetime
+    inspectionExpiry: datetime
+    status: string
+
+Entity MaintenanceOrder
+    workOrderId: string
+    vehicleId: string
+    serviceType: string
+    priority: string
+    scheduledDate: datetime
+    completedDate: datetime
+    mileageAtService: float
+    serviceItems: list
+    partsUsed: list
+    laborHours: float
+    totalCost: float
+    vendorId: string
+    status: string
+    recallReference: string
+
+Entity RoutePlan
+    routeId: string
+    vehicleId: string
+    driverId: string
+    origin: dict
+    destination: dict
+    waypoints: list
+    estimatedDistance: float
+    estimatedDuration: integer
+    fuelEstimate: float
+    restrictions: list
+    departureTime: datetime
+    arrivalTime: datetime
+    status: string
+
+Entity FuelTransaction
+    transactionId: string
+    fuelCardId: string
+    vehicleId: string
+    driverId: string
+    stationId: string
+    stationLocation: dict
+    transactionTime: datetime
+    fuelVolume: float
+    fuelType: string
+    unitPrice: float
+    totalCost: float
+    odometerReading: float
+    anomalyFlag: boolean
+
+Entity DriverRecord
+    driverId: string
+    firstName: string
+    lastName: string
+    licenseNumber: string
+    licenseClass: string
+    licenseExpiry: datetime
+    hireDate: datetime
+    availableHours: float
+    safetyScore: float
+    fuelEfficiencyScore: float
+    activeViolations: integer
+    trainingDue: list
+    assignedVehicle: string
+
+Entity TelemetryEvent
+    eventId: string
+    vehicleId: string
+    driverId: string
+    eventType: string
+    timestamp: datetime
+    location: dict
+    speed: float
+    heading: float
+    odometer: float
+    fuelLevel: float
+    engineTemperature: float
+    diagnosticCodes: list
+    severity: string
+
+Behavior ScheduleMaintenance
+    Input: vehicleId: string, serviceType: string, priority: string, preferredDate: datetime
+    Output: maintenanceOrder: MaintenanceOrder
+    Action: Retrieve vehicle service history; determine required services per OEM schedule; check parts availability; select qualified service vendor; calculate estimated cost and duration; apply priority scheduling rules; create work order; reserve vehicle downtime; emit maintenance scheduled event; update fleet availability
+
+Behavior OptimizeRoute
+    Input: vehicleId: string, driverId: string, stops: list, constraints: dict, departureTime: datetime
+    Output: routePlan: RoutePlan
+    Action: Validate vehicle and driver availability; apply vehicle dimension and weight restrictions; incorporate real-time traffic data; sequence stops for minimum distance and time; calculate fuel consumption estimate; verify hours-of-service compliance for route duration; generate turn-by-turn directions; emit route planned event; update dispatch board
+
+Behavior ProcessFuelTransaction
+    Input: fuelCardId: string, stationData: dict, volume: float, price: float, odometer: float
+    Output: transaction: FuelTransaction
+    Action: Match fuel card to vehicle and driver; verify station location against vehicle GPS; calculate expected consumption vs actual; flag anomalies for review; persist transaction; update fuel efficiency metrics; emit fuel transaction event; recalculate vehicle cost-per-mile
+
+Behavior MonitorDriverBehavior
+    Input: telemetryEvent: TelemetryEvent
+    Output: safetyAssessment: dict
+    Action: Analyze event against safety thresholds; detect hard braking, acceleration, and cornering; evaluate speeding patterns; check hours-of-service compliance; generate safety event if threshold exceeded; update driver safety score; trigger coaching notification if pattern detected; emit safety event for serious violations
+
+Behavior TrackVehiclePosition
+    Input: vehicleId: string
+    Output: positionData: dict
+    Action: Retrieve latest GPS telemetry; calculate heading and speed; check geofence boundaries; verify data freshness; detect unauthorized stop or deviation; update trip record; refresh fleet map display; emit position update event; trigger alert if anomaly detected
+
+Behavior PredictMaintenanceNeed
+    Input: vehicleId: string
+    Output: prediction: dict
+    Action: Aggregate telemetry data including vibration, temperature, and diagnostic codes; apply predictive model for component failure probability; estimate remaining useful life; compare against maintenance schedule; generate early warning if probability exceeds threshold; recommend preemptive service; emit prediction event; update maintenance planning
+
+Condition:
+    When vehicle.nextServiceMileage minus vehicle.currentOdometer is less than 500 AND no maintenanceOrder is scheduled
+    Then auto-generate maintenance work order with standard priority; notify fleet manager; restrict long-haul dispatch assignments; check parts availability; schedule vendor appointment
+
+Condition:
+    When driverRecord.availableHours falls below 3 hours AND routePlan.estimatedDuration exceeds available hours
+    Then prevent route dispatch; flag for hours-of-service violation; suggest driver swap or rest stop; adjust route plan; notify dispatch manager; log compliance check event
+
+Condition:
+    When fuelTransaction.anomalyFlag is true AND transaction location is more than 1 kilometer from vehicle GPS
+    Then freeze fuel card pending investigation; alert fleet security; generate fraud investigation case; notify driver and manager; audit recent transactions for pattern
+
+Condition:
+    When telemetryEvent.speed exceeds posted speed limit by more than 15 percent
+    Then log speeding event against driver record; decrement driver safety score; trigger coaching notification for repeated offense; escalate to safety manager if pattern persists; update compliance dashboard
+
+Condition:
+    When vehicle.diagnosticCodes contain critical severity codes
+    Then immediately notify fleet operations; restrict vehicle from dispatch; schedule emergency diagnostic; alert driver via in-cab system; update maintenance prediction model; log critical event for safety review
+
+Event:
+    On VehicleEnteredGeofence
+    Action: Log arrival at designated location; update route progress; trigger delivery confirmation if customer site; start dwell time counter; notify dispatch of arrival; update ELD status if applicable
+
+Event:
+    On MaintenanceCompleted
+    Action: Update vehicle service history; reset service interval counters; release vehicle from maintenance hold; update parts inventory; recalculate total cost of ownership; emit vehicle available event; refresh fleet availability
+
+Event:
+    On SafetyViolationDetected
+    Action: Record violation in driver file; decrement safety score; trigger coaching workflow for minor violations; escalate serious violations to safety manager; update compliance reporting; schedule remedial training if threshold crossed
+
+Event:
+    On FuelAnomalyDetected
+    Action: Flag transaction for investigation; freeze fuel card if severity high; alert fleet security; generate investigation case; audit surrounding transactions; update fraud detection model parameters
+
+Event:
+    On PredictiveMaintenanceAlert
+    Action: Schedule preemptive maintenance work order; notify fleet manager of predicted failure; adjust vehicle dispatch restrictions; order parts proactively; update maintenance calendar; log prediction accuracy for model feedback
+
+Parallel:
+    - Real-time vehicle position tracking and geofence monitoring
+    - Predictive maintenance model inference across fleet
+    - Route optimization calculations for pending dispatches
+    - Fuel efficiency analytics and anomaly detection
+    - Driver hours-of-service compliance monitoring
+
+Optimize: Fleet total cost of ownership and on-time delivery performance
+    Priority: Vehicle and driver safety over schedule adherence
+    Priority: Regulatory compliance over operational convenience
+    Priority: Predictive maintenance over reactive repair costs
+    Priority: Fuel efficiency over route simplicity
+
+Learn: Predictive maintenance accuracy for component failures
+    Goal: Predict critical component failure 7 days in advance with 80 percent precision
+    Adapt: Maintenance prediction model thresholds and feature selection
+    Based: Telemetry vibration patterns, temperature trends, diagnostic code sequences, and failure outcome data
+
+Learn: Route efficiency optimization
+    Goal: Reduce average fuel consumption per route by 12 percent while maintaining on-time delivery above 92 percent
+    Adapt: Route selection algorithms and stop sequencing heuristics
+    Based: Historical route performance, traffic pattern learning, and vehicle-specific consumption profiles
+
+Learn: Driver safety risk prediction
+    Goal: Identify at-risk drivers before safety incident with 75 percent recall
+    Adapt: Safety score calculation and coaching trigger thresholds
+    Based: Behavioral event patterns, route difficulty factors, time-of-day risk, and incident history
+
+Learn: Fuel consumption anomaly detection
+    Goal: Detect fuel theft or fraud within 24 hours with 90 percent precision
+    Adapt: Anomaly detection thresholds and feature weighting
+    Based: GPS-fuel transaction correlation patterns, vehicle efficiency baselines, and historical fraud cases
+
+Security:
+    Encrypt: All vehicle GPS location data and route information in transit
+    Encrypt: Driver personally identifiable information including license and compliance records
+    Encrypt: Fuel card credentials and transaction data with point-to-point encryption
+    Protect: Vehicle dispatch and route modification with role-based authorization
+    Protect: Telematics data streams with device authentication and integrity verification
+    Protect: Maintenance records from unauthorized modification after completion sign-off
+    Protect: Driver hours-of-service records per ELD mandate tamper-proof requirements
+
+Native: python
+{
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional
+import math
+
+class RouteOptimizer:
+    """Multi-constraint route optimization with real-time traffic integration."""
+
+    def __init__(self, restriction_db: Dict, traffic_client: object):
+        self.restrictions = restriction_db
+        self.traffic = traffic_client
+
+    def optimize_route(self, vehicle: Dict, stops: List[Dict],
+                       departure_time: datetime, constraints: Dict) -> Dict:
+        valid_stops = self._filter_restricted_stops(vehicle, stops)
+        sequenced = self._sequence_stops(valid_stops, departure_time)
+        route_segments = self._build_segments(sequenced)
+
+        total_distance = sum(s["distance_km"] for s in route_segments)
+        total_duration = sum(s["duration_min"] for s in route_segments)
+        fuel_estimate = self._estimate_fuel(vehicle, route_segments)
+
+        hos_ok = self._check_hours_of_service(
+            constraints.get("available_hours", 11),
+            total_duration
+        )
+
+        return {
+            "route_id": f"RT-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+            "vehicle_id": vehicle["vehicle_id"],
+            "stops": sequenced,
+            "segments": route_segments,
+            "total_distance_km": round(total_distance, 1),
+            "total_duration_min": round(total_duration, 0),
+            "fuel_estimate_liters": round(fuel_estimate, 1),
+            "hours_of_service_compliant": hos_ok,
+            "restrictions_applied": len(stops) - len(valid_stops)
+        }
+
+    def _filter_restricted_stops(self, vehicle: Dict, stops: List[Dict]) -> List[Dict]:
+        valid = []
+        for stop in stops:
+            zone_restrictions = self.restrictions.get(stop["location_id"], {})
+            if (vehicle["gross_weight"] <= zone_restrictions.get("max_weight", 999999) and
+                vehicle.get("height", 3.5) <= zone_restrictions.get("max_height", 99.0) and
+                vehicle.get("hazmat_class", "none") in zone_restrictions.get("allowed_hazmat", ["none"])):
+                valid.append(stop)
+        return valid
+
+    def _sequence_stops(self, stops: List[Dict], departure: datetime) -> List[Dict]:
+        if len(stops) <= 1:
+            return stops
+        # Nearest-neighbor heuristic for initial sequence
+        sequence = [stops[0]]
+        remaining = stops[1:]
+        while remaining:
+            current = sequence[-1]
+            nearest = min(remaining, key=lambda s: self._haversine(
+                current["lat"], current["lon"], s["lat"], s["lon"]
+            ))
+            sequence.append(nearest)
+            remaining.remove(nearest)
+        # Assign estimated arrival times
+        current_time = departure
+        for i, stop in enumerate(sequence):
+            stop["sequence"] = i + 1
+            stop["eta"] = current_time.isoformat()
+            current_time += timedelta(minutes=30)  # service time
+        return sequence
+
+    def _estimate_fuel(self, vehicle: Dict, segments: List[Dict]) -> float:
+        base_consumption = vehicle.get("fuel_efficiency_km_per_liter", 4.0)
+        total_km = sum(s["distance_km"] for s in segments)
+        load_factor = 1.0 + (vehicle.get("load_weight", 0) / vehicle["gross_weight"]) * 0.15
+        return total_km / base_consumption * load_factor
+
+    def _check_hours_of_service(self, available: float, duration: float) -> bool:
+        return duration <= available * 60  # available in hours, duration in minutes
+
+    @staticmethod
+    def _haversine(lat1, lon1, lat2, lon2) -> float:
+        R = 6371
+        dlat, dlon = math.radians(lat2 - lat1), math.radians(lon2 - lon1)
+        a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1)) * \
+            math.cos(math.radians(lat2)) * math.sin(dlon/2)**2
+        return R * 2 * math.asin(math.sqrt(a))
+
+
+class PredictiveMaintenanceEngine:
+    """Predicts component failures from telemetry data using statistical thresholds."""
+
+    def __init__(self, thresholds: Dict):
+        self.thresholds = thresholds
+
+    def analyze(self, vehicle_id: str, telemetry_history: List[Dict]) -> Dict:
+        predictions = {}
+        for component, params in self.thresholds.items():
+            relevant = [t for t in telemetry_history if component in t.get("diagnostics", {})]
+            if not relevant:
+                continue
+            metric_values = [t["diagnostics"][component] for t in relevant]
+            trend = self._calculate_trend(metric_values)
+            threshold = params["threshold"]
+            current = metric_values[-1] if metric_values else 0
+
+            if trend > 0 and current > threshold * 0.8:
+                days_to_failure = self._estimate_failure_days(current, trend, threshold)
+                predictions[component] = {
+                    "current_value": current,
+                    "threshold": threshold,
+                    "trend": trend,
+                    "estimated_days_to_failure": days_to_failure,
+                    "risk_level": "high" if days_to_failure < 7 else "medium" if days_to_failure < 14 else "low"
+                }
+        return {"vehicle_id": vehicle_id, "predictions": predictions, "analyzed_at": datetime.utcnow().isoformat()}
+
+    @staticmethod
+    def _calculate_trend(values: List[float]) -> float:
+        if len(values) < 2:
+            return 0.0
+        return (values[-1] - values[0]) / len(values)
+
+    @staticmethod
+    def _estimate_failure_days(current: float, trend: float, threshold: float) -> int:
+        if trend <= 0:
+            return 999
+        remaining = (threshold - current) / trend
+        return max(0, int(remaining))
+}

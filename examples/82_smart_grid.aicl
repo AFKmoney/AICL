@@ -1,0 +1,582 @@
+# AICL Example: Smart Grid Management System
+# Intelligent smart grid management covering demand response, load balancing, renewable integration, outage management, and billing
+
+# === LEVEL 1: ARCHITECTURE ===
+
+Goal: Build an intelligent smart grid management platform that optimizes electricity distribution through real-time demand response, autonomous load balancing, seamless renewable energy integration, proactive outage management, and accurate consumer billing while ensuring grid stability, reliability, and regulatory compliance.
+
+Constraint: Grid control commands must achieve sub-second latency from decision to execution for frequency regulation and protection relay coordination.
+
+Constraint: System must support NERC CIP compliance for critical infrastructure protection including cybersecurity standards.
+
+Constraint: Renewable generation forecasting must achieve accuracy above 90% for 24-hour ahead solar and 85% for wind predictions.
+
+Constraint: Billing must support net metering, time-of-use rates, demand charges, and distributed energy resource compensation.
+
+Risk: Cascading grid failure from protection relay miscoordination could cause widespread blackout affecting millions of consumers.
+Recovery: Implement defense-in-depth relay coordination with independent verification; deploy automatic load shedding with under-frequency protection; activate islanding detection and microgrid separation protocols; engage emergency coordination with neighboring grid operators; restore system using black-start generators per restoration plan.
+
+Risk: Renewable generation forecast error could cause supply-demand imbalance and frequency deviation.
+Recovery: Maintain spinning reserve margin exceeding forecast uncertainty; deploy fast-acting battery storage for ramp-rate compensation; implement dynamic operating reserve adjustment based on forecast confidence; activate demand response resources for rapid load reduction; curtail renewable output only as last resort with market compensation.
+
+Risk: Cybersecurity breach of SCADA systems could enable remote manipulation of grid infrastructure.
+Recovery: Implement air-gapped safety systems with manual override capability; deploy network segmentation with unidirectional gateways for control traffic; activate intrusion detection with automatic circuit breaker on anomalous commands; isolate compromised systems while maintaining grid operations through backup control; engage NERC CIP incident response team within 30 minutes.
+
+Risk: Billing system errors from smart meter data corruption could cause widespread consumer billing disputes.
+Recovery: Implement meter data validation with statistical outlier detection; maintain dual-path meter reading with reconciliation; generate estimated bills based on historical consumption when data is suspect; deploy automated bill correction and customer notification; audit meter data integrity on daily schedule.
+
+Risk: Demand response event failure during peak load could result in grid overload and equipment damage.
+Recovery: Implement staged demand response activation with escalating signals; deploy direct load control as automatic fallback; activate emergency load shedding as last resort; maintain critical infrastructure supply priority; compensate participating consumers per tariff schedule; post-event analysis for demand response program improvement.
+
+Risk: DER interconnection issues could cause voltage regulation problems and power quality degradation.
+Recovery: Implement real-time voltage monitoring at DER interconnection points; deploy smart inverter volt-VAR optimization; activate automatic DER curtailment for voltage exceedance; engage utility-scale voltage regulation equipment; notify DER operators of interconnection issues; update hosting capacity maps based on observed conditions.
+
+Layer: SmartGridManagement
+    SubLayer: GridOperations
+        # SCADA interface, frequency regulation, load balancing, protection coordination
+    SubLayer: DemandResponse
+        # DR events, load control, consumer programs, baseline calculation
+    SubLayer: RenewableIntegration
+        # Generation forecasting, DER management, curtailment, grid services
+    SubLayer: OutageManagement
+        # Fault detection, crew dispatch, restoration tracking, customer communication
+    SubLayer: MeteringAndBilling
+        # Smart meter data, rate calculation, net metering, billing generation
+
+Validation: Grid frequency maintained within ±0.05 Hz of nominal under normal operating conditions.
+Validation: Protection relay coordination validated against short-circuit study results annually.
+Validation: Demand response event baseline validated using 10-day comparable baseline methodology.
+Validation: Renewable generation forecast accuracy validated against actual generation on rolling 30-day basis.
+Validation: Smart meter data validated against consumption reasonableness checks and tamper detection.
+Validation: Billing calculations validated against rate tariff schedules with zero tolerance for rate misapplication.
+Validation: DER interconnection compliance validated against IEEE 1547 standard requirements.
+
+# === LEVEL 2: ENTITIES ===
+
+Entity GridNode
+    nodeId: string
+    nodeName: string
+    nodeType: string
+    voltageLevel: float
+    nominalFrequency: float
+    connectedElements: list
+    protectionSettings: dict
+    telemetryStreamId: string
+    geographicLocation: dict
+    operatingStatus: string
+    maintenanceSchedule: list
+    lastInspectionDate: datetime
+    criticalityRating: string
+
+Entity GenerationUnit
+    unitId: string
+    plantName: string
+    fuelType: string
+    ratedCapacity: float
+    currentOutput: float
+    minStableGeneration: float
+    rampRateUp: float
+    rampRateDown: float
+    efficiency: float
+    marginalCost: float
+    availabilityStatus: string
+    maintenanceWindow: dict
+    emissionRate: float
+    gridConnectionPoint: string
+    dispatchPriority: integer
+
+Entity RenewableAsset
+    assetId: string
+    assetType: string
+    nameplateCapacity: float
+    currentOutput: float
+    forecastOutput24h: list
+    location: dict
+    gridConnectionId: string
+    inverterSettings: dict
+    curtailmentStatus: boolean
+    curtailmentAmount: float
+    powerPurchaseAgreement: dict
+    operationalDate: datetime
+    capacityFactor: float
+
+Entity DemandResource
+    resourceId: string
+    consumerId: string
+    resourceType: string
+    controllableLoad: float
+    notificationLeadTime: integer
+    maxDurationMinutes: integer
+    enrollmentProgram: string
+    baselineMethod: string
+    currentBaseline: float
+    lastEventDate: datetime
+    complianceScore: float
+    compensationRate: float
+    deviceIds: list
+
+Entity OutageEvent
+    outageId: string
+    affectedCircuitId: string
+    outageType: string
+    startTime: datetime
+    estimatedRestorationTime: datetime
+    actualRestorationTime: datetime
+    affectedCustomers: integer
+    crewId: string
+    cause: string
+    restorationSteps: list
+    customerCommunications: list
+    etrUpdates: list
+    status: string
+    priority: string
+
+Entity SmartMeter
+    meterId: string
+    consumerId: string
+    serviceAddress: dict
+    meterType: string
+    installationDate: datetime
+    readingInterval: integer
+    lastReading: float
+    lastReadingTime: datetime
+    netMeteringEnabled: boolean
+    derConnectionId: string
+    tamperFlags: list
+    firmwareVersion: string
+    communicationStatus: string
+    rateSchedule: string
+
+Entity ConsumerBill
+    billId: string
+    consumerId: string
+    billingPeriodStart: datetime
+    billingPeriodEnd: datetime
+    energyConsumed: float
+    energyExported: float
+    netEnergy: float
+    demandCharge: float
+    energyCharge: float
+    timeOfUseCharges: dict
+    feedInCredit: float
+    totalAmount: float
+    dueDate: datetime
+    paymentStatus: string
+    rateSchedule: string
+
+# === LEVEL 3: BEHAVIORS ===
+
+Behavior BalanceGridLoad
+    Input: currentDemand: float, currentSupply: float, frequencyDeviation: float, reserveMargin: float
+    Output: dispatchOrders: list, loadShedActions: list, reserveAdjustments: dict
+    Action:
+        Monitor real-time frequency deviation and Area Control Error
+        Calculate supply-demand balance across all control areas
+        Prioritize dispatch based on marginal cost and ramp capability
+        Activate spinning reserve if frequency deviation exceeds threshold
+        Issue demand response signals if supply deficit persists
+        Implement automatic load shedding as last resort per priority scheme
+        Log all dispatch decisions with timestamps and rationale
+
+Behavior ForecastRenewableGeneration
+    Input: assetId: string, forecastHorizon: integer, weatherData: dict, historicalData: dict
+    Output: forecastSeries: list, confidenceIntervals: list, rampEvents: list
+    Action:
+        Ingest numerical weather prediction data from multiple models
+        Apply machine learning ensemble combining physical and statistical models
+        Generate probabilistic forecasts with confidence intervals
+        Identify significant ramp events requiring advanced preparation
+        Update forecasts every 15 minutes with latest observations
+        Compare forecast accuracy against actual generation for model improvement
+        Distribute forecasts to market and grid operations systems
+
+Behavior ManageDemandResponseEvent
+    Input: eventId: string, targetReduction: float, eventDuration: integer, notificationLead: integer, priority: string
+    Output: enrolledResources: list, expectedReduction: float, notificationResults: list
+    Action:
+        Identify eligible demand resources based on program enrollment
+        Calculate expected load reduction per resource from baseline methodology
+        Issue demand response dispatch signals to enrolled resources
+        Track real-time load reduction against baseline and target
+        Calculate performance compliance scores for each resource
+        Generate post-event settlement and consumer compensation
+        Update demand response program analytics and resource ratings
+
+Behavior DetectAndManageOutage
+    Input: faultIndicators: dict, circuitId: string, protectionEvents: list, customerReports: list
+    Output: outageRecord: dict, crewDispatch: dict, customerNotifications: list
+    Action:
+        Correlate fault indicators from SCADA and smart meter data
+        Determine outage scope using connectivity model and meter pings
+        Classify outage cause from protection relay event analysis
+        Dispatch repair crew with fault location and safety information
+        Generate customer notifications with estimated restoration time
+        Track restoration progress with real-time crew location updates
+        Update outage management system with restoration confirmation
+
+Behavior CalculateConsumerBilling
+    Input: consumerId: string, billingPeriod: dict, meterReadings: list, rateSchedule: dict, netMeteringData: dict
+    Output: bill: dict, chargeBreakdown: dict, comparisonData: dict
+    Action:
+        Validate and process interval meter data for billing period
+        Apply time-of-use rate schedules to consumption intervals
+        Calculate demand charges based on peak demand measurements
+        Process net metering credits for exported energy
+        Apply feed-in tariff compensation per regulatory requirements
+        Generate bill with detailed charge breakdown and comparison
+        Flag unusual consumption patterns for customer notification
+
+Behavior CoordinateDER
+    Input: derId: string, gridConditions: dict, interconnectionLimits: dict, marketSignals: dict
+    Output: dispatchCommand: dict, voltageRegulation: dict, curtailmentNotice: dict
+    Action:
+        Monitor DER output against interconnection agreement limits
+        Implement smart inverter volt-VAR optimization commands
+        Issue curtailment signals when hosting capacity exceeded
+        Coordinate DER dispatch with bulk generation scheduling
+        Apply IEEE 1547 compliance requirements for grid support functions
+        Calculate DER compensation per applicable tariff or PPA
+        Update hosting capacity maps with real-time DER status
+
+Behavior ExecuteFrequencyRegulation
+    Input: areaControlError: float, frequencyDeviation: float, regulationReserve: dict, marketSignals: dict
+    Output: regulationDispatch: list, reserveDeployment: dict, performanceMetrics: dict
+    Action:
+        Calculate Area Control Error from tie-line flows and frequency bias
+        Deploy regulation reserve resources based on ACE magnitude
+        Apply proportional-integral control logic for smooth response
+        Coordinate regulation across multiple generation resources
+        Track regulation mileage and performance compliance scores
+        Settle regulation service payments based on performance metrics
+        Report frequency regulation performance to reliability coordinator
+
+# === LEVEL 4: CONDITIONS ===
+
+Condition: FrequencyDeviationCritical
+    When grid frequency deviates beyond ±0.1 Hz from nominal (60 Hz or 50 Hz) for more than 30 seconds
+    Then activate emergency frequency response; deploy all available spinning reserve within 60 seconds; initiate automatic under-frequency load shedding per staged plan; notify reliability coordinator of frequency emergency; engage fast-acting battery storage for immediate injection; curtail non-essential loads through direct load control; prepare black-start capability for worst-case scenario
+
+Condition: RenewableRampEventDetected
+    When renewable generation forecast indicates ramp rate exceeding 10% of installed capacity within 15 minutes
+    Then pre-position fast-ramping generation resources; activate battery storage for ramp-rate smoothing; increase operating reserve allocation proportional to ramp uncertainty; notify grid operators of anticipated ramp event; adjust interconnection flow limits if needed; prepare curtailment protocols if ramp exceeds grid absorption capacity
+
+Condition: OutageAffectedCriticalInfrastructure
+    When outage event affects hospitals, water treatment plants, emergency services, or other critical infrastructure
+    Then prioritize restoration for critical infrastructure circuits; dispatch additional crew resources; deploy mobile generation if restoration will exceed 2 hours; notify emergency management authorities; activate mutual assistance agreements; provide continuous ETR updates to affected critical facilities; escalate to utility executive leadership
+
+Condition: SmartMeterDataAnomaly
+    When meter reading deviates more than 3 standard deviations from historical consumption pattern or tamper detection triggers
+    Then flag account for meter data investigation; dispatch field technician for meter inspection; generate estimated bill based on historical usage pending investigation; notify consumer services of potential billing issue; log anomaly in meter data management system; escalate confirmed tamper events to revenue protection
+
+Condition: DemandResponseNonCompliance
+    When demand resource fails to achieve contracted load reduction during dispatched event by more than 20%
+    Then calculate underperformance penalty per program terms; generate compliance report with baseline comparison; notify resource owner of non-compliance; adjust future dispatch priority based on compliance score; offer remediation support for technical issues; update demand response capacity planning to reflect actual available capacity
+
+Condition: GridCybersecurityThreat
+    When intrusion detection system identifies unauthorized access attempt or anomalous control traffic on SCADA network
+    Then immediately isolate affected network segments; activate air-gapped backup control systems; block all remote access to control systems; notify NERC CIP compliance team and cybersecurity operations center; preserve forensic evidence for investigation; continue grid operations via local control with manual override; engage law enforcement if criminal activity suspected
+
+# === LEVEL 5: EVENTS ===
+
+Event: GridFrequencyDeviation
+    On real-time frequency measurement deviates from nominal beyond normal operating range
+    Action: Log frequency deviation event with magnitude and duration; trigger frequency response resources; calculate ACE contribution; notify grid operators via SCADA alarm; update frequency regulation performance metrics; generate post-event analysis report
+
+Event: DemandResponseEventActivated
+    On demand response event signal dispatched to enrolled resources
+    Action: Send notification to enrolled consumers; begin real-time baseline comparison tracking; monitor load reduction against target; update demand response dashboard; calculate expected settlement amounts; notify grid operations of available load reduction
+
+Event: OutageDetected
+    On fault indicators and smart meter signals confirm outage condition
+    Action: Create outage record in OMS; determine scope via connectivity model; dispatch restoration crew; generate customer notifications; notify public safety answering points; activate mutual assistance if widespread; begin ETR calculation and tracking
+
+Event: RenewableForecastUpdated
+    On new renewable generation forecast generated from latest weather model run
+    Action: Distribute updated forecast to grid operations and market systems; compare against previous forecast for significant changes; update operating reserve requirements; adjust generation dispatch schedule; notify DER operators of expected conditions; calculate forecast accuracy metrics
+
+Event: SmartMeterReadingReceived
+    On interval meter reading successfully received and validated
+    Action: Validate reading against consumption reasonableness checks; update consumer usage dashboard; feed data to billing calculation pipeline; update aggregate demand forecast model; check for tamper indicators; reconcile with SCADA metering at transformer level
+
+Event: DERCurtailmentIssued
+    On curtailment command issued to DER asset due to grid constraints
+    Action: Log curtailment event with reason and duration; notify DER owner of curtailment and compensation rights; track curtailment amount for settlement; update hosting capacity calculation; verify curtailment compliance via telemetry; generate regulatory curtailment report
+
+# === LEVEL 6: CONCURRENCY ===
+
+Parallel:
+    Grid telemetry collection and frequency regulation control loop executing concurrently at sub-second intervals
+    Renewable generation forecasting and dispatch schedule optimization running simultaneously every 15 minutes
+    Smart meter data ingestion and billing calculation pipeline executing concurrently for millions of meters
+    Outage detection from SCADA and smart meter networks running in parallel for rapid fault identification
+    Demand response signal dispatch and load reduction monitoring executing concurrently during events
+    DER coordination commands and grid condition monitoring running simultaneously for real-time optimization
+    Consumer billing calculations and rate schedule application executing in parallel for billing cycle efficiency
+
+# === LEVEL 7: OPTIMIZATION ===
+
+Optimize: Grid frequency regulation response time
+    Priority: Achieve ACE recovery within 15 minutes per NERC BAL standard; minimize frequency deviation duration; optimize regulation resource deployment for cost and performance
+
+Optimize: Renewable energy utilization and curtailment minimization
+    Priority: Reduce renewable curtailment below 3% of available energy; maximize renewable energy absorption through storage and demand flexibility; optimize forecast accuracy for reduced reserve requirements
+
+Optimize: Outage restoration time and customer communication
+    Priority: Achieve average outage restoration time under 90 minutes; provide ETR accuracy within 30 minutes of actual; maintain customer notification within 5 minutes of outage detection
+
+Optimize: Demand response program effectiveness
+    Priority: Achieve 90% resource compliance during dispatched events; minimize notification-to-response time to under 10 minutes; maximize cost-effectiveness of demand response versus generation investment
+
+Optimize: Billing accuracy and processing efficiency
+    Priority: Achieve billing accuracy above 99.5%; process monthly billing for 5 million meters within 24-hour window; reduce billing disputes below 0.5% of total bills issued
+
+# === LEVEL 8: LEARNING ===
+
+Learn: Renewable generation forecasting model
+    Goal: Achieve 24-hour ahead solar forecast accuracy above 92% and wind forecast accuracy above 88% using ensemble ML methods
+    Adapt: Reserve requirement calculations and generation dispatch scheduling
+    Based: Forecast error distributions, weather model performance, and actual generation observations
+
+Learn: Grid load forecasting
+    Goal: Predict system peak demand with 97% accuracy 24 hours ahead and 99% accuracy 1 hour ahead
+    Adapt: Generation commitment schedule and operating reserve allocation
+    Based: Weather sensitivity patterns, historical load profiles, and holiday/special event calendars
+
+Learn: Outage cause classification
+    Goal: Automatically classify outage cause from fault signatures with 80% accuracy for faster crew dispatch
+    Adapt: Crew dispatch priority and resource allocation
+    Based: Protection relay event patterns, weather conditions, and historical outage cause distributions
+
+Learn: Demand response baseline prediction
+    Goal: Predict customer baseline load during DR events with 95% accuracy for fair performance measurement
+    Adapt: Baseline calculation methodology and compliance scoring
+    Based: Historical consumption patterns, weather adjustments, and day-type classification accuracy
+
+Learn: Meter tamper detection
+    Goal: Detect meter tampering and energy theft with 90% true positive rate and below 2% false positive rate
+    Adapt: Meter anomaly investigation prioritization and field audit scheduling
+    Based: Consumption pattern anomalies, neighbor comparison analysis, and confirmed tamper case features
+
+# === LEVEL 9: SECURITY ===
+
+Security:
+    Encrypt: All SCADA control commands using TLS 1.3 with mutual certificate authentication
+    Encrypt: Smart meter data in transit using DLMS/COSEM security layer and at rest using AES-256
+    Encrypt: Consumer billing and personal data with column-level encryption and key rotation
+    Protect: SCADA network with unidirectional security gateways and network segmentation per NERC CIP
+    Protect: Grid control systems with air-gapped safety overrides and hardware-based safety interlocks
+    Protect: DER interconnection commands with authenticated control channels and command validation
+    Protect: Consumer usage data with differential privacy for aggregate analytics and reporting
+    Protect: Demand response dispatch signals with message authentication codes and replay protection
+    Protect: API endpoints with OAuth 2.0, mTLS, and rate limiting with DDoS protection
+    Protect: Outage management system with role-based access and multi-factor authentication for dispatch
+
+# === LEVEL 10: NATIVE ===
+
+Native: Python
+{
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
+import statistics
+
+class SmartGridManager:
+    def __init__(self, db, scada_interface, forecast_service, market_service, meter_data_manager):
+        self.db = db
+        self.scada = scada_interface
+        self.forecast = forecast_service
+        self.market = market_service
+        self.mdm = meter_data_manager
+        self.frequency_nominal = 60.0
+        self.frequency_tolerance_normal = 0.05
+        self.frequency_tolerance_critical = 0.1
+        self.load_shedding_stages = {
+            1: {"frequency": 59.5, "load_pct": 0.10, "description": "Stage 1 - 10% load shed"},
+            2: {"frequency": 59.0, "load_pct": 0.15, "description": "Stage 2 - 15% additional"},
+            3: {"frequency": 58.5, "load_pct": 0.20, "description": "Stage 3 - 20% additional"},
+        }
+
+    def balance_grid_load(self, demand: float, supply: float, freq_deviation: float, reserve: float) -> Dict:
+        ace = (supply - demand) - (freq_deviation * 10)
+        actions = {"dispatch": [], "loadShed": [], "reserveAdjust": {}}
+
+        if abs(freq_deviation) > self.frequency_tolerance_critical:
+            if freq_deviation < 0:
+                deficit = demand - supply
+                fast_storage = self._deploy_battery_storage(deficit)
+                if fast_storage["deployed"] < deficit:
+                    remaining = deficit - fast_storage["deployed"]
+                    dr_reduction = self._activate_demand_response(remaining)
+                    if dr_reduction["achieved"] < remaining:
+                        shed_amount = remaining - dr_reduction["achieved"]
+                        actions["loadShed"] = self._calculate_load_shedding(shed_amount, freq_deviation)
+                actions["dispatch"].append({"type": "EMERGENCY_STORAGE", "amount": fast_storage["deployed"]})
+                actions["dispatch"].append({"type": "DEMAND_RESPONSE", "amount": dr_reduction["achieved"]})
+            else:
+                surplus = supply - demand
+                curtailment = self._curtail_renewables(surplus)
+                actions["dispatch"].append({"type": "RENEWABLE_CURTAILMENT", "amount": curtailment})
+
+        elif abs(freq_deviation) > self.frequency_tolerance_normal:
+            regulation = self._deploy_regulation_reserve(ace)
+            actions["dispatch"].append({"type": "REGULATION", "amount": regulation})
+
+        else:
+            economic_dispatch = self._economic_dispatch(demand)
+            actions["dispatch"].extend(economic_dispatch)
+
+        actions["reserveAdjust"] = self._calculate_reserve_needs(demand, reserve)
+        return actions
+
+    def forecast_renewable(self, asset_id: str, horizon_hours: int, weather: Dict) -> Dict:
+        asset = self.db.get("renewable_assets", asset_id)
+        historical = self.db.query("generation_history", {"assetId": asset_id}, limit=90*24)
+
+        forecasts = self.forecast.generate(
+            asset_type=asset["assetType"],
+            capacity=asset["nameplateCapacity"],
+            weather_data=weather,
+            historical=historical,
+            horizon_hours=horizon_hours,
+        )
+
+        ramp_events = self._detect_ramp_events(forecasts, asset["nameplateCapacity"])
+        return {
+            "assetId": asset_id,
+            "forecasts": forecasts,
+            "rampEvents": ramp_events,
+            "confidenceIntervals": forecasts.get("confidence", []),
+            "generatedAt": datetime.now().isoformat(),
+        }
+
+    def manage_demand_response(self, event_id: str, target_mw: float, duration_min: int, priority: str) -> Dict:
+        resources = self.db.query("demand_resources", {"enrollmentProgram": "ACTIVE"})
+        sorted_resources = sorted(resources, key=lambda r: r["compensationRate"])
+
+        dispatched = []
+        total_reduction = 0.0
+        for resource in sorted_resources:
+            if total_reduction >= target_mw:
+                break
+            reduction = min(resource["controllableLoad"], target_mw - total_reduction)
+            baseline = self._calculate_baseline(resource)
+            dispatched.append({
+                "resourceId": resource["resourceId"],
+                "expectedReduction": reduction,
+                "baseline": baseline,
+                "notificationLeadTime": resource["notificationLeadTime"],
+            })
+            total_reduction += reduction
+
+        return {
+            "eventId": event_id,
+            "targetReduction": target_mw,
+            "expectedReduction": total_reduction,
+            "resourcesDispatched": len(dispatched),
+            "dispatchDetails": dispatched,
+            "coverageRatio": total_reduction / target_mw if target_mw > 0 else 0,
+        }
+
+    def calculate_billing(self, consumer_id: str, period: Dict, rate_schedule: Dict) -> Dict:
+        readings = self.mdm.get_interval_data(consumer_id, period["start"], period["end"])
+        net_data = self.mdm.get_net_metering_data(consumer_id, period["start"], period["end"])
+
+        energy_consumed = sum(r["consumed"] for r in readings)
+        energy_exported = net_data.get("totalExported", 0)
+        net_energy = energy_consumed - energy_exported
+
+        tou_charges = self._apply_tou_rates(readings, rate_schedule)
+        demand_charge = self._calculate_demand_charge(readings, rate_schedule)
+        feed_in_credit = energy_exported * rate_schedule.get("feedInRate", 0.0)
+        energy_charge = sum(tou_charges.values())
+
+        total = energy_charge + demand_charge - feed_in_credit
+        total = max(total, rate_schedule.get("minimumCharge", 0))
+
+        return {
+            "consumerId": consumer_id,
+            "period": period,
+            "energyConsumed": energy_consumed,
+            "energyExported": energy_exported,
+            "netEnergy": net_energy,
+            "energyCharge": energy_charge,
+            "demandCharge": demand_charge,
+            "feedInCredit": feed_in_credit,
+            "totalAmount": total,
+            "touBreakdown": tou_charges,
+        }
+
+    def _deploy_battery_storage(self, deficit: float) -> Dict:
+        batteries = self.db.query("storage_assets", {"status": "AVAILABLE"})
+        deployed = 0.0
+        for bat in batteries:
+            available = min(bat["currentCharge"] * bat["dischargeRate"], deficit - deployed)
+            deployed += available
+            if deployed >= deficit:
+                break
+        return {"deployed": deployed}
+
+    def _activate_demand_response(self, amount: float) -> Dict:
+        resources = self.db.query("demand_resources", {"enrollmentProgram": "ACTIVE"})
+        achieved = sum(r["controllableLoad"] for r in resources[:5])
+        return {"achieved": min(achieved, amount)}
+
+    def _calculate_load_shedding(self, amount: float, freq_dev: float) -> List[Dict]:
+        stages = []
+        remaining = amount
+        for stage_num, config in sorted(self.load_shedding_stages.items()):
+            if freq_dev < (config["frequency"] - self.frequency_nominal) and remaining > 0:
+                stages.append({"stage": stage_num, "description": config["description"], "loadPercentage": config["load_pct"]})
+                remaining *= (1 - config["load_pct"])
+        return stages
+
+    def _curtail_renewables(self, surplus: float) -> float:
+        renewables = self.db.query("renewable_assets", {"curtailmentStatus": False})
+        curtailed = 0.0
+        for asset in sorted(renewables, key=lambda a: a.get("marginalCost", 0)):
+            if curtailed >= surplus:
+                break
+            available = asset["currentOutput"] - asset.get("minStableGeneration", 0)
+            curtailed += available
+        return curtailed
+
+    def _deploy_regulation_reserve(self, ace: float) -> float:
+        return min(abs(ace), 50.0)
+
+    def _economic_dispatch(self, demand: float) -> List[Dict]:
+        units = self.db.query("generation_units", {"availabilityStatus": "ONLINE"})
+        sorted_units = sorted(units, key=lambda u: u["marginalCost"])
+        dispatched = []
+        remaining = demand
+        for unit in sorted_units:
+            output = min(unit["ratedCapacity"] - unit["currentOutput"], remaining)
+            if output > 0:
+                dispatched.append({"unitId": unit["unitId"], "output": output, "cost": unit["marginalCost"]})
+                remaining -= output
+            if remaining <= 0:
+                break
+        return dispatched
+
+    def _calculate_reserve_needs(self, demand: float, current_reserve: float) -> Dict:
+        required = demand * 0.15
+        return {"required": required, "current": current_reserve, "deficit": max(0, required - current_reserve)}
+
+    def _calculate_baseline(self, resource: Dict) -> float:
+        return resource.get("currentBaseline", resource["controllableLoad"])
+
+    def _detect_ramp_events(self, forecasts: Dict, capacity: float) -> List[Dict]:
+        return []
+
+    def _apply_tou_rates(self, readings: List[Dict], schedule: Dict) -> Dict:
+        charges = {"peak": 0.0, "offPeak": 0.0, "shoulder": 0.0}
+        rates = schedule.get("touRates", {"peak": 0.15, "offPeak": 0.08, "shoulder": 0.11})
+        for r in readings:
+            period = r.get("touPeriod", "offPeak")
+            charges[period] = charges.get(period, 0) + r["consumed"] * rates.get(period, 0.08)
+        return charges
+
+    def _calculate_demand_charge(self, readings: List[Dict], schedule: Dict) -> float:
+        if not readings:
+            return 0.0
+        peak_demand = max(r.get("demand", 0) for r in readings)
+        return peak_demand * schedule.get("demandRate", 10.0)
+}

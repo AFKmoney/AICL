@@ -1,0 +1,619 @@
+# AICL Example: Online Examination System
+# Comprehensive online examination platform with question banking, proctoring, auto-grading, analytics, anti-cheat, and accessibility
+
+# === LEVEL 1: ARCHITECTURE ===
+
+Goal: Deliver a secure, accessible, and scalable online examination system that ensures exam integrity through advanced proctoring, supports diverse question types with intelligent auto-grading, provides comprehensive analytics, prevents cheating through multi-layered detection, and guarantees accessibility for all test-takers.
+
+Constraint: System must support WCAG 2.1 AA compliance for all examination interfaces including assistive technology compatibility.
+
+Constraint: Proctoring must support both live and AI-assisted modes with human review for all flagged incidents.
+
+Constraint: Anti-cheat system must detect 95% of common cheating methods with false positive rate below 5%.
+
+Constraint: Question bank must support at minimum 50,000 items with sub-second retrieval and statistical equivalence across generated forms.
+
+Risk: Exam content leakage before or during administration could compromise exam validity and require re-administration.
+Recovery: Implement content encryption with just-in-time decryption at exam start; deploy unique form generation per test-taker; immediately rotate compromised items; activate investigation protocol with digital forensics; notify affected institutions within 24 hours; prepare alternate exam forms for emergency re-administration.
+
+Risk: AI proctoring false positives could unfairly penalize honest test-takers and damage institutional trust.
+Recovery: Implement tiered flagging with confidence scores; require human review before any academic action; provide test-taker appeal process with full evidence review; maintain proctoring accuracy audit dashboard; adjust sensitivity thresholds based on validated outcome data; ensure due process for all flagged incidents.
+
+Risk: Auto-grading errors could produce incorrect scores affecting test-taker outcomes and institutional decisions.
+Recovery: Deploy dual-grading pipeline with automated cross-verification; implement confidence scoring for each graded item; flag items below confidence threshold for human review; maintain complete grading audit trail; enable test-taker score challenge within defined window; re-grade affected items upon error detection.
+
+Risk: System outage during active exam could cause test-taker data loss and schedule disruption.
+Recovery: Implement client-side auto-save every 30 seconds with local storage; maintain server-side session state replication; deploy automatic session recovery with preserved answers; extend exam timer by outage duration; provide alternative testing windows for affected test-takers; ensure zero-answer-data-loss guarantee.
+
+Risk: Accessibility tool incompatibility could prevent students with disabilities from completing examinations.
+Recovery: Maintain assistive technology compatibility testing lab; provide dedicated accessibility support hotline during exams; offer alternative format delivery for incompatible tools; implement fallback accessible interface; train proctors on disability accommodation protocols; ensure exam content works with screen readers, magnifiers, and switch access.
+
+Risk: Scale failures during concurrent high-stakes exams could cause widespread service degradation.
+Recovery: Deploy auto-scaling infrastructure with 500% burst capacity; implement priority queue for active exam sessions over administrative functions; activate CDN-based static asset delivery; maintain warm standby database replicas; implement graceful degradation preserving active exam sessions.
+
+Layer: ExaminationSystem
+    SubLayer: ExamDelivery
+        # Exam scheduling, form generation, timer management, session control
+    SubLayer: QuestionBank
+        # Item management, psychometrics, form assembly, version control
+    SubLayer: ProctoringEngine
+        # AI detection, live monitoring, flag management, evidence collection
+    SubLayer: GradingEngine
+        # Auto-grading, rubric management, score calculation, grade appeals
+    SubLayer: AntiCheatSystem
+        # Behavior analysis, content protection, similarity detection, forensics
+    SubLayer: AccessibilityServices
+        # WCAG compliance, accommodation management, AT compatibility, alt formats
+
+Validation: Exam form statistical equivalence validated against blueprint specifications before administration.
+Validation: Proctoring AI model accuracy validated against labeled test dataset with >95% sensitivity quarterly.
+Validation: Auto-grading results cross-validated against human expert grading for 5% sample on every exam.
+Validation: Accessibility compliance verified against WCAG 2.1 AA checklist for every exam template.
+Validation: Anti-cheat detection rate validated against known cheating method test suite semi-annually.
+Validation: Question bank item parameters calibrated against minimum 100 response sample before item activation.
+Validation: Timer accuracy validated against NTP-synchronized clock with drift tolerance below 1 second per hour.
+
+# === LEVEL 2: ENTITIES ===
+
+Entity Exam
+    examId: string
+    title: string
+    subjectCode: string
+    examType: string
+    durationMinutes: integer
+    totalMarks: float
+    passingMarks: float
+    questionBlueprint: dict
+    securityProfile: string
+    proctoringMode: string
+    schedulingWindow: dict
+    resultPublicationDate: datetime
+    instructions: string
+    allowedTools: list
+    accommodations: list
+    createdDate: datetime
+    status: string
+
+Entity ExamSession
+    sessionId: string
+    examId: string
+    testTakerId: string
+    scheduledStart: datetime
+    actualStart: datetime
+    actualEnd: datetime
+    remainingTimeSeconds: integer
+    sessionStatus: string
+    formId: string
+    proctorSessionId: string
+    accommodationFlags: list
+    answerSnapshot: dict
+    autoSaveCount: integer
+    connectionInterruptions: integer
+    flaggedIncidents: list
+    deviceInfo: dict
+
+Entity QuestionBankItem
+    itemId: string
+    subjectCode: string
+    topicCode: string
+    questionType: string
+    stem: string
+    stimulus: string
+    options: list
+    correctAnswer: any
+    scoringRubric: dict
+    explanation: string
+    difficultyParameter: float
+    discriminationParameter: float
+    guessingParameter: float
+    bloomLevel: string
+    tags: list
+    mediaAssets: list
+    accessibilityDescription: string
+    versionNumber: integer
+    isActive: boolean
+    usageCount: integer
+    lastCalibrationDate: datetime
+
+Entity ProctoringIncident
+    incidentId: string
+    sessionId: string
+    examId: string
+    testTakerId: string
+    incidentType: string
+    severity: string
+    confidenceScore: float
+    timestamp: datetime
+    evidenceData: dict
+    aiFlagDescription: string
+    humanReviewStatus: string
+    reviewerId: string
+    reviewNotes: string
+    resolutionAction: string
+    appealed: boolean
+    appealOutcome: string
+
+Entity GradingResult
+    resultId: string
+    sessionId: string
+    examId: string
+    testTakerId: string
+    itemId: string
+    itemResponse: any
+    awardedMarks: float
+    maximumMarks: float
+    gradingMethod: string
+    gradingConfidence: float
+    humanReviewerId: string
+    rubricMatch: dict
+    partialCreditApplied: boolean
+    gradingTimestamp: datetime
+    challengeStatus: string
+
+Entity TestTakerProfile
+    testTakerId: string
+    firstName: string
+    lastName: string
+    email: string
+    institutionId: string
+    accommodations: list
+    assistiveTech: list
+    examHistory: list
+    identityVerification: dict
+    deviceProfile: dict
+    lastExamDate: datetime
+    integrityScore: float
+    registrationDate: datetime
+
+Entity ExamAnalytics
+    analyticsId: string
+    examId: string
+    administrationDate: datetime
+    totalTestTakers: integer
+    completedCount: integer
+    averageScore: float
+    medianScore: float
+    standardDeviation: float
+    passRate: float
+    reliabilityIndex: float
+    itemAnalysis: list
+    difficultyDistribution: dict
+    scoreDistribution: dict
+    demographicBreakdown: dict
+    incidentSummary: dict
+    generatedDate: datetime
+
+# === LEVEL 3: BEHAVIORS ===
+
+Behavior GenerateExamForm
+    Input: examId: string, blueprint: dict, testTakerId: string, accommodationFlags: list
+    Output: examForm: dict, formValidation: dict, deliveryConfig: dict
+    Action:
+        Apply exam blueprint specifications for content domain coverage
+        Select items from question bank using IRT-based adaptive or random selection
+        Assemble form ensuring statistical equivalence and content balance
+        Apply accommodation modifications (extended time, alternative format)
+        Encrypt form content with test-taker-specific key
+        Validate form against blueprint constraints and psychometric properties
+        Package form for just-in-time delivery at exam start
+
+Behavior AdministerExam
+    Input: sessionId: string, testTakerId: string, securityContext: dict, proctorConfig: dict
+    Output: sessionState: dict, proctoringStatus: dict, timerConfig: dict
+    Action:
+        Verify test-taker identity with multi-factor authentication
+        Initialize proctoring session with configured mode and sensitivity
+        Decrypt and render exam form with accessibility-enabled interface
+        Start server-side timer with NTP synchronization
+        Activate anti-cheat monitoring including browser lockdown
+        Configure auto-save interval and connection resilience
+        Enable accommodation features per test-taker profile
+
+Behavior ProcessExamResponse
+    Input: sessionId: string, itemId: string, response: any, timestamp: datetime, clientMetadata: dict
+    Output: saveConfirmation: dict, answerValidation: dict, integrityCheck: dict
+    Action:
+        Validate response format against item type specifications
+        Save response to server with atomic write and confirmation
+        Run real-time anti-cheat analysis on response patterns
+        Update session answer snapshot for recovery purposes
+        Check timer validity and reject out-of-time responses
+        Process accessibility-specific response formats
+        Log response event in session audit trail
+
+Behavior AutoGradeExam
+    Input: sessionId: string, examId: string, gradingConfig: dict
+    Output: scoreReport: dict, itemResults: list, flaggedItems: list, confidenceScores: dict
+    Action:
+        Retrieve all responses for the completed exam session
+        Apply objective item scoring with exact match or partial credit rubric
+        Process subjective items using NLP-based rubric matching
+        Calculate confidence scores for each graded item
+        Flag items with confidence below threshold for human review
+        Compute total and section scores with penalty application
+        Generate detailed score report with item-level breakdown
+
+Behavior DetectExamIntegrityViolation
+    Input: sessionId: string, behaviorData: dict, responsePatterns: dict, environmentData: dict
+    Output: integrityReport: dict, flaggedBehaviors: list, riskScore: float, evidencePackage: dict
+    Action:
+        Analyze response time patterns for anomalous speed or pauses
+        Compare response similarity with other test-takers for collusion detection
+        Detect screen sharing, tab switching, or unauthorized application use
+        Monitor gaze direction and face detection via proctoring feed
+        Analyze keystroke dynamics for impersonation detection
+        Check for content leakage indicators in response patterns
+        Generate evidence package with timestamps and screenshots for flagged incidents
+
+Behavior ManageAccommodations
+    Input: testTakerId: string, examId: string, accommodationRequest: dict, documentation: list
+    Output: accommodationPlan: dict, modifiedExamConfig: dict, approvalStatus: string
+    Action:
+        Validate accommodation request against approved documentation
+        Apply time extensions per accommodation specifications
+        Configure alternative response formats for motor accessibility
+        Enable screen reader compatible content delivery
+        Set up separate testing environment if required
+        Adjust proctoring sensitivity for accommodation-related behaviors
+        Generate accommodation compliance report for regulatory audit
+
+Behavior ProduceExamAnalytics
+    Input: examId: string, administrationId: string, analysisParameters: dict
+    Output: analyticsReport: dict, psychometricSummary: dict, equityAnalysis: dict
+    Action:
+        Calculate descriptive statistics for score distribution
+        Perform item analysis with difficulty and discrimination indices
+        Compute exam reliability using internal consistency measures
+        Conduct differential item functioning analysis for equity
+        Generate score distribution histograms and percentile ranks
+        Compare performance across demographic groups for fairness
+        Produce comprehensive analytics report for stakeholders
+
+# === LEVEL 4: CONDITIONS ===
+
+Condition: ProctoringIncidentDetected
+    When AI proctoring system flags behavior with confidence score above medium threshold (0.6) or live proctor reports concern
+    Then create incident record with evidence capture; pause exam only for high-confidence severe incidents (0.85+); notify human reviewer for immediate assessment; continue exam session for medium-confidence flags pending review; alert test-taker with warning for moderate violations; ensure due process documentation for all flagged incidents
+
+Condition: ExamTimeExpired
+    When server-side timer reaches zero or accommodated time limit is exhausted
+    Then automatically submit all saved responses; disable further answer entry; save final answer snapshot with timestamp; calculate and record time-overage if any grace period; notify test-taker of automatic submission; generate session completion event; prevent any modifications to submitted responses
+
+Condition: AnswerSimilarityThresholdExceeded
+    When response pattern analysis detects similarity above statistical threshold between two or more test-takers on same exam form
+    Then flag involved test-takers for collusion investigation; preserve complete response and session data; notify academic integrity office with preliminary analysis; expand similarity check across all test-takers on same administration; do not alter scores pending investigation outcome; engage forensic analyst for detailed pattern analysis
+
+Condition: GradingConfidenceLow
+    When auto-grading confidence score falls below threshold (0.85 for objective, 0.70 for subjective items)
+    Then route item to human grader queue with priority classification; display preliminary score with pending flag to test-taker; apply human grade as final when completed; track auto-grading accuracy for model improvement; escalate if confidence below 0.50 for immediate human review; maintain dual-grading audit trail
+
+Condition: SystemInterruptionDuringExam
+    When test-taker connection drops or system error occurs during active exam session
+    Then preserve all submitted answers in client-side storage; pause server-side timer immediately; attempt automatic reconnection with session state restoration; upon reconnection, restore exact timer state and current question; if reconnection fails within 10 minutes, activate alternative testing arrangement; log interruption event for timer adjustment calculation
+
+Condition: AccessibilityAccommodationRequired
+    When test-taker profile indicates required accommodation not properly configured in exam session
+    Then halt exam start until accommodation is properly configured; notify accommodation coordinator of configuration gap; apply accommodation settings from approved profile; verify assistive technology compatibility before exam resumption; document accommodation delivery for compliance record; extend timer appropriately for accommodation-related delays
+
+# === LEVEL 5: EVENTS ===
+
+Event: ExamSessionStarted
+    On test-taker successfully authenticated and exam form delivered
+    Action: Activate server-side timer; begin proctoring session recording; initialize auto-save mechanism; send session start confirmation to test-taker; log session start in audit trail; update exam administration real-time dashboard
+
+Event: ExamResponseSubmitted
+    On test-taker submits response to individual exam item
+    Action: Save response with atomic write confirmation; validate response format; update answer snapshot for recovery; run real-time integrity check; update progress tracking; recalculate remaining time estimate
+
+Event: ExamSessionCompleted
+    On test-taker submits final exam or timer expires with auto-submission
+    Action: Capture final answer snapshot; terminate proctoring session; trigger auto-grading pipeline; generate session completion audit record; send completion confirmation to test-taker; schedule result publication per configured timeline
+
+Event: IntegrityIncidentEscalated
+    On proctoring incident escalated to human reviewer after AI flagging
+    Action: Assign incident to qualified reviewer queue; provide full evidence package including video clips; set review SLA of 4 hours for high-severity incidents; notify test-taker of pending review (without details); preserve all session data for investigation; update integrity incident dashboard
+
+Event: ExamGraded
+    On all items in exam session receive final grading (auto or human)
+    Action: Calculate final score with all rubric adjustments; generate detailed score report; apply grading scale for letter grade if configured; update test-taker exam history; prepare result for publication on configured date; trigger score challenge window; generate item-level analytics contribution
+
+Event: ScoreChallengeFiled
+    On test-taker submits formal score challenge within challenge window
+    Action: Create challenge record with test-taker justification; assign to independent grader for review; preserve original grading for comparison; set 5-business-day resolution SLA; notify test-taker of challenge receipt and timeline; update grade upon resolution if warranted; log challenge outcome for grading quality tracking
+
+# === LEVEL 6: CONCURRENCY ===
+
+Parallel:
+    Exam form generation and content encryption executing concurrently for just-in-time delivery
+    Response saving and integrity checking running simultaneously during active exam sessions
+    AI proctoring analysis and live proctor monitoring executing in parallel for comprehensive coverage
+    Auto-grading for objective items and NLP-based subjective grading running concurrently
+    Answer similarity detection across test-takers and individual behavior analysis executing simultaneously
+    Accessibility accommodation processing and exam configuration running in parallel at session start
+    Real-time analytics aggregation and exam dashboard updates executing concurrently during administration
+
+# === LEVEL 7: OPTIMIZATION ===
+
+Optimize: Exam session reliability and zero data loss
+    Priority: Achieve 99.99% session completion rate without data loss; maintain auto-save recovery for 100% of interruptions; ensure timer accuracy within 1 second per hour
+
+Optimize: Question bank retrieval and form generation speed
+    Priority: Generate statistically equivalent exam forms within 3 seconds; support 50,000+ item bank with sub-second item retrieval; optimize IRT-based selection algorithm performance
+
+Optimize: Proctoring accuracy and false positive reduction
+    Priority: Achieve 95% true positive detection rate for cheating behaviors; reduce false positive rate below 5%; process video analysis within 2 seconds of event occurrence
+
+Optimize: Auto-grading accuracy and throughput
+    Priority: Achieve 99.5% grading accuracy for objective items; process 10,000 exams per hour; reduce subjective grading turnaround to under 24 hours
+
+Optimize: System scalability during peak exam windows
+    Priority: Support 50,000 concurrent exam sessions; achieve page load time under 2 seconds during peak; maintain response save latency under 500ms
+
+# === LEVEL 8: LEARNING ===
+
+Learn: Cheating behavior classification model
+    Goal: Classify proctoring incidents as genuine violations or benign behaviors with 92% accuracy
+    Adapt: Proctoring sensitivity thresholds and flag severity assignments
+    Based: Labeled incident outcomes, reviewer decisions, and behavioral feature analysis across thousands of exam sessions
+
+Learn: Optimal exam form assembly
+    Goal: Generate exam forms that maximize information gain while maintaining content balance and statistical equivalence
+    Adapt: Item selection algorithm parameters and blueprint constraint weights
+    Based: IRT item parameters, form-level reliability predictions, and content coverage optimization
+
+Learn: Subjective grading automation
+    Goal: Achieve human-equivalent grading accuracy for essay and short-answer items with 88% agreement rate
+    Adapt: NLP grading model rubric interpretation and partial credit assignment
+    Based: Expert human grading examples, inter-rater agreement patterns, and rubric application consistency data
+
+Learn: Test-taker performance prediction
+    Goal: Predict exam performance from pre-exam features with 75% accuracy for early intervention
+    Adapt: Pre-exam preparation recommendations and targeted study materials
+    Based: Historical performance trajectories, practice assessment results, and engagement metrics
+
+Learn: Accessibility accommodation effectiveness
+    Goal: Predict optimal accommodation configurations that maximize test-taker performance with 70% accuracy
+    Adapt: Accommodation recommendation engine and default configuration selection
+    Based: Accommodation-outcome correlation data, assistive technology compatibility ratings, and test-taker feedback
+
+# === LEVEL 9: SECURITY ===
+
+Security:
+    Encrypt: All exam content at rest using AES-256 with per-form unique keys and just-in-time decryption
+    Encrypt: Test-taker responses in transit using TLS 1.3 and at rest with field-level encryption
+    Encrypt: Proctoring video and audio data with end-to-end encryption and access-controlled playback
+    Protect: Question bank items with role-based access controls, watermarking, and usage tracking
+    Protect: Exam forms with test-taker-specific encryption preventing content extraction
+    Protect: Grading results with sealed grading mode preventing score access until publication date
+    Protect: Test-taker identity with pseudonymized grading to prevent grader bias
+    Protect: Integrity investigation data with chain-of-custody documentation and access logging
+    Protect: API endpoints with OAuth 2.0, rate limiting, and session-bound tokens
+    Protect: Score data with row-level security ensuring test-takers access only their own results
+
+# === LEVEL 10: NATIVE ===
+
+Native: Python
+{
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
+import hashlib
+import random
+import statistics
+
+class ExaminationSystem:
+    def __init__(self, db, proctoring_service, grading_engine, question_bank, analytics):
+        self.db = db
+        self.proctoring = proctoring_service
+        self.grading = grading_engine
+        self.qbank = question_bank
+        self.analytics = analytics
+        self.active_sessions = {}
+        self.integrity_thresholds = {
+            "similarity_max": 0.85,
+            "response_time_anomaly_std": 3.0,
+            "gaze_deviation_max": 0.4,
+            "tab_switch_max": 2,
+        }
+
+    def generate_exam_form(self, exam_id: str, test_taker_id: str, accommodations: List[str] = None) -> Dict:
+        exam = self.db.get("exams", exam_id)
+        blueprint = exam["questionBlueprint"]
+        items = self.qbank.select_items(
+            subject=exam["subjectCode"],
+            blueprint=blueprint,
+            strategy="IRT_OPTIMAL",
+            exclude_used_for=test_taker_id
+        )
+
+        total_marks = sum(item.get("maximumMarks", 1) for item in items)
+        form = {
+            "formId": f"FORM-{exam_id}-{test_taker_id}-{hashlib.sha256(f'{exam_id}{test_taker_id}{datetime.now().isoformat()}'.encode()).hexdigest()[:8]}",
+            "examId": exam_id,
+            "testTakerId": test_taker_id,
+            "items": items,
+            "totalMarks": total_marks,
+            "durationMinutes": self._apply_time_accommodation(exam["durationMinutes"], accommodations or []),
+            "generatedAt": datetime.now().isoformat(),
+        }
+
+        accommodation_mods = self._apply_accommodations(form, accommodations or [])
+        return {
+            "form": form,
+            "validation": self._validate_form(form, blueprint),
+            "deliveryConfig": accommodation_mods,
+        }
+
+    def adminiser_exam(self, session_id: str, test_taker_id: str, security: Dict, proctor_config: Dict) -> Dict:
+        identity_verified = self._verify_identity(test_taker_id, security)
+        if not identity_verified:
+            return {"error": "Identity verification failed", "code": "AUTH_FAILED"}
+
+        proctor_session = self.proctoring.initialize_session(
+            test_taker_id=test_taker_id,
+            mode=proctor_config.get("mode", "AI_ASSISTED"),
+            sensitivity=proctor_config.get("sensitivity", "STANDARD"),
+        )
+
+        session = {
+            "sessionId": session_id,
+            "testTakerId": test_taker_id,
+            "actualStart": datetime.now().isoformat(),
+            "sessionStatus": "IN_PROGRESS",
+            "proctorSessionId": proctor_session["sessionId"],
+            "answerSnapshot": {},
+            "autoSaveCount": 0,
+            "connectionInterruptions": 0,
+            "flaggedIncidents": [],
+        }
+        self.active_sessions[session_id] = session
+        self.db.insert("exam_sessions", session)
+
+        return {
+            "sessionState": session,
+            "proctoringStatus": proctor_session,
+            "timerConfig": {"syncIntervalMs": 1000, "ntpServer": "pool.ntp.org"},
+        }
+
+    def process_response(self, session_id: str, item_id: str, response: any, client_meta: Dict) -> Dict:
+        session = self.active_sessions.get(session_id)
+        if not session:
+            return {"error": "Session not found"}
+
+        session["answerSnapshot"][item_id] = {
+            "response": response,
+            "timestamp": datetime.now().isoformat(),
+            "clientMetadata": client_meta,
+        }
+        session["autoSaveCount"] += 1
+
+        integrity = self._check_response_integrity(session_id, item_id, response, client_meta)
+
+        self.db.update("exam_sessions", {"sessionId": session_id}, {"answerSnapshot": session["answerSnapshot"]})
+
+        return {
+            "saved": True,
+            "integrityCheck": integrity,
+            "autoSaveNumber": session["autoSaveCount"],
+        }
+
+    def auto_grade_exam(self, session_id: str, exam_id: str) -> Dict:
+        session = self.db.get("exam_sessions", session_id)
+        exam = self.db.get("exams", exam_id)
+        responses = session.get("answerSnapshot", {})
+
+        results = []
+        flagged_for_human = []
+        total_score = 0
+
+        for item_id, response_data in responses.items():
+            item = self.qbank.get_item(item_id)
+            grade_result = self.grading.grade_item(
+                item=item,
+                response=response_data["response"],
+                rubric=item.get("scoringRubric", {}),
+            )
+
+            result = {
+                "sessionId": session_id,
+                "itemId": item_id,
+                "awardedMarks": grade_result["marks"],
+                "maximumMarks": item.get("maximumMarks", 1),
+                "gradingMethod": grade_result["method"],
+                "gradingConfidence": grade_result["confidence"],
+            }
+
+            if grade_result["confidence"] < 0.85:
+                flagged_for_human.append(result)
+                result["challengeStatus"] = "PENDING_REVIEW"
+
+            results.append(result)
+            total_score += grade_result["marks"]
+
+        return {
+            "scoreReport": {
+                "totalScore": total_score,
+                "totalMarks": exam["totalMarks"],
+                "percentage": (total_score / exam["totalMarks"] * 100) if exam["totalMarks"] > 0 else 0,
+                "passed": total_score >= exam["passingMarks"],
+            },
+            "itemResults": results,
+            "flaggedItems": flagged_for_human,
+            "humanReviewRequired": len(flagged_for_human) > 0,
+        }
+
+    def detect_integrity_violation(self, session_id: str) -> Dict:
+        session = self.active_sessions.get(session_id)
+        if not session:
+            return {"error": "Session not found"}
+
+        proctor_incidents = self.proctoring.get_incidents(session["proctorSessionId"])
+        response_analysis = self._analyze_response_patterns(session_id)
+        similarity = self._check_response_similarity(session_id)
+
+        all_flags = []
+        risk_score = 0.0
+
+        for incident in proctor_incidents:
+            if incident["confidence"] >= 0.6:
+                all_flags.append({"type": "PROCTORING", "detail": incident})
+                risk_score = max(risk_score, incident["confidence"])
+
+        if response_analysis["anomalous"]:
+            all_flags.append({"type": "RESPONSE_PATTERN", "detail": response_analysis})
+            risk_score = max(risk_score, 0.7)
+
+        if similarity["maxSimilarity"] > self.integrity_thresholds["similarity_max"]:
+            all_flags.append({"type": "SIMILARITY", "detail": similarity})
+            risk_score = max(risk_score, similarity["maxSimilarity"])
+
+        return {
+            "sessionId": session_id,
+            "riskScore": risk_score,
+            "flaggedBehaviors": all_flags,
+            "evidencePackage": self._compile_evidence(session, all_flags),
+        }
+
+    def _apply_time_accommodation(self, base_minutes: int, accommodations: List[str]) -> int:
+        multiplier = 1.0
+        for acc in accommodations:
+            if "extended_time_1.5x" in acc:
+                multiplier = max(multiplier, 1.5)
+            elif "extended_time_2x" in acc:
+                multiplier = max(multiplier, 2.0)
+        return int(base_minutes * multiplier)
+
+    def _apply_accommodations(self, form: Dict, accommodations: List[str]) -> Dict:
+        config = {"screenReader": False, "highContrast": False, "fontSize": "normal", "responseFormat": "standard"}
+        for acc in accommodations:
+            if "screen_reader" in acc:
+                config["screenReader"] = True
+            elif "high_contrast" in acc:
+                config["highContrast"] = True
+            elif "large_font" in acc:
+                config["fontSize"] = "large"
+            elif "speech_to_text" in acc:
+                config["responseFormat"] = "audio"
+        return config
+
+    def _validate_form(self, form: Dict, blueprint: Dict) -> Dict:
+        topic_coverage = {}
+        for item in form["items"]:
+            topic = item.get("topicCode", "unknown")
+            topic_coverage[topic] = topic_coverage.get(topic, 0) + 1
+        return {"valid": True, "topicCoverage": topic_coverage}
+
+    def _verify_identity(self, test_taker_id: str, security: Dict) -> bool:
+        return security.get("identityVerified", False)
+
+    def _check_response_integrity(self, session_id: str, item_id: str, response: any, meta: Dict) -> Dict:
+        return {"passed": True, "flags": []}
+
+    def _analyze_response_patterns(self, session_id: str) -> Dict:
+        return {"anomalous": False, "details": {}}
+
+    def _check_response_similarity(self, session_id: str) -> Dict:
+        return {"maxSimilarity": 0.3, "similarSessions": []}
+
+    def _compile_evidence(self, session: Dict, flags: List[Dict]) -> Dict:
+        return {"sessionId": session["sessionId"], "flagCount": len(flags), "timestamp": datetime.now().isoformat()}
+}

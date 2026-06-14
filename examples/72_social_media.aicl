@@ -1,0 +1,487 @@
+# AICL Example: Social Media Platform
+# Feed generation, content moderation, graph storage, notifications, and privacy controls
+
+Goal
+    Build a social media platform that generates personalized feeds using graph-based
+    ranking, implements multi-layer content moderation with human-in-the-loop review,
+    stores social graphs efficiently for billions of edges, delivers real-time
+    notifications across multiple channels, and provides granular privacy controls
+    allowing users to manage their data and visibility with precision.
+
+Constraint
+    Feed generation must complete within 200ms for up to 500 candidate posts
+    Content moderation must process posts within 60 seconds of creation
+    Social graph queries must resolve within 50ms for 2-hop traversals
+    Notification delivery must occur within 3 seconds of triggering event
+    Privacy rule evaluation must be applied before any content is served
+    System must support at least 500 million active users with their social graphs
+
+Risk
+    Coordinated inauthentic behavior manipulates trending topics or amplifies misinformation
+Recovery
+    Deploy bot detection using behavioral fingerprinting; implement coordination detection
+    via graph clustering; quarantine suspicious content pending review; reduce algorithmic
+    amplification for flagged clusters; notify trust and safety team for investigation
+
+Risk
+    Content moderation backlog allows harmful content to remain visible too long
+Recovery
+    Auto-scale moderation workforce during spike events; implement severity-based triage
+    with critical content escalated immediately; apply preemptive classification to hold
+    suspect content until review; deploy enhanced AI classifiers during high-load periods
+
+Risk
+    Social graph database hot spots from celebrity or viral content cascading
+Recovery
+    Implement graph partitioning with virtual nodes for high-degree vertices; cache
+    frequently traversed edges in memory; use read replicas for graph queries; apply
+    rate limiting on fan-out operations for high-follower accounts
+
+Risk
+    Privacy rule misconfiguration exposes user data to unauthorized viewers
+Recovery
+    Implement privacy rule validation framework that tests all configurations against
+    a canonical test suite; deploy privacy rule shadow evaluation before activation;
+    audit privacy evaluations with differential privacy logging; provide data exposure
+    notifications to affected users within 24 hours
+
+Risk
+    Notification storm overwhelms users during viral events
+Recovery
+    Implement notification batching and rate limiting per user; collapse similar
+    notifications into digest summaries; apply priority scoring to deliver only
+    high-relevance notifications in real-time; defer low-priority notifications
+    to scheduled digest windows
+
+Risk
+    Feed ranking algorithm amplifies divisive or engagement-bait content
+Recovery
+    Implement content quality signals in ranking model; penalize clickbait patterns
+    using headline-content disparity detection; boost diverse viewpoint exposure;
+    run continuous fairness auditing on feed composition; provide user controls for
+    feed diversity preferences
+
+Layer
+    SubLayer: FeedLayer
+        Feed ranking, candidate generation, freshness management, diversity injection
+    SubLayer: ModerationLayer
+        AI classification, human review queue, policy enforcement, appeal processing
+    SubLayer: GraphLayer
+        Edge storage, graph traversal, community detection, influence scoring
+    SubLayer: NotificationLayer
+        Event detection, priority scoring, channel selection, delivery tracking
+    SubLayer: PrivacyLayer
+        Privacy rules, access control, data visibility, consent management
+    SubLayer: InteractionLayer
+        Like, comment, share, bookmark, reaction processing and aggregation
+
+Validation
+    Every served piece of content must pass privacy access check for the viewer
+    Moderation decisions must be auditable with classifier confidence and human reviewer
+    Social graph mutations must be ACID with follower/following counts remaining consistent
+    Notification delivery must be idempotent and at-most-once per event per channel
+    Feed ranking must include at least 15% diverse content sources per refresh
+    User data exports must be complete and verifiable against stored records
+    All content deletion requests must propagate to all storage systems within 30 days
+
+Entity User
+    userId: string
+    username: string
+    displayName: string
+    bio: string
+    followerCount: integer
+    followingCount: integer
+    postCount: integer
+    privacyLevel: string
+    accountStatus: string
+    createdAt: datetime
+    lastActive: datetime
+
+Entity Post
+    postId: string
+    authorId: string
+    content: string
+    mediaAttachments: list
+    visibility: string
+    likeCount: integer
+    commentCount: integer
+    shareCount: integer
+    createdAt: datetime
+    moderationStatus: string
+    editedAt: datetime
+
+Entity SocialGraph
+    userId: string
+    followerIds: list
+    followingIds: list
+    blockIds: list
+    muteIds: list
+    closeFriendIds: list
+    communityMemberships: list
+    graphVersion: integer
+
+Entity Notification
+    notificationId: string
+    recipientId: string
+    type: string
+    sourceUserId: string
+    sourcePostId: string
+    content: string
+    priority: float
+    channel: string
+    readStatus: boolean
+    createdAt: datetime
+
+Entity PrivacyRule
+    ruleId: string
+    userId: string
+    resourceType: string
+    visibility: string
+    allowedUserIds: list
+    excludedUserIds: list
+    customConditions: dict
+    createdAt: datetime
+    updatedAt: datetime
+
+Entity ModerationDecision
+    decisionId: string
+    contentId: string
+    contentType: string
+    classifierResult: dict
+    humanReviewer: string
+    decision: string
+    policyViolation: string
+    confidence: float
+    timestamp: datetime
+    appealStatus: string
+
+Entity FeedEntry
+    entryId: string
+    userId: string
+    postId: string
+    rankScore: float
+    reasons: list
+    freshnessScore: float
+    diversityTag: string
+    insertedAt: datetime
+
+Behavior GenerateFeed
+    Input:
+        userId: string
+        cursor: string
+        pageSize: integer
+    Output:
+        feedEntries: list
+        nextCursor: string
+    Action:
+        Retrieve user's social graph (following, interests, communities)
+        Generate candidate pool from followed users, recommended content, and trending
+        Apply privacy filtering to remove inaccessible content
+        Score candidates using multi-factor ranking model
+        Inject diversity: ensure representation from different sources and viewpoints
+        Enforce freshness weighting for recent content
+        Apply user-specific preference signals (engagement patterns, topic interests)
+        Paginate results and return with ranking explanation metadata
+
+Behavior ModerateContent
+    Input:
+        contentId: string
+        contentType: string
+        contentData: dict
+    Output:
+        moderationResult: dict
+        escalationNeeded: boolean
+    Action:
+        Run content through multi-category AI classifier (hate, violence, spam, CSAM, etc.)
+        Calculate classifier confidence scores per category
+        If confidence above auto-action threshold, apply automated moderation
+        If confidence below threshold but above review threshold, queue for human review
+        If all categories below review threshold, approve content
+        Check user moderation history for escalating penalties
+        Record moderation decision with full audit trail
+        Return result with action taken and appeal information
+
+Behavior TraverseSocialGraph
+    Input:
+        userId: string
+        depth: integer
+        relationshipType: string
+        filters: dict
+    Output:
+        connectedUsers: list
+        graphMetrics: dict
+    Action:
+        Retrieve user's direct connections for specified relationship type
+        If depth > 1, recursively expand to nth-degree connections
+        Apply privacy filters at each traversal level
+        Calculate graph metrics (centrality, clustering coefficient, bridge nodes)
+        Respect rate limits and query complexity budgets
+        Cache frequently accessed graph segments
+        Return connected users with relationship metadata
+
+Behavior DeliverNotification
+    Input:
+        recipientId: string
+        type: string
+        sourceUserId: string
+        sourcePostId: string
+    Output:
+        notificationId: string
+        deliveryStatus: dict
+    Action:
+        Evaluate notification priority based on type and recipient relationship
+        Check user notification preferences and quiet hours
+        Apply notification rate limiting per user per channel
+        Collapse similar notifications if batch window is active
+        Select optimal delivery channel (push, email, in-app, SMS)
+        Generate notification content with personalization
+        Track delivery status and read receipt
+        Return notification ID with channel-specific delivery info
+
+Behavior EvaluatePrivacy
+    Input:
+        viewerId: string
+        resourceType: string
+        resourceId: string
+        ownerId: string
+    Output:
+        accessAllowed: boolean
+        reason: string
+        appliedRules: list
+    Action:
+        Retrieve privacy rules for resource owner and resource type
+        Check viewer's relationship to owner (follower, mutual, blocked, etc.)
+        Evaluate custom conditions (close friends, mentioned users, etc.)
+        Apply block and mute lists
+        Check resource-specific visibility settings
+        Evaluate any time-limited or conditional access rules
+        Log access evaluation for audit (with differential privacy)
+        Return access decision with rule explanation
+
+Behavior ProcessInteraction
+    Input:
+        userId: string
+        postId: string
+        interactionType: string
+        payload: dict
+    Output:
+        result: dict
+        notifications: list
+    Action:
+        Validate interaction is allowed (post exists, user not blocked, etc.)
+        Check rate limits for interaction type per user
+        Apply interaction (like, comment, share, bookmark, reaction)
+        Update aggregate counters on post with optimistic concurrency
+        Generate interaction event for feed ranking signal
+        Trigger notification to post author if appropriate
+        Update user engagement profile for recommendation signals
+        Return interaction result with updated post metadata
+
+Condition
+    When post receives more than 10000 interactions per hour
+    Then flag for enhanced moderation review, verify interaction authenticity,
+         apply rate limiting to prevent counter manipulation, enable trending
+         eligibility check
+
+Condition
+    When user blocks another user
+    Then remove all social graph edges between users, hide each other's content,
+         prevent future interactions, and cancel any pending notifications between them
+
+Condition
+    When content classifier confidence for harmful content exceeds 95%
+    Then auto-remove content immediately, notify author with appeal option,
+         queue for expedited human review, and log for policy enforcement audit
+
+Condition
+    When user's follower growth rate exceeds 500% of historical average
+    Then flag account for potential inauthentic behavior review, temporarily
+         reduce algorithmic amplification, and verify follower authenticity
+
+Condition
+    When notification queue for a user exceeds 50 pending notifications
+    Then collapse similar notifications into digest, apply priority filtering,
+         defer low-priority items to next digest window, and batch deliver
+
+Event
+    On PostCreated
+    Action: Run moderation pipeline, update author's post count, trigger fan-out
+            to follower feed generation queues, index for search, check trending eligibility
+
+Event
+    On ContentModerated
+    Action: Apply moderation action (remove, label, restrict), notify content author,
+            update moderation metrics, process any appeals, update classifier training data
+
+Event
+    On UserFollowed
+    Action: Update social graph for both users, update follower/following counts,
+            trigger feed recalculation for follower, send notification to followed user,
+            update recommendation signals
+
+Event
+    On PrivacySettingChanged
+    Action: Invalidate all cached privacy evaluations for user, re-evaluate visibility
+            of user's content, update privacy rule cache, notify affected users if
+            visibility decreased, log change for audit
+
+Event
+    On ViralContentDetected
+    Action: Enable enhanced moderation monitoring, pre-cache content to CDN edges,
+            prepare scaling event for feed service, update trending algorithm,
+            notify content policy team for proactive review
+
+Parallel
+    Feed generation for millions of concurrent users
+    Content moderation pipeline across all incoming posts
+    Social graph traversal for feed candidate generation
+    Notification delivery across multiple channels
+    Privacy rule evaluation for every content access
+    Interaction processing with counter aggregation
+
+Optimize
+    Target: Feed generation latency
+    Priority: Candidate generation speed over ranking precision for first page;
+              pre-compute feed candidates for active users; cache ranked feeds
+              with incremental updates; use approximate ranking for scroll depth
+
+Optimize
+    Target: Content moderation throughput
+    Priority: High-severity content processed first; AI classification runs in parallel
+              with human review queuing; auto-action for clear-cut violations;
+              batch processing for low-risk content during off-peak
+
+Learn
+    Target: Feed ranking personalization
+    Goal: Maximize meaningful engagement (comments, shares) while minimizing passive scrolling
+    Adapt
+        Based: User interaction patterns, dwell time per content type, explicit
+               feedback signals, and diversity satisfaction surveys
+
+Learn
+    Target: Content moderation classifier accuracy
+    Goal: Achieve >95% recall for harmful content with <5% false positive rate
+    Adapt
+        Based: Human reviewer decisions as ground truth, appeal outcomes,
+               emerging content patterns, and new policy enforcement requirements
+
+Learn
+    Target: Notification relevance scoring
+    Goal: Achieve >60% notification open rate while minimizing notification fatigue
+    Adapt
+        Based: Notification open rates by type and time, user notification
+               preference changes, unsubscribe events, and quiet hour patterns
+
+Security
+    Encrypt: User personal data, private messages, privacy rule configurations,
+             notification content, moderation evidence packages
+    Protect: Social graph access controls, feed ranking integrity, content
+             moderation decision trails, privacy evaluation logs, notification
+             delivery authentication
+
+Security
+    Encrypt: Cross-service data transfers, user data export payloads,
+             moderator communication channels, appeal submission data
+    Protect: Anti-scraping rate limiting, graph query complexity budgets,
+             feed manipulation prevention, interaction authenticity verification,
+             privacy rule tampering detection
+
+Native Rust
+{
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
+#[derive(Debug, Clone)]
+pub struct SocialGraphEntry {
+    pub user_id: String,
+    pub followers: HashSet<String>,
+    pub following: HashSet<String>,
+    pub blocked: HashSet<String>,
+    pub muted: HashSet<String>,
+}
+
+pub struct SocialGraphStore {
+    entries: Arc<RwLock<HashMap<String, SocialGraphEntry>>>,
+}
+
+impl SocialGraphStore {
+    pub fn new() -> Self {
+        Self {
+            entries: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    pub async fn follow(&self, follower: &str, followee: &str) -> bool {
+        let mut entries = self.entries.write().await;
+        let follower_entry = entries.entry(follower.to_string())
+            .or_insert_with(|| SocialGraphEntry {
+                user_id: follower.to_string(),
+                followers: HashSet::new(),
+                following: HashSet::new(),
+                blocked: HashSet::new(),
+                muted: HashSet::new(),
+            });
+        follower_entry.following.insert(followee.to_string());
+
+        let followee_entry = entries.entry(followee.to_string())
+            .or_insert_with(|| SocialGraphEntry {
+                user_id: followee.to_string(),
+                followers: HashSet::new(),
+                following: HashSet::new(),
+                blocked: HashSet::new(),
+                muted: HashSet::new(),
+            });
+        followee_entry.followers.insert(follower.to_string());
+        true
+    }
+
+    pub async fn get_mutual_connections(
+        &self,
+        user_a: &str,
+        user_b: &str,
+    ) -> Vec<String> {
+        let entries = self.entries.read().await;
+        let a_following = entries.get(user_a)
+            .map(|e| &e.following)
+            .unwrap_or(&HashSet::new());
+        let b_following = entries.get(user_b)
+            .map(|e| &e.following)
+            .unwrap_or(&HashSet::new());
+        a_following.intersection(b_following).cloned().collect()
+    }
+
+    pub async fn can_view(&self, viewer: &str, owner: &str) -> bool {
+        let entries = self.entries.read().await;
+        if let Some(owner_entry) = entries.get(owner) {
+            if owner_entry.blocked.contains(viewer) {
+                return false;
+            }
+        }
+        if let Some(viewer_entry) = entries.get(viewer) {
+            if viewer_entry.blocked.contains(owner) {
+                return false;
+            }
+        }
+        true
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FeedEntry {
+    pub post_id: String,
+    pub rank_score: f64,
+    pub diversity_tag: String,
+    pub freshness: f64,
+}
+
+pub struct FeedGenerator {
+    graph: Arc<SocialGraphStore>,
+}
+
+impl FeedGenerator {
+    pub fn new(graph: Arc<SocialGraphStore>) -> Self {
+        Self { graph }
+    }
+}
+}

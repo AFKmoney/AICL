@@ -1,0 +1,605 @@
+# AICL Example: Ride-Sharing Platform
+# A comprehensive ride-sharing platform with driver matching, dynamic pricing,
+# route optimization, safety features, payment processing, and fleet analytics
+# Demonstrates ALL 10 AICL language levels
+
+# =============================================================================
+# LEVEL 1 — Architecture (Mandatory)
+# =============================================================================
+
+Goal:
+Create a ride-sharing platform that matches riders with drivers in real-time, optimizes routes, implements dynamic surge pricing, ensures passenger safety, processes payments, and provides comprehensive fleet analytics
+
+Constraint:
+Driver-rider matching must complete within 5 seconds
+
+Constraint:
+All rides must be tracked with GPS in real-time
+
+Constraint:
+Payment processing must complete within 30 seconds after ride completion
+
+Constraint:
+System must support at least 100000 concurrent active rides
+
+Constraint:
+Estimated time of arrival must be accurate within 2 minutes
+
+Constraint:
+All drivers must pass background verification before activation
+
+Risk:
+No drivers available in high-demand area
+
+Recovery:
+Activate surge pricing to attract drivers and notify nearby online drivers
+
+Risk:
+GPS signal lost during active ride
+
+Recovery:
+Switch to network-based location estimation and continue ride tracking
+
+Risk:
+Payment processing failure after ride completion
+
+Recovery:
+Retry payment with alternate method and queue for manual processing if needed
+
+Risk:
+Driver or rider reports safety incident
+
+Recovery:
+Activate emergency protocol with real-time monitoring and contact authorities
+
+Risk:
+Surge pricing algorithm produces unreasonable prices
+
+Recovery:
+Apply price cap and flag for manual review and adjust algorithm parameters
+
+Risk:
+Driver commits fraud with fake ride completions
+
+Recovery:
+Suspend driver account and investigate GPS and ride data anomalies
+
+Layer:
+Rider App
+    SubLayer:
+    Ride booking
+    SubLayer:
+    Real-time tracking
+    SubLayer:
+    Payment management
+    SubLayer:
+    Rating system
+    SubLayer:
+    Safety features
+
+Layer:
+Driver App
+    SubLayer:
+    Ride acceptance
+    SubLayer:
+    Navigation
+    SubLayer:
+    Earnings dashboard
+    SubLayer:
+    Vehicle management
+    SubLayer:
+    Safety toolkit
+
+Layer:
+Matching Engine
+    SubLayer:
+    Driver search
+    SubLayer:
+    Route estimation
+    SubLayer:
+    Price calculation
+    SubLayer:
+    ETA prediction
+    SubLayer:
+    Pool matching
+
+Layer:
+Pricing Engine
+    SubLayer:
+    Base fare calculation
+    SubLayer:
+    Surge detection
+    SubLayer:
+    Dynamic multiplier
+    SubLayer:
+    Promotions
+    SubLayer:
+    Price cap enforcement
+
+Layer:
+Trip Management
+    SubLayer:
+    Trip state machine
+    SubLayer:
+    GPS tracking
+    SubLayer:
+    Route recording
+    SubLayer:
+    Fare computation
+    SubLayer:
+    Incident handling
+
+Layer:
+Payment
+    SubLayer:
+    Payment processing
+    SubLayer:
+    Driver payout
+    SubLayer:
+    Refund handling
+    SubLayer:
+    Invoice generation
+    SubLayer:
+    Tax calculation
+
+Layer:
+Analytics
+    SubLayer:
+    Fleet utilization
+    SubLayer:
+    Demand forecasting
+    SubLayer:
+    Driver performance
+    SubLayer:
+    Market insights
+    SubLayer:
+    Fraud detection
+
+# =============================================================================
+# LEVEL 2 — Entities
+# =============================================================================
+
+Entity Rider
+    rider_id: string
+    first_name: string
+    last_name: string
+    phone: string
+    email: string
+    payment_method_id: string
+    rating: float
+    total_rides: integer
+    registration_date: datetime
+    status: string
+
+Entity Driver
+    driver_id: string
+    first_name: string
+    last_name: string
+    phone: string
+    license_number: string
+    vehicle_id: string
+    rating: float
+    total_trips: integer
+    current_location_lat: float
+    current_location_lng: float
+    status: string
+    background_check_status: string
+    activation_date: datetime
+
+Entity Vehicle
+    vehicle_id: string
+    driver_id: string
+    make: string
+    model: string
+    year: integer
+    color: string
+    license_plate: string
+    capacity: integer
+    vehicle_type: string
+    inspection_date: datetime
+
+Entity Ride
+    ride_id: string
+    rider_id: string
+    driver_id: string
+    pickup_lat: float
+    pickup_lng: float
+    pickup_address: string
+    dropoff_lat: float
+    dropoff_lng: float
+    dropoff_address: string
+    status: string
+    fare: float
+    surge_multiplier: float
+    distance_km: float
+    duration_minutes: integer
+    requested_at: datetime
+    started_at: datetime
+    completed_at: datetime
+
+Entity Payment
+    payment_id: string
+    ride_id: string
+    rider_id: string
+    driver_id: string
+    amount: float
+    currency: string
+    platform_fee: float
+    driver_payout: float
+    payment_method: string
+    status: string
+    processed_at: datetime
+
+Entity LocationEvent
+    event_id: string
+    ride_id: string
+    latitude: float
+    longitude: float
+    speed_kmh: float
+    heading: float
+    timestamp: datetime
+
+Entity SafetyIncident
+    incident_id: string
+    ride_id: string
+    reporter_type: string
+    reporter_id: string
+    incident_type: string
+    description: string
+    severity: string
+    status: string
+    created_at: datetime
+    resolved_at: datetime
+
+# =============================================================================
+# LEVEL 3 — Behaviors
+# =============================================================================
+
+Behavior RequestRide
+
+Input:
+    Rider pickup_location dropoff_location ride_type
+
+Output:
+    Ride
+
+Action:
+    find nearest available drivers and estimate fare and create ride request
+
+Behavior MatchDriver
+
+Input:
+    Ride available_drivers
+
+Output:
+    Driver
+
+Action:
+    select optimal driver based on proximity rating and vehicle type and dispatch
+
+Behavior CalculateFare
+
+Input:
+    Ride distance duration surge_multiplier
+
+Output:
+    float
+
+Action:
+    compute base fare plus distance and time rates with surge multiplier applied
+
+Behavior ProcessPayment
+
+Input:
+    Ride Payment
+
+Output:
+    Payment
+
+Action:
+    charge rider payment method and split between platform fee and driver payout
+
+Behavior TrackLocation
+
+Input:
+    Ride latitude longitude speed heading
+
+Output:
+    LocationEvent
+
+Action:
+    record GPS position and update ETA and detect route deviations
+
+Behavior ReportIncident
+
+Input:
+    Ride reporter_type incident_type description
+
+Output:
+    SafetyIncident
+
+Action:
+    create safety incident record and activate emergency protocol if critical
+
+Behavior UpdateDriverLocation
+
+Input:
+    Driver latitude longitude
+
+Output:
+    boolean
+
+Action:
+    update driver position and refresh availability in matching pool
+
+# =============================================================================
+# LEVEL 4 — Conditions
+# =============================================================================
+
+Condition:
+
+When demand exceeds available drivers by more than 3x in a zone
+
+Then activate surge pricing with graduated multiplier and notify riders of increased fares
+
+Condition:
+
+When driver rating falls below 4.2 after 50 completed rides
+
+Then suspend driver from receiving new rides and require quality improvement training
+
+Condition:
+
+When ride route deviates more than 20 percent from optimal path
+
+Then alert rider and log deviation and recalculate fare estimate
+
+Condition:
+
+When rider cancels after driver has arrived
+
+Then apply cancellation fee and compensate driver for time and notify rider
+
+Condition:
+
+When driver does not move for 5 minutes during active ride
+
+Then check safety status and send check-in notification and escalate if no response
+
+Condition:
+
+When GPS accuracy drops below acceptable threshold in active ride
+
+Then switch to network-based location and flag ride data as estimated
+
+# =============================================================================
+# LEVEL 5 — Events
+# =============================================================================
+
+Event:
+
+On driver accepts ride request
+
+Action:
+    notify rider with driver details and ETA and start real-time tracking
+
+Event:
+
+On ride completed
+
+Action:
+    calculate final fare and process payment and prompt rating from rider
+
+Event:
+
+On surge pricing activated
+
+Action:
+    notify all riders in zone and alert available drivers to move toward high-demand area
+
+Event:
+
+On safety incident reported
+
+Action:
+    record incident and activate monitoring and notify safety response team
+
+Event:
+
+On driver goes online
+
+Action:
+    add driver to matching pool and update availability and send nearby demand info
+
+Event:
+
+On ride payment failed
+
+Action:
+    retry payment and queue for manual resolution and send payment reminder to rider
+
+Event:
+
+On driver completes background check
+
+Action:
+    activate driver account and assign vehicle and send onboarding materials
+
+# =============================================================================
+# LEVEL 6 — Concurrency
+# =============================================================================
+
+Parallel:
+
+Ride Matching Engine
+Location Tracking Service
+Fare Calculator
+Safety Monitor
+
+Parallel:
+
+Rider Notification Service
+Driver Notification Service
+Payment Processing
+Analytics Pipeline
+
+# =============================================================================
+# LEVEL 7 — Optimization
+# =============================================================================
+
+Optimize:
+Driver-rider matching speed and accuracy
+
+Optimize:
+Route efficiency and fuel consumption
+
+Optimize:
+Fleet utilization across geographic zones
+
+Priority:
+Rider and driver safety over matching speed
+
+# =============================================================================
+# LEVEL 8 — Learning
+# =============================================================================
+
+Learn:
+
+Demand prediction patterns
+
+Goal:
+    forecast ride demand by zone and time to pre-position drivers effectively
+
+Learn:
+
+Optimal pricing multipliers
+
+Goal:
+    calibrate surge pricing to balance supply and demand without overcharging
+
+Adapt:
+
+Matching algorithm weights
+
+Based on:
+    historical match success rate and rider and driver satisfaction scores
+
+Adapt:
+
+ETA prediction model
+
+Based on:
+    real-time traffic data and historical trip durations for similar routes
+
+# =============================================================================
+# LEVEL 9 — Security
+# =============================================================================
+
+Security:
+
+Encrypt:
+    rider and driver personal information
+
+Encrypt:
+    payment card data and bank account details
+
+Encrypt:
+    GPS location history
+
+Protect:
+    real-time ride tracking data
+
+Protect:
+    driver background check results
+
+Protect:
+    fraud detection algorithms and thresholds
+
+Protect:
+    pricing strategy parameters
+
+# =============================================================================
+# LEVEL 10 — Native Code
+# =============================================================================
+
+Native: python
+{
+import math
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class GeoPoint:
+    lat: float
+    lng: float
+
+def haversine_distance(p1: GeoPoint, p2: GeoPoint) -> float:
+    R = 6371.0
+    dlat = math.radians(p2.lat - p1.lat)
+    dlng = math.radians(p2.lng - p1.lng)
+    a = (math.sin(dlat / 2) ** 2
+         + math.cos(math.radians(p1.lat))
+         * math.cos(math.radians(p2.lat))
+         * math.sin(dlng / 2) ** 2)
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
+
+def estimate_eta(distance_km: float, avg_speed_kmh: float = 30.0) -> int:
+    if avg_speed_kmh <= 0:
+        return 999
+    return max(1, int((distance_km / avg_speed_kmh) * 60))
+
+def calculate_base_fare(distance_km: float, duration_min: int,
+                        base_fee: float = 2.50, per_km: float = 1.20,
+                        per_min: float = 0.30) -> float:
+    return round(base_fee + distance_km * per_km + duration_min * per_min, 2)
+
+def apply_surge(base_fare: float, multiplier: float,
+                max_multiplier: float = 5.0) -> float:
+    capped = min(multiplier, max_multiplier)
+    return round(base_fare * capped, 2)
+
+def find_nearest_driver(driver_locations: list[GeoPoint],
+                        pickup: GeoPoint,
+                        max_radius_km: float = 10.0
+                        ) -> Optional[int]:
+    nearest_idx = None
+    nearest_dist = float('inf')
+    for i, loc in enumerate(driver_locations):
+        d = haversine_distance(loc, pickup)
+        if d < nearest_dist and d <= max_radius_km:
+            nearest_dist = d
+            nearest_idx = i
+    return nearest_idx
+}
+
+# =============================================================================
+# Validations
+# =============================================================================
+
+Validation:
+Riders can request rides and receive driver matches within 5 seconds
+
+Validation:
+Fare calculations are accurate and transparent to riders and drivers
+
+Validation:
+Surge pricing activates and deactivates based on supply and demand
+
+Validation:
+GPS tracking accurately records ride routes in real-time
+
+Validation:
+Safety incidents are handled with appropriate emergency protocols
+
+Validation:
+Payments are processed correctly and driver payouts are accurate
+
+Validation:
+Driver ratings reflect ride quality and trigger quality interventions
+
+Validation:
+ETA predictions are accurate within 2 minutes
+
+Validation:
+System handles 100000 concurrent rides without degradation

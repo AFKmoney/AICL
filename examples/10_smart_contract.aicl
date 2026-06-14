@@ -1,0 +1,387 @@
+# AICL Example: Smart Contract Engine
+# Comprehensive smart contract execution engine supporting compilation, gas optimization,
+# virtual machine execution, state management, and formal verification
+
+Goal Build a production-grade smart contract engine with multi-language compilation, aggressive gas optimization, deterministic VM execution with isolation guarantees, efficient Merkle-based state management, and formal verification integration for contract safety proofs
+
+Constraint Gas metering must precisely account for every opcode execution with zero tolerance for undercharging
+Constraint Contract execution must be deterministic across all nodes regardless of hardware or platform
+Constraint State transitions must be atomic with complete rollback on execution failure
+Constraint Memory allocation per contract must not exceed 32MB per execution context
+Constraint Call stack depth must not exceed 1024 frames to prevent stack overflow attacks
+
+Risk Reentrancy attack drains contract funds through recursive external calls
+Recovery Implement reentrancy guard on all state-mutating functions, deploy reentrancy detection in VM with automatic execution halt, and audit all external call patterns
+Risk Integer overflow in contract arithmetic produces incorrect state
+Recovery Enforce checked arithmetic by default in VM execution, deploy overflow detection hooks, and require explicit unchecked blocks with developer acknowledgment
+Risk Gas estimation inaccuracy causes transaction failure or overpayment
+Recovery Implement multi-simulation gas estimation with safety margin, detect gas griefing patterns, and provide worst-case gas bound analysis during compilation
+Risk Contract storage collision in proxy patterns corrupts state
+Recovery Enforce EIP-1967 storage slots for proxy patterns, implement storage layout validation during upgrade, and detect collision during compilation
+Risk Infinite loop in contract execution stalls block processing
+Recovery Enforce strict gas limit per transaction, implement instruction-level timeout, and deploy static analysis detection for unbounded loops during compilation
+
+Layer SmartContractEngine
+    SubLayer: CompilerPipeline
+        # Multi-language compilation, parsing, type checking, and IR generation
+    SubLayer: GasOptimizer
+        # Opcode optimization, dead code elimination, constant folding
+    SubLayer: VirtualMachine
+        # Stack machine execution, memory model, gas metering
+    SubLayer: StateManager
+        # Merkle Patricia trie, account state, contract storage
+    SubLayer: FormalVerifier
+        # Symbolic execution, invariant checking, property proving
+
+Validation Compiled bytecode must pass deterministic replay test across 3 independent compiler builds
+Validation Gas cost of compiled contract must not exceed estimated gas by more than 10 percent
+Validation State root hash must match recomputed root after every block execution
+Validation Contract storage access must not read uninitialized memory locations
+Validation All external calls must be marked with appropriate gas forwarding limits
+Validation Jump destinations must be validated as valid opcode positions before execution
+Validation Contract deployment bytecode size must not exceed 24KB limit
+
+Entity CompiledContract
+    contract_id: string
+    bytecode: bytes
+    abi: list
+    source_hash: string
+    compiler_version: string
+    optimization_level: integer
+    deployed_address: string
+    gas_estimate: integer
+    bytecode_size: integer
+    immutable_references: list
+    creation_code: bytes
+
+Entity VMExecutionContext
+    context_id: string
+    contract_address: string
+    caller: string
+    value: float
+    gas_limit: integer
+    gas_used: integer
+    gas_remaining: integer
+    program_counter: integer
+    stack_depth: integer
+    memory_size: integer
+    return_data: bytes
+    revert_reason: string
+    status: string
+
+Entity StateTransition
+    transition_id: string
+    block_number: integer
+    pre_state_root: string
+    post_state_root: string
+    account_changes: list
+    storage_changes: list
+    log_entries: list
+    gas_used: integer
+    contracts_created: list
+    contracts_destroyed: list
+
+Entity GasSchedule
+    opcode: string
+    base_cost: integer
+    dynamic_cost: boolean
+    memory_expansion: boolean
+    storage_operation: boolean
+    precompile: boolean
+    min_cost: integer
+    max_cost: integer
+
+Entity VerificationResult
+    contract_id: string
+    property: string
+    status: string
+    counterexample: dict
+    proof_time_seconds: integer
+    verification_method: string
+    confidence_score: float
+    assertion_count: integer
+    covered_paths: integer
+    total_paths: integer
+
+Entity ContractStorage
+    contract_address: string
+    slot_key: string
+    slot_value: bytes
+    original_value: bytes
+    is_modified: boolean
+    access_count: integer
+    gas_consumed: integer
+    storage_type: string
+
+Entity DeploymentRecord
+    deployment_id: string
+    deployer: string
+    contract_address: string
+    transaction_hash: string
+    block_number: integer
+    constructor_args: bytes
+    gas_used: integer
+    bytecode_hash: string
+    proxy_implementation: string
+    is_upgrade: boolean
+
+Behavior CompileContract
+    Input:
+        source_code: string
+        language: string
+        optimization_level: integer
+        target_evm_version: string
+    Output:
+        compiled: CompiledContract
+        warnings: list
+    Action:
+        Parse source code into abstract syntax tree
+        Perform type checking and semantic analysis
+        Generate intermediate representation
+        Apply optimization passes based on level
+        Generate bytecode and ABI
+        Compute source hash for reproducibility verification
+        Calculate gas estimates for all public functions
+        Return compiled contract with diagnostic warnings
+
+Behavior OptimizeGas
+    Input:
+        bytecode: bytes
+        optimization_target: string
+        constraints: dict
+    Output:
+        optimized_bytecode: bytes
+        savings_report: dict
+    Action:
+        Analyze bytecode for dead code and unreachable paths
+        Apply constant folding and expression simplification
+        Optimize storage access patterns with caching
+        Replace expensive opcodes with cheaper equivalents
+        Merge redundant stack operations
+        Calculate gas savings per optimization pass
+        Return optimized bytecode with detailed savings breakdown
+
+Behavior ExecuteContract
+    Input:
+        context: VMExecutionContext
+        bytecode: bytes
+        calldata: bytes
+    Output:
+        execution_result: VMExecutionContext
+        state_changes: list
+        events: list
+    Action:
+        Initialize execution context with gas and stack
+        Decode calldata and resolve function selector
+        Execute opcodes with precise gas metering
+        Track memory allocations and enforce limits
+        Handle external calls with gas forwarding
+        Capture all state mutations for atomic commitment
+        Return execution result with events and gas usage
+
+Behavior CommitState
+    Input:
+        transitions: list
+        current_state_root: string
+    Output:
+        new_state_root: string
+        receipt: dict
+    Action:
+        Validate all state transitions against preconditions
+        Apply account balance changes atomically
+        Update contract storage in Merkle Patricia trie
+        Compute new state root from modified trie
+        Verify state root matches expected post-execution root
+        Generate receipts with event logs
+        Persist state changes to database
+
+Behavior VerifyContract
+    Input:
+        contract_id: string
+        properties: list
+        verification_depth: integer
+    Output:
+        results: list
+        summary: dict
+    Action:
+        Extract control flow graph from bytecode
+        Perform symbolic execution along all paths
+        Check specified properties at each assertion point
+        Generate counterexamples for violated properties
+        Estimate path coverage and verification completeness
+        Rank results by severity and confidence
+        Return verification results with coverage summary
+
+Behavior DeployContract
+    Input:
+        deployer: string
+        compiled_contract: CompiledContract
+        constructor_args: bytes
+        gas_limit: integer
+        value: float
+    Output:
+        deployment: DeploymentRecord
+        contract_address: string
+    Action:
+        Validate bytecode size within deployment limit
+        Allocate contract address using CREATE2 or CREATE opcode
+        Execute constructor with provided arguments
+        Verify constructor execution success and gas usage
+        Store deployment bytecode and runtime bytecode
+        Initialize contract storage with immutable values
+        Emit deployment event with contract address and details
+
+Behavior AnalyzeStorageLayout
+    Input:
+        contract_id: string
+        storage_vars: list
+    Output:
+        layout_report: dict
+        collision_warnings: list
+    Action:
+        Map storage variables to EVM storage slots
+        Detect packing opportunities for gas savings
+        Identify potential slot collisions in proxy patterns
+        Validate against EIP-1967 for proxy storage
+        Generate storage layout documentation
+        Return layout with optimization recommendations
+
+Condition:
+    When gas_remaining drops below 10 percent of gas_limit during execution
+    Then emit low_gas_warning and prepare out-of-gas exception if execution continues beyond threshold
+
+Condition:
+    When external_call returns unexpected data size exceeding expected return
+    Then truncate return data and emit data_size_mismatch warning to prevent buffer overread
+
+Condition:
+    When storage_write is detected in a view or pure function context
+    Then halt execution with invalid_state_transition error and log violation details
+
+Condition:
+    When contract_deployment bytecode exceeds 24KB size limit
+    Then reject deployment and suggest splitting contract into library and main contract
+
+Condition:
+    When call_stack_depth exceeds 900 frames
+    Then emit depth_warning and prevent further calls beyond 1024 frame maximum
+
+Event:
+    On contract_compiled
+    Action: Cache compiled artifact, emit compilation metrics, log optimization savings, update compiler statistics dashboard
+
+Event:
+    On execution_reverted
+    Action: Rollback all state changes, refund remaining gas to caller, emit revert reason in receipt, log execution trace for debugging
+
+Event:
+    On state_root_updated
+    Action: Persist new state root, emit state transition proof, update block metadata, trigger snapshot if checkpoint interval reached
+
+Event:
+    On verification_completed
+    Action: Store verification results, emit property violation alerts, update contract safety score, notify developer of critical findings
+
+Event:
+    On contract_deployed
+    Action: Register contract in address book, emit deployment event, initialize monitoring, verify bytecode matches compiled source
+
+Parallel:
+    Contract compilation pipeline with multi-stage optimization passes
+    VM execution with independent gas metering per call frame
+    State trie updates with parallel Merkle computation for non-overlapping accounts
+    Formal verification with distributed symbolic execution across property set
+
+Optimize: Contract compilation speed for large codebases
+    Priority: Achieve sub-30-second compilation for 10,000 line contracts through incremental compilation and parallel optimization passes
+
+Optimize: VM execution throughput for transaction batching
+    Priority: Maximize transactions per second through just-in-time bytecode compilation and cache-friendly state access patterns
+
+Optimize: State trie recomputation after block execution
+    Priority: Minimize state root computation time using parallel Merkle tree hashing and cached intermediate nodes
+
+Learn: Gas estimation accuracy improvement
+    Goal: Predict actual gas usage within 5 percent of runtime measurement for all contract functions
+    Adapt: Gas estimation heuristics and safety margin calculations
+    Based: Execution trace analysis, path-dependent gas patterns, storage access frequency, and memory allocation statistics
+
+Learn: Vulnerability pattern detection
+    Goal: Identify 95 percent of common smart contract vulnerabilities at compilation time with less than 2 percent false positive rate
+    Adapt: Static analysis rule weights and vulnerability classification model
+    Based: Known vulnerability databases, audit findings, attack incident analysis, and code pattern correlation with historical exploits
+
+Learn: Optimization opportunity identification
+    Goal: Suggest gas-saving optimizations that reduce contract execution cost by at least 20 percent on average
+    Adapt: Optimization recommendation ranking and applicability criteria
+    Based: Gas profiling data from deployed contracts, common optimization patterns, and developer adoption feedback
+
+Security:
+    Encrypt: Contract source code in transit using TLS 1.3 with certificate pinning to compilation service
+    Encrypt: Deployment private keys using AES-256-GCM with HSM-backed key encryption
+    Protect: VM execution against side-channel attacks using constant-time opcode implementations
+    Protect: State trie against manipulation using cryptographic integrity verification at every access
+    Protect: Compiler pipeline against supply chain attack using reproducible builds and checksummed dependencies
+    Protect: Deployment process against front-running using commit-reveal deployment scheme with CREATE2 salt
+
+Native: rust
+    {
+    use sha3::{Keccak256, Digest};
+    use std::collections::HashMap;
+
+    struct EVM {
+        stack: Vec<u256>,
+        memory: Vec<u8>,
+        pc: usize,
+        gas: u64,
+        storage: HashMap<[u8; 32], [u8; 32]>,
+    }
+
+    impl EVM {
+        fn execute(&mut self, bytecode: &[u8], calldata: &[u8]) -> ExecutionResult {
+            while self.pc < bytecode.len() && self.gas > 0 {
+                let opcode = bytecode[self.pc];
+                match opcode {
+                    0x00 => break, // STOP
+                    0x01 => self.op_add()?,
+                    0x02 => self.op_mul()?,
+                    0x54 => self.op_sload()?,
+                    0x55 => self.op_sstore()?,
+                    0x56 => self.op_jump()?,
+                    0x60 => self.op_push1(bytecode)?,
+                    _ => return ExecutionResult::UnknownOpcode(opcode),
+                }
+                self.gas -= 1; // Simplified gas accounting
+                self.pc += 1;
+            }
+            ExecutionResult::Success(self.stack.pop().unwrap_or(0))
+        }
+
+        fn op_sload(&mut self) -> Result<(), VMError> {
+            let key = self.stack_pop()?;
+            let value = self.storage.get(&key.to_bytes())
+                .copied()
+                .unwrap_or([0u8; 32]);
+            self.stack.push(u256::from_bytes(value));
+            Ok(())
+        }
+
+        fn op_sstore(&mut self) -> Result<(), VMError> {
+            let key = self.stack_pop()?.to_bytes();
+            let value = self.stack_pop()?.to_bytes();
+            self.gas = self.gas.checked_sub(20000)
+                .ok_or(VMError::OutOfGas)?;
+            self.storage.insert(key, value);
+            Ok(())
+        }
+
+        fn compute_state_root(&self) -> [u8; 32] {
+            let mut hasher = Keccak256::new();
+            for (key, value) in &self.storage {
+                hasher.update(key);
+                hasher.update(value);
+            }
+            hasher.finalize().into()
+        }
+    }
+    }

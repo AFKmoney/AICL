@@ -1,0 +1,368 @@
+# AICL Example: Microservices Architecture
+# Implements a production-grade microservices system with service discovery, API gateway,
+# circuit breaker, saga pattern for distributed transactions, and distributed tracing.
+
+# Level 1: Architecture
+Goal: Build a resilient microservices architecture supporting independent service deployment,
+    cross-service communication, fault isolation, distributed transaction coordination via saga,
+    and full observability through distributed tracing.
+
+Constraint: No service may directly reference another service's internal data store.
+Constraint: All inter-service communication must traverse the API gateway.
+Constraint: Each service must be independently deployable and scalable.
+Constraint: Latency for synchronous calls must remain below 200ms p99.
+Constraint: Saga transactions must complete within 30 seconds or compensate.
+
+Risk: Service discovery failure leaves orphaned instances
+Recovery: Fallback to static registry with heartbeat-based health checks and manual override
+
+Risk: Circuit breaker cascade causes system-wide outage
+Recovery: Bulkhead isolation per service with independent breaker pools and graceful degradation
+
+Risk: Saga participant crash mid-transaction leaves partial state
+Recovery: Saga orchestrator retries with exponential backoff; compensating transactions for unrecoverable failures
+
+Risk: API gateway becomes single point of failure
+Recovery: Deploy gateway replicas across availability zones with leader election and failover routing
+
+Risk: Distributed trace context lost across async boundaries
+Recovery: Inject trace context into message headers; background reconciler repairs broken traces
+
+Risk: Network partition causes split-brain service registry
+Recovery: Quorum-based registration with majority-wins consensus and stale-entry eviction
+
+Layer: Infrastructure
+    SubLayer: ServiceDiscovery
+    SubLayer: APIGateway
+    SubLayer: MessageBus
+Layer: Services
+    SubLayer: OrderService
+    SubLayer: PaymentService
+    SubLayer: InventoryService
+    SubLayer: NotificationService
+Layer: Observability
+    SubLayer: DistributedTracing
+    SubLayer: MetricsAggregator
+    SubLayer: LogCollector
+
+Validation: Service registry heartbeat must arrive every 5 seconds
+Validation: API gateway route table must match deployed service count
+Validation: Circuit breaker open duration must not exceed 60 seconds
+Validation: Saga transaction must have a defined compensating action for every step
+Validation: Distributed trace spans must propagate correlation IDs across all hops
+Validation: Service health endpoint must respond within 500ms
+
+# Level 2: Entities
+Entity ServiceInstance
+    serviceId: string
+    host: string
+    port: integer
+    healthStatus: string
+    metadata: dict
+    registeredAt: datetime
+    lastHeartbeat: datetime
+    version: string
+    weight: integer
+
+Entity ApiRoute
+    routeId: string
+    pathPattern: string
+    targetService: string
+    methods: list
+    rateLimit: integer
+    authRequired: boolean
+    timeout: integer
+    retryPolicy: dict
+
+Entity CircuitBreaker
+    breakerId: string
+    serviceName: string
+    state: string
+    failureCount: integer
+    successCount: integer
+    lastFailureAt: datetime
+    openDuration: integer
+    halfOpenMaxCalls: integer
+
+Entity SagaInstance
+    sagaId: string
+    sagaType: string
+    currentState: string
+    steps: list
+    completedSteps: list
+    compensateSteps: list
+    startedAt: datetime
+    timeoutAt: datetime
+    participantServices: list
+
+Entity TraceSpan
+    traceId: string
+    spanId: string
+    parentSpanId: string
+    serviceName: string
+    operationName: string
+    startTime: datetime
+    endTime: datetime
+    tags: dict
+    status: string
+
+Entity ServiceMetric
+    metricId: string
+    serviceName: string
+    metricName: string
+    value: float
+    timestamp: datetime
+    unit: string
+    tags: dict
+    percentile: float
+
+# Level 3: Behaviors
+Behavior RegisterService
+    Input:
+        instance: ServiceInstance
+    Output:
+        registrationId: string
+    Action:
+        Validate instance fields and health endpoint
+        Check for duplicate serviceId and host:port combination
+        Register in service discovery with TTL of 10 seconds
+        Broadcast registration event to all gateway replicas
+        Initialize circuit breaker for new service
+        Return registration confirmation
+
+Behavior RouteRequest
+    Input:
+        route: ApiRoute
+        payload: dict
+        headers: dict
+    Output:
+        response: dict
+        latency: integer
+    Action:
+        Match incoming path and method to route definition
+        Check rate limit and authentication requirements
+        Resolve target service instance via discovery
+        Evaluate circuit breaker state before forwarding
+        Inject trace context headers
+        Forward request with timeout enforcement
+        Record latency metric and trace span
+
+Behavior ExecuteSaga
+    Input:
+        sagaType: string
+        payload: dict
+    Output:
+        sagaId: string
+        status: string
+    Action:
+        Create saga instance with ordered steps
+        Begin first step and mark as in-progress
+        On step completion, advance to next step
+        On step failure, execute compensating actions in reverse
+        Persist saga state at each transition
+        Emit saga completion or compensation event
+
+Behavior HandleCircuitBreaker
+    Input:
+        serviceName: string
+        result: string
+        latency: integer
+    Output:
+        newState: string
+    Action:
+        Record success or failure against breaker counters
+        If failure threshold exceeded, transition to Open state
+        If in Open state and cooldown elapsed, transition to HalfOpen
+        If HalfOpen and success threshold met, transition to Closed
+        If HalfOpen and failure detected, transition back to Open
+        Emit state change event to observability layer
+
+Behavior DiscoverService
+    Input:
+        serviceName: string
+        version: string
+        region: string
+    Output:
+        instances: list
+    Action:
+        Query registry for matching service entries
+        Filter by version compatibility and region
+        Apply load-balancing weight to instance selection
+        Verify health status of returned instances
+        Return healthy instance list sorted by latency
+
+Behavior CollectTrace
+    Input:
+        span: TraceSpan
+    Output:
+        accepted: boolean
+    Action:
+        Validate trace and span IDs are present
+        Link span to parent if parentSpanId exists
+        Calculate span duration from start and end times
+        Store span in trace backend
+        Check for trace completion (all spans received)
+        Emit trace-complete event if root span received
+
+# Level 4: Conditions
+Condition: ServiceUnhealthy
+    When service instance misses 3 consecutive heartbeats
+    Then mark instance as unhealthy and remove from active routing pool
+
+Condition: RateLimitExceeded
+    When request count per minute exceeds route rateLimit threshold
+    Then return HTTP 429 with retry-after header and log throttle event
+
+Condition: SagaTimeout
+    When saga execution exceeds timeoutAt without completion
+    Then trigger compensating transactions for all completed steps and mark saga as timed_out
+
+# Level 5: Events
+Event: OnServiceRegistered
+    On new service instance registered in discovery
+    Action: Update API gateway route table and warm connection pool to new instance
+
+Event: OnCircuitBreakerStateChanged
+    On circuit breaker transitions between Open, Closed, or HalfOpen states
+    Action: Notify monitoring system and adjust routing weights away from degraded service
+
+Event: OnSagaStepCompleted
+    On a saga participant confirms step completion
+    Action: Advance saga state machine and dispatch next step to next participant
+
+Event: OnTraceAnomaly
+    On trace duration exceeds SLO threshold or error rate spikes
+    Action: Create incident alert and trigger automated diagnostic collection
+
+# Level 6: Concurrency
+Parallel:
+    Service health monitoring across all registered instances
+    Metrics aggregation from all services into centralized time-series store
+    Log streaming from all service containers to log collector
+    Circuit breaker state evaluation for all downstream connections
+    Trace span ingestion and parent-child linking across services
+
+# Level 7: Optimization
+Optimize: Inter-service call latency
+    Priority: Prefer collocated instances in same availability zone; then by lowest p99 latency history
+
+Optimize: Gateway routing efficiency
+    Priority: Cache route lookups with LRU eviction; pre-warm connections to top percentile services
+
+# Level 8: Learning
+Learn: Service failure patterns
+    Goal: Predict circuit breaker trips before they occur based on latency and error rate trends
+    Adapt: Circuit breaker thresholds
+    Based: Historical failure pattern analysis across sliding 1-hour window
+
+Learn: Optimal retry backoff intervals
+    Goal: Minimize retry storm risk while maximizing recovery speed
+    Adapt: Retry backoff multiplier and max retry count
+    Based: Downstream service recovery time distributions and error categorization
+
+# Level 9: Security
+Security:
+    Encrypt: All inter-service communication via mutual TLS with certificate rotation every 24 hours
+    Encrypt: Saga state payload containing PII using AES-256-GCM envelope encryption
+    Protect: API gateway against SQL injection, XSS, and request smuggling via WAF rules
+    Protect: Service registry from unauthorized writes with RBAC and signed registrations
+    Protect: Trace data from leaking sensitive headers by applying redaction rules
+
+# Level 10: Native
+Native: Python
+{
+import asyncio
+from dataclasses import dataclass, field
+from typing import Optional, Dict, List
+from enum import Enum
+import time
+
+class BreakerState(Enum):
+    CLOSED = "closed"
+    OPEN = "open"
+    HALF_OPEN = "half_open"
+
+@dataclass
+class CircuitBreakerConfig:
+    failure_threshold: int = 5
+    success_threshold: int = 3
+    open_duration_seconds: int = 30
+    half_open_max_calls: int = 2
+
+class CircuitBreaker:
+    def __init__(self, service_name: str, config: CircuitBreakerConfig = None):
+        self.service_name = service_name
+        self.config = config or CircuitBreakerConfig()
+        self.state = BreakerState.CLOSED
+        self.failure_count = 0
+        self.success_count = 0
+        self.last_failure_time: Optional[float] = None
+        self.half_open_calls = 0
+
+    def record_success(self):
+        if self.state == BreakerState.HALF_OPEN:
+            self.success_count += 1
+            if self.success_count >= self.config.success_threshold:
+                self.state = BreakerState.CLOSED
+                self.failure_count = 0
+                self.success_count = 0
+        elif self.state == BreakerState.CLOSED:
+            self.failure_count = max(0, self.failure_count - 1)
+
+    def record_failure(self):
+        self.failure_count += 1
+        self.last_failure_time = time.time()
+        if self.state == BreakerState.HALF_OPEN:
+            self.state = BreakerState.OPEN
+            self.success_count = 0
+        elif self.state == BreakerState.CLOSED:
+            if self.failure_count >= self.config.failure_threshold:
+                self.state = BreakerState.OPEN
+
+    def can_execute(self) -> bool:
+        if self.state == BreakerState.CLOSED:
+            return True
+        if self.state == BreakerState.OPEN:
+            if self.last_failure_time and \
+               (time.time() - self.last_failure_time) >= self.config.open_duration_seconds:
+                self.state = BreakerState.HALF_OPEN
+                self.success_count = 0
+                self.half_open_calls = 0
+                return True
+            return False
+        if self.state == BreakerState.HALF_OPEN:
+            return self.half_open_calls < self.config.half_open_max_calls
+        return False
+
+class SagaOrchestrator:
+    def __init__(self):
+        self.sagas: Dict[str, dict] = {}
+
+    async def execute_saga(self, saga_id: str, steps: List[dict]):
+        self.sagas[saga_id] = {
+            "steps": steps, "completed": [], "status": "running"
+        }
+        for i, step in enumerate(steps):
+            try:
+                result = await step["action"]()
+                self.sagas[saga_id]["completed"].append(i)
+            except Exception as e:
+                self.sagas[saga_id]["status"] = "compensating"
+                await self._compensate(saga_id)
+                raise
+
+    async def _compensate(self, saga_id: str):
+        saga = self.sagas[saga_id]
+        for idx in reversed(saga["completed"]):
+            compensate = saga["steps"][idx].get("compensate")
+            if compensate:
+                try:
+                    await compensate()
+                except Exception:
+                    pass
+        saga["status"] = "compensated"
+
+breaker = CircuitBreaker("payment-service")
+if breaker.can_execute():
+    print(f"Circuit is {breaker.state.value}, request allowed")
+}

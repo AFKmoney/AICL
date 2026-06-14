@@ -1,0 +1,448 @@
+# AICL Example: Plugin Architecture System
+# Implements a dynamic plugin architecture with runtime loading, sandboxing, API versioning,
+# dependency resolution between plugins, hot reload capabilities, and plugin lifecycle management.
+
+# Level 1: Architecture
+Goal: Build a plugin architecture system supporting dynamic loading and unloading of plugins at runtime,
+    sandboxed execution to isolate plugin failures, versioned APIs for backward compatibility,
+    automatic dependency resolution between plugins, and hot reload without service interruption.
+
+Constraint: Plugins must not access host internals except through declared API surfaces.
+Constraint: Each plugin must declare its API version requirement; mismatched versions are rejected.
+Constraint: Plugin sandbox must limit CPU, memory, and I/O to configured quotas.
+Constraint: Hot reload must not interrupt in-flight requests using the old plugin version.
+Conseint: Plugin dependency cycles must be detected and rejected at installation time.
+
+Risk: Malicious plugin escapes sandbox and accesses host resources
+Recovery: Kill plugin process immediately; audit all accessed resources; blacklist plugin signature
+
+Risk: Plugin hot reload leaves orphaned event listeners or timers
+Recovery: Track all registered callbacks per plugin; revoke and clean up on unload before activating new version
+
+Risk: API version mismatch causes runtime errors in dependent plugins
+Recovery: Validate version compatibility graph before loading; isolate incompatible plugins to separate sandbox
+
+Risk: Plugin memory leak degrades host performance
+Recovery: Enforce per-plugin memory quota; automatically unload plugin exceeding limit with notification
+
+Risk: Circular plugin dependency prevents any plugin from loading
+Recovery: Detect cycles at installation; reject with clear dependency chain visualization
+
+Risk: Plugin load failure crashes host application
+Recovery: Isolate plugin initialization in try-catch with fallback; mark plugin as failed without affecting host
+
+Layer: Core
+    SubLayer: PluginLoader
+    SubLayer: PluginRegistry
+    SubLayer: LifecycleManager
+Layer: Isolation
+    SubLayer: SandboxRuntime
+    SubLayer: ResourceQuota
+    SubLayer: PermissionManager
+Layer: Compatibility
+    SubLayer: ApiVersionManager
+    SubLayer: DependencyResolver
+    SubLayer: CompatibilityChecker
+
+Validation: Plugin manifest must declare name, version, API version, and dependencies
+Validation: Plugin sandbox must prevent access to undeclared host APIs
+Validation: Plugin memory usage must remain below configured quota
+Validation: Hot reload must complete within 30 seconds or rollback
+Validation: All plugin dependencies must be satisfied before activation
+Validation: Plugin must implement lifecycle hooks: install, activate, deactivate, uninstall
+
+# Level 2: Entities
+Entity PluginManifest
+    pluginId: string
+    pluginName: string
+    version: string
+    apiVersion: string
+    dependencies: list
+    permissions: list
+    entryPoint: string
+    description: string
+    author: string
+
+Entity PluginInstance
+    instanceId: string
+    pluginId: string
+    version: string
+    state: string
+    loadedAt: datetime
+    memoryUsage: integer
+    cpuUsage: float
+    requestCount: integer
+    errorCount: integer
+    sandboxId: string
+
+Entity ApiVersion
+    versionId: string
+    version: string
+    surface: dict
+    deprecatedMethods: list
+    removedMethods: list
+    introducedAt: datetime
+    sunsetAt: datetime
+    replacementVersion: string
+
+Entity DependencyEdge
+    edgeId: string
+    sourcePlugin: string
+    targetPlugin: string
+    requiredVersion: string
+    dependencyType: string
+    isOptional: boolean
+    resolvedVersion: string
+
+Entity SandboxConfig
+    sandboxId: string
+    maxMemoryMb: integer
+    maxCpuPercent: float
+    maxFileDescriptors: integer
+    networkAccess: boolean
+    allowedApis: list
+    timeoutSeconds: integer
+    logLevel: string
+
+Entity HotReloadState
+    reloadId: string
+    pluginId: string
+    oldVersion: string
+    newVersion: string
+    state: string
+    inFlightRequests: integer
+    startedAt: datetime
+    completedAt: datetime
+    rollbackReason: string
+
+# Level 3: Behaviors
+Behavior LoadPlugin
+    Input:
+        manifest: PluginManifest
+        sandboxConfig: SandboxConfig
+    Output:
+        instanceId: string
+    Action:
+        Validate manifest completeness and schema
+        Check API version compatibility with host
+        Resolve declared dependencies against registry
+        Detect circular dependencies in resolved graph
+        Create sandboxed runtime environment
+        Load plugin code into sandbox
+        Execute plugin install lifecycle hook
+        Transition plugin to activated state
+        Return plugin instance identifier
+
+Behavior UnloadPlugin
+    Input:
+        instanceId: string
+        graceful: boolean
+    Output:
+        result: string
+    Action:
+        Transition plugin to deactivating state
+        Wait for in-flight requests to complete or timeout
+        Execute plugin deactivate lifecycle hook
+        Revoke all registered callbacks and listeners
+        Destroy sandbox environment and free resources
+        Remove plugin from active registry
+        Execute plugin uninstall lifecycle hook
+        Return unload result
+
+Behavior HotReload
+    Input:
+        pluginId: string
+        newManifest: PluginManifest
+    Output:
+        reloadId: string
+        result: string
+    Action:
+        Validate new manifest against compatibility rules
+        Load new plugin version in parallel sandbox
+        Drain in-flight requests from old version
+        Switch routing to new version atomically
+        Verify new version health via smoke test
+        If health check fails, rollback to old version
+        Unload old version after successful switch
+        Return reload result with timing
+
+Behavior ResolveDependencies
+    Input:
+        pluginId: string
+        dependencies: list
+    Output:
+        resolution: dict
+        graphValid: boolean
+    Action:
+        Build dependency graph from plugin requirements
+        Perform topological sort for load ordering
+        Detect cycles via depth-first traversal
+        Resolve version conflicts with semantic versioning rules
+        Identify missing dependencies
+        Compute installation order
+        Return resolution with validity flag
+
+Behavior EnforceSandbox
+    Input:
+        sandboxId: string
+        operation: string
+        resource: string
+    Output:
+        allowed: boolean
+    Action:
+        Check operation against sandbox permission list
+        Verify resource access is in allowed API surface
+        Monitor current resource usage against quota
+        If quota exceeded, reject operation and alert
+        If permission denied, log violation attempt
+        Return access decision
+
+Behavior VersionApiCall
+    Input:
+        pluginId: string
+        apiMethod: string
+        args: dict
+    Output:
+        result: any
+        versionUsed: string
+    Action:
+        Determine plugin's declared API version
+        Look up method availability at that version
+        If method deprecated, log warning with migration hint
+        If method removed, reject with clear error and alternative
+        Route call to versioned implementation
+        Return result with API version used
+
+# Level 4: Conditions
+Condition: SandboxMemoryExceeded
+    When plugin memory usage exceeds sandbox quota
+    Then terminate plugin process, mark as failed, and notify host application
+
+Condition: ApiVersionDeprecated
+    When plugin uses API method marked as deprecated in current version
+    Then log deprecation warning with migration guide; continue execution but schedule removal notice
+
+Condition: DependencyMissing
+    When required plugin dependency is not installed
+    Then reject plugin activation with list of missing dependencies and installation suggestions
+
+# Level 5: Events
+Event: OnPluginLoaded
+    On plugin successfully loaded and activated
+    Action: Register plugin routes, emit capability event, update discovery service
+
+Event: OnPluginFailed
+    On plugin load or execution error requiring isolation
+    Action: Capture crash dump, notify administrators, activate fallback if available
+
+Event: OnHotReloadComplete
+    On plugin hot reload successfully switched versions
+    Action: Log version transition, verify all routes functional, update monitoring
+
+Event: OnSandboxViolation
+    On plugin attempts operation outside sandbox permissions
+    Action: Log security violation, increment violation counter, unload plugin after 3 violations
+
+# Level 6: Concurrency
+Parallel:
+    Plugin loading and initialization for independent plugins
+    Request routing to multiple active plugin instances
+    Sandbox resource monitoring across all active sandboxes
+    Hot reload new version loading while old version still serving
+    Dependency resolution graph analysis for pending installations
+
+# Level 7: Optimization
+Optimize: Plugin load time
+    Priority: Pre-download plugin artifacts; lazy-initialize non-critical resources; cache compiled code
+
+Optimize: Hot reload switchover latency
+    Priority: Pre-warm new version in parallel; use atomic pointer swap for routing switch
+
+# Level 8: Learning
+Learn: Plugin resource usage patterns
+    Goal: Right-size sandbox quotas based on actual usage to reduce over-provisioning
+    Adapt: Per-plugin memory and CPU quota settings
+    Based: Peak and average resource consumption over sliding 24-hour window
+
+Learn: API deprecation impact
+    Goal: Prioritize API migration efforts based on plugin usage of deprecated methods
+    Adapt: Deprecation timeline and migration resource allocation
+    Based: Call frequency to deprecated API methods across all active plugins
+
+# Level 9: Security
+Security:
+    Encrypt: Plugin code artifacts at rest with code signing verification on load
+    Encrypt: Inter-plugin communication via encrypted channels with per-plugin certificates
+    Protect: Host APIs from unauthorized plugin access via capability-based security model
+    Protect: Plugin sandbox escape attempts with kernel-level isolation and syscall filtering
+    Protect: Plugin marketplace from supply chain attacks with verified publisher signatures and scanning
+
+# Level 10: Native
+Python
+{
+import importlib
+import importlib.util
+import sys
+import threading
+import traceback
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List, Optional
+from enum import Enum
+import time
+
+class PluginState(Enum):
+    LOADED = "loaded"
+    ACTIVATED = "activated"
+    DEACTIVATING = "deactivating"
+    DEACTIVATED = "deactivated"
+    FAILED = "failed"
+
+@dataclass
+class PluginManifest:
+    plugin_id: str
+    plugin_name: str
+    version: str
+    api_version: str
+    dependencies: List[str] = field(default_factory=list)
+    permissions: List[str] = field(default_factory=list)
+    entry_point: str = "main"
+    description: str = ""
+    author: str = ""
+
+@dataclass
+class SandboxConfig:
+    sandbox_id: str
+    max_memory_mb: int = 256
+    max_cpu_percent: float = 50.0
+    network_access: bool = False
+    allowed_apis: List[str] = field(default_factory=list)
+    timeout_seconds: int = 30
+
+class PluginSandbox:
+    def __init__(self, config: SandboxConfig):
+        self.config = config
+        self.memory_usage = 0
+        self.violation_count = 0
+        self._lock = threading.Lock()
+
+    def check_permission(self, api_name: str) -> bool:
+        if api_name in self.config.allowed_apis:
+            return True
+        with self._lock:
+            self.violation_count += 1
+        return False
+
+    def check_memory(self, used_mb: int) -> bool:
+        if used_mb <= self.config.max_memory_mb:
+            self.memory_usage = used_mb
+            return True
+        return False
+
+class PluginInstance:
+    def __init__(self, manifest: PluginManifest, sandbox: PluginSandbox):
+        self.instance_id = f"{manifest.plugin_id}-{manifest.version}"
+        self.manifest = manifest
+        self.sandbox = sandbox
+        self.state = PluginState.LOADED
+        self.module = None
+        self.request_count = 0
+        self.error_count = 0
+        self.loaded_at = time.time()
+
+class PluginManager:
+    def __init__(self):
+        self.plugins: Dict[str, PluginInstance] = {}
+        self.api_versions: Dict[str, Dict] = {}
+        self._dependency_graph: Dict[str, List[str]] = {}
+        self._lock = threading.RLock()
+
+    def register_api_version(self, version: str, surface: Dict):
+        self.api_versions[version] = surface
+
+    def load_plugin(self, manifest: PluginManifest, sandbox_config: SandboxConfig) -> str:
+        with self._lock:
+            if not self._check_api_compatibility(manifest.api_version):
+                raise ValueError(f"API version {manifest.api_version} incompatible")
+
+            if not self._resolve_dependencies(manifest):
+                raise ValueError(f"Unresolved dependencies for {manifest.plugin_id}")
+
+            if self._detect_cycle(manifest.plugin_id, manifest.dependencies):
+                raise ValueError(f"Circular dependency detected for {manifest.plugin_id}")
+
+            sandbox = PluginSandbox(sandbox_config)
+            instance = PluginInstance(manifest, sandbox)
+            sandbox.check_permission("lifecycle.install")
+
+            instance.state = PluginState.ACTIVATED
+            self.plugins[manifest.plugin_id] = instance
+            self._dependency_graph[manifest.plugin_id] = manifest.dependencies
+
+            return instance.instance_id
+
+    def unload_plugin(self, plugin_id: str, graceful: bool = True) -> str:
+        with self._lock:
+            instance = self.plugins.get(plugin_id)
+            if not instance:
+                return f"Plugin {plugin_id} not found"
+
+            instance.state = PluginState.DEACTIVATING
+            if graceful and instance.request_count > 0:
+                timeout = 30
+                start = time.time()
+                while instance.request_count > 0 and (time.time() - start) < timeout:
+                    time.sleep(0.1)
+
+            instance.state = PluginState.DEACTIVATED
+            del self.plugins[plugin_id]
+            self._dependency_graph.pop(plugin_id, None)
+            return f"Plugin {plugin_id} unloaded successfully"
+
+    def hot_reload(self, plugin_id: str, new_manifest: PluginManifest) -> str:
+        old_instance = self.plugins.get(plugin_id)
+        if not old_instance:
+            return f"Plugin {plugin_id} not found for hot reload"
+
+        old_version = old_instance.manifest.version
+        sandbox_config = old_instance.sandbox.config
+
+        try:
+            new_instance_id = self.load_plugin(new_manifest, sandbox_config)
+            self.unload_plugin(plugin_id, graceful=True)
+            return f"Hot reload: {old_version} -> {new_manifest.version} ({new_instance_id})"
+        except Exception as e:
+            return f"Hot reload failed: {str(e)}, old version still active"
+
+    def _check_api_compatibility(self, api_version: str) -> bool:
+        return api_version in self.api_versions
+
+    def _resolve_dependencies(self, manifest: PluginManifest) -> bool:
+        for dep in manifest.dependencies:
+            if dep not in self.plugins:
+                return False
+        return True
+
+    def _detect_cycle(self, plugin_id: str, dependencies: List[str]) -> bool:
+        visited = set()
+        def dfs(node: str) -> bool:
+            if node in visited:
+                return True
+            visited.add(node)
+            for dep in self._dependency_graph.get(node, []):
+                if dfs(dep):
+                    return True
+            visited.discard(node)
+            return False
+        self._dependency_graph[plugin_id] = dependencies
+        result = dfs(plugin_id)
+        if result:
+            self._dependency_graph.pop(plugin_id, None)
+        return result
+
+manager = PluginManager()
+manager.register_api_version("1.0", {"execute": True, "query": True})
+manifest = PluginManifest("auth-plugin", "Auth Plugin", "1.0.0", "1.0", [])
+config = SandboxConfig("sandbox-1", allowed_apis=["lifecycle.install", "execute"])
+instance_id = manager.load_plugin(manifest, config)
+print(f"Loaded: {instance_id}")
+}

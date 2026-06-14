@@ -1,0 +1,465 @@
+# AICL Example: Reinforcement Learning Agent
+# Comprehensive RL agent system covering environment interaction, policy learning, reward shaping,
+# exploration/exploitation balance, and multi-agent coordination with safety constraints.
+
+Goal Build a reinforcement learning agent system that learns optimal policies through environment interaction, supports multiple algorithm families, implements safe exploration, handles reward shaping, and enables multi-agent coordination for complex sequential decision-making tasks
+
+Constraint Agent must never take unsafe actions; safety constraints must be enforced as hard constraints regardless of learned policy
+Constraint Reward shaping must be transparent and not introduce reward hacking opportunities
+Constraint Multi-agent communication must be bandwidth-limited and latency-bounded
+Constraint Policy updates must be reversible to enable rollback from catastrophic forgetting
+Constraint Episode replay buffers must support deterministic replay for reproducibility
+
+Risk Catastrophic forgetting during policy updates on new tasks
+Recovery Maintain replay buffer of critical experiences; implement elastic weight consolidation; checkpoint policy networks before each update; enable rollback to last stable policy
+
+Risk Reward hacking where agent exploits specification gaps instead of intended behavior
+Recovery Implement adversarial reward auditing; compare agent behavior against human demonstrations; add auxiliary penalties for suspicious reward patterns; enable human-in-the-loop reward validation
+
+Risk Unsafe action execution during exploration in safety-critical environments
+Recovery Deploy action masking with safety constraint checker; use constrained policy optimization with safety Lagrangian; implement fallback to safe default action on constraint violation
+
+Risk Environment simulation-reality gap causing poor transfer
+Recovery Apply domain randomization during training; use systematic sim-to-real adaptation; deploy progressive transfer with online fine-tuning in real environment
+
+Risk Multi-agent coordination collapse into suboptimal equilibria
+Recovery Implement communication protocol with shared reward signals; deploy counterfactual credit assignment; enable centralized training with decentralized execution paradigm
+
+Risk Training instability from large policy gradient variance
+Recovery Use generalized advantage estimation with GAE-lambda; clip policy ratios using PPO-style objectives; monitor KL divergence between consecutive policies
+
+Layer AgentCore
+    SubLayer: PolicyNetwork
+    SubLayer: ValueNetwork
+    SubLayer: ActionSelection
+Layer Learning
+    SubLayer: PolicyGradient
+    SubLayer: ValueBased
+    SubLayer: ModelBased
+    SubLayer: RewardShaping
+Layer Safety
+    SubLayer: ConstraintEnforcement
+    SubLayer: SafeExploration
+    SubLayer: ActionMasking
+Layer MultiAgent
+    SubLayer: CommunicationProtocol
+    SubLayer: CoordinationStrategy
+    SubLayer: CreditAssignment
+
+Validation Policy must achieve at least 80% of expert performance on benchmark environment within 1M steps
+Validation Safety constraint violations must remain at zero during evaluation
+Validation Reward shaping must not reduce true task performance by more than 5%
+Validation Multi-agent team reward must exceed sum of independent agent rewards by at least 10%
+Validation Policy KL divergence between consecutive updates must remain below 0.1
+Validation Replay buffer must support deterministic replay with identical results
+Validation Agent must recover from 90% of environment perturbations within 10 steps
+
+# Level 2 - Entities
+
+Entity Environment
+    envId: string
+    envType: string
+    observationSpace: dict
+    actionSpace: dict
+    rewardRange: dict
+    maxSteps: integer
+    safetyConstraints: list
+    simulationConfig: dict
+    domainRandomization: dict
+
+Entity AgentPolicy
+    policyId: string
+    algorithmType: string
+    networkArchitecture: dict
+    hyperparameters: dict
+    learningRateSchedule: dict
+    explorationConfig: dict
+    safetyConfig: dict
+    trainingStepCount: integer
+    version: string
+    createdAt: datetime
+
+Entity Experience
+    experienceId: string
+    agentId: string
+    environmentId: string
+    observation: dict
+    action: dict
+    reward: float
+    nextObservation: dict
+    done: boolean
+    truncated: boolean
+    safetyViolation: boolean
+    timestamp: datetime
+    episodeId: string
+
+Entity RewardFunction
+    rewardId: string
+    primaryReward: dict
+    shapingRewards: list
+    penaltyTerms: list
+    constraintPenalties: list
+    intrinsicReward: dict
+    totalRewardExpression: string
+    version: string
+    lastModified: datetime
+
+Entity MultiAgentTeam
+    teamId: string
+    agentIds: list
+    communicationProtocol: dict
+    coordinationStrategy: string
+    sharedRewardWeight: float
+    individualRewardWeight: float
+    messageBandwidth: integer
+    teamPerformanceMetrics: dict
+
+Entity TrainingEpisode
+    episodeId: string
+    environmentId: string
+    agentId: string
+    totalReward: float
+    stepCount: integer
+    safetyViolations: integer
+    explorationRate: float
+    policyKL: float
+    startTime: datetime
+    endTime: datetime
+    outcome: string
+
+# Level 3 - Behaviors
+
+Behavior SelectAction
+    Input:
+        observation: dict
+        policy: AgentPolicy
+        safetyConfig: dict
+    Output:
+        action: dict
+        actionLogProb: float
+        valueEstimate: float
+        safetyApproved: boolean
+    Action:
+        Encode observation using policy network encoder
+        Compute action distribution parameters from policy head
+        Sample action from distribution with exploration noise
+        Check action against safety constraint mask
+        If action violates constraint, project to nearest safe action
+        Compute log probability and value estimate
+        Return action with safety approval status
+
+Behavior UpdatePolicy
+    Input:
+        experiences: list
+        policy: AgentPolicy
+        updateConfig: dict
+    Output:
+        updatedPolicy: AgentPolicy
+        trainingMetrics: dict
+    Action:
+        Compute advantage estimates using GAE-lambda
+        Compute policy gradient with clipped surrogate objective
+        Compute value function loss with optional TD-lambda returns
+        Compute entropy bonus for exploration encouragement
+        Compute total loss and apply gradient clipping
+        Check KL divergence against threshold before applying update
+        If KL exceeds threshold, reduce learning rate and retry
+        Return updated policy with training metrics
+
+Behavior ShapeReward
+    Input:
+        experience: Experience
+        rewardFunction: RewardFunction
+    Output:
+        shapedReward: float
+        rewardBreakdown: dict
+    Action:
+        Evaluate primary reward from environment signal
+        Add potential-based shaping rewards if configured
+        Subtract constraint violation penalties
+        Add intrinsic curiosity reward for novel states
+        Compute any auxiliary reward terms
+        Validate total reward does not exceed reward hacking threshold
+        Return shaped reward with detailed breakdown
+
+Behavior CoordinateMultiAgent
+    Input:
+        teamState: MultiAgentTeam
+        observations: dict
+        communicationBudget: integer
+    Output:
+        coordinatedActions: dict
+        messages: dict
+        teamReward: float
+    Action:
+        Each agent computes individual action proposals
+        Agents exchange compressed messages within budget
+        Aggregate team information using attention mechanism
+        Compute coordinated actions considering team objectives
+        Estimate team value function for shared reward allocation
+        Apply counterfactual credit assignment for individual contributions
+        Return coordinated actions, messages, and team reward estimate
+
+Behavior ExploreEnvironment
+    Input:
+        agentPolicy: AgentPolicy
+        environment: Environment
+        explorationConfig: dict
+    Output:
+        experiences: list
+        episodeSummary: TrainingEpisode
+    Action:
+        Reset environment and initialize episode
+        For each step until done or max steps:
+            Select action with exploration strategy
+            Execute action in environment
+            Observe reward and next state
+            Check safety constraints
+            Store experience in replay buffer
+        Compute episode summary statistics
+        Return collected experiences and episode summary
+
+Behavior EnforceSafety
+    Input:
+        proposedAction: dict
+        safetyConstraints: list
+        environment: Environment
+    Output:
+        safeAction: dict
+        violations: list
+        correctionApplied: boolean
+    Action:
+        Evaluate each safety constraint against proposed action
+        If any hard constraint violated, project to constraint-satisfying action
+        Log any constraint violations with context
+        Apply graduated penalties for soft constraint violations
+        If no safe projection found, execute safe default action
+        Return safe action with violation report
+
+# Level 4 - Conditions
+
+Condition: KL divergence exceeds threshold
+    When KL divergence between new and old policy exceeds 0.1
+    Then reduce learning rate by factor of 0.5; recompute update with smaller step; log divergence event; if persistent, revert to last stable policy checkpoint
+
+Condition: Safety constraint violated during exploration
+    When agent action violates hard safety constraint
+    Then immediately override with safe default action; apply penalty reward; log violation for constraint analysis; increase safety margin for future exploration
+
+Condition: Reward hacking detected
+    When agent achieves unusually high shaped reward with low primary reward
+    Then halt training; audit reward function for specification gaps; remove or redesign problematic shaping terms; resume training with corrected reward function
+
+Condition: Multi-agent communication failure
+    When inter-agent message delivery latency exceeds timeout or messages are lost
+    Then fall back to independent execution mode; cache last known team state; log communication failure; retry connection with exponential backoff
+
+Condition: Training plateau detected
+    When average episode reward has not improved by more than 1% over last 100K steps
+    Then increase exploration rate temporarily; reset learning rate schedule; evaluate curriculum progression; consider algorithm switch
+
+# Level 5 - Events
+
+Event: EpisodeCompleted
+    On training episode reaching terminal state or max steps
+    Action: compute episode metrics; update training statistics; check for improvement; emit progress to monitoring dashboard
+
+Event: SafetyViolation
+    On agent action violating safety constraint
+    Action: override action; apply penalty; log detailed violation context; alert safety monitoring system; update safety constraint statistics
+
+Event: PolicyCheckpoint
+    On policy network checkpoint saved
+    Action: register checkpoint in version control; compute validation metrics; update best-policy tracker; clean up old checkpoints beyond retention limit
+
+Event: RewardHackingSuspected
+    On shaped reward significantly exceeding primary reward trend
+    Action: pause training; trigger reward audit; notify human supervisor; log full reward breakdown for analysis
+
+Event: MultiAgentCoordinationUpdate
+    On team coordination strategy parameters updated
+    Action: broadcast new coordination parameters to all agents; reset team performance baseline; log coordination change for audit trail
+
+# Level 6 - Concurrency
+
+Parallel:
+    Multiple environment instances for experience collection simultaneously
+    Policy gradient computation across batch of experiences
+    Value function bootstrapping for multi-step returns
+    Multi-agent action computation with parallel message passing
+    Safety constraint checking for proposed actions
+    Replay buffer insertion alongside policy training
+
+# Level 7 - Optimization
+
+Optimize: Sample efficiency of policy learning
+    Priority: Maximize learning per environment step; use off-policy correction; prioritize high-advantage experiences in replay
+
+Optimize: Exploration-exploitation trade-off
+    Priority: Adaptive entropy coefficient scheduling; upper confidence bound for novel states; curiosity-driven exploration for sparse reward environments
+
+Optimize: Multi-agent communication efficiency
+    Priority: Minimize message bits while preserving coordination quality; learn when to communicate; compress state representations for inter-agent messages
+
+# Level 8 - Learning
+
+Learn: Optimal exploration schedule
+    Goal: Balance exploration and exploitation to maximize cumulative reward
+    Adapt: Exploration rate, entropy coefficient, and noise schedule
+    Based: Learning curve analysis and plateau detection across training runs
+
+Learn: Reward shaping hyperparameters
+    Goal: Maximize true task performance while accelerating learning with shaped rewards
+    Adapt: Shaping reward weights and potential function parameters
+    Based: Comparison of shaped vs unshaped reward training outcomes and transfer performance
+
+Learn: Safety constraint margins
+    Goal: Minimize safety violations while maintaining exploration capability
+    Adapt: Constraint penalty coefficients and safety margin thresholds
+    Based: Violation frequency analysis and near-miss event statistics
+
+Learn: Multi-agent communication protocol
+    Goal: Learn what, when, and how to communicate for effective team coordination
+    Adapt: Message content, communication triggers, and attention weights
+    Based: Team performance with and without communication in varied scenarios
+
+# Level 9 - Security
+
+Security:
+    Encrypt: Policy network weights and training checkpoints at rest using AES-256
+    Encrypt: Inter-agent communication channels with TLS 1.3 and message authentication
+    Protect: Reward function specifications from unauthorized modification via signed configuration
+    Protect: Safety constraint definitions with integrity verification and tamper detection
+    Protect: Replay buffer data with access controls preventing unauthorized extraction
+    Encrypt: Environment state observations containing sensitive information with field-level encryption
+    Protect: Multi-agent team membership and coordination parameters with RBAC
+
+# Level 10 - Native
+
+Native: python
+{
+import numpy as np
+from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass, field
+from collections import deque
+
+@dataclass
+class PPOPolicy:
+    clip_range: float = 0.2
+    entropy_coeff: float = 0.01
+    value_loss_coeff: float = 0.5
+    max_grad_norm: float = 0.5
+    gae_lambda: float = 0.95
+    gamma: float = 0.99
+    kl_threshold: float = 0.1
+    learning_rate: float = 3e-4
+
+    def compute_advantages(self, rewards: List[float], values: List[float],
+                           dones: List[bool]) -> np.ndarray:
+        advantages = []
+        gae = 0.0
+        next_value = 0.0
+        for t in reversed(range(len(rewards))):
+            if dones[t]:
+                next_value = 0.0
+                gae = 0.0
+            delta = rewards[t] + self.gamma * next_value - values[t]
+            gae = delta + self.gamma * self.gae_lambda * gae
+            advantages.insert(0, gae)
+            next_value = values[t]
+        return np.array(advantages)
+
+    def clipped_surrogate_loss(self, old_log_probs: np.ndarray,
+                                new_log_probs: np.ndarray,
+                                advantages: np.ndarray) -> Tuple[float, float]:
+        ratio = np.exp(new_log_probs - old_log_probs)
+        surr1 = ratio * advantages
+        surr2 = np.clip(ratio, 1 - self.clip_range, 1 + self.clip_range) * advantages
+        loss = -np.minimum(surr1, surr2).mean()
+        kl = np.mean(ratio - 1 - np.log(ratio))
+        return loss, kl
+
+@dataclass
+class SafetyConstraintEnforcer:
+    constraints: List[Dict] = field(default_factory=list)
+    default_safe_action: Dict = field(default_factory=dict)
+
+    def check_action(self, action: Dict, state: Dict) -> Tuple[Dict, List[str], bool]:
+        violations = []
+        safe_action = action.copy()
+        correction_applied = False
+
+        for constraint in self.constraints:
+            constraint_type = constraint["type"]
+            if constraint_type == "bound":
+                param = constraint["parameter"]
+                if param in action:
+                    low, high = constraint["bounds"]
+                    if action[param] < low or action[param] > high:
+                        violations.append(f"{param} out of bounds: {action[param]} not in [{low}, {high}]")
+                        safe_action[param] = np.clip(action[param], low, high)
+                        correction_applied = True
+
+            elif constraint_type == "exclude":
+                excluded_set = constraint["excluded_actions"]
+                if action.get("discrete") in excluded_set:
+                    violations.append(f"Excluded action: {action.get('discrete')}")
+                    safe_action = self.default_safe_action.copy()
+                    correction_applied = True
+
+        return safe_action, violations, correction_applied
+
+@dataclass
+class ReplayBuffer:
+    capacity: int = 100000
+    buffer: deque = field(default_factory=lambda: deque(maxlen=100000))
+
+    def add(self, experience: Dict):
+        self.buffer.append(experience)
+
+    def sample(self, batch_size: int) -> List[Dict]:
+        indices = np.random.choice(len(self.buffer), size=min(batch_size, len(self.buffer)), replace=False)
+        return [self.buffer[i] for i in indices]
+
+    def prioritized_sample(self, batch_size: int, alpha: float = 0.6) -> List[Dict]:
+        if len(self.buffer) == 0:
+            return []
+        priorities = np.array([
+            max(abs(exp.get("advantage", 0.0)), 1e-6) for exp in self.buffer
+        ])
+        probs = priorities ** alpha
+        probs /= probs.sum()
+        indices = np.random.choice(len(self.buffer), size=min(batch_size, len(self.buffer)), p=probs, replace=False)
+        return [self.buffer[i] for i in indices]
+
+@dataclass
+class RewardShaper:
+    potential_function: Dict = field(default_factory=dict)
+    intrinsic_scale: float = 0.1
+    constraint_penalty: float = -10.0
+
+    def shape(self, primary_reward: float, state: Dict, next_state: Dict,
+              violation: bool, novelty: float) -> Tuple[float, Dict]:
+        shaping_reward = 0.0
+        if self.potential_function:
+            current_potential = self._evaluate_potential(state)
+            next_potential = self._evaluate_potential(next_state)
+            shaping_reward = self.potential_function.get("gamma", 0.99) * next_potential - current_potential
+
+        intrinsic_reward = self.intrinsic_scale * novelty
+        penalty = self.constraint_penalty if violation else 0.0
+        total = primary_reward + shaping_reward + intrinsic_reward + penalty
+
+        breakdown = {
+            "primary": primary_reward,
+            "shaping": shaping_reward,
+            "intrinsic": intrinsic_reward,
+            "constraint_penalty": penalty,
+            "total": total
+        }
+        return total, breakdown
+
+    def _evaluate_potential(self, state: Dict) -> float:
+        weights = self.potential_function.get("weights", {})
+        return sum(state.get(k, 0.0) * v for k, v in weights.items())
+}

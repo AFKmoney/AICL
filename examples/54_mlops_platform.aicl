@@ -1,0 +1,520 @@
+# AICL Example: MLOps Platform
+# Comprehensive MLOps platform covering experiment tracking, model registry, CI/CD for ML,
+# model monitoring, and automated retraining with full lifecycle management.
+
+Goal Build a production MLOps platform that provides end-to-end ML lifecycle management including experiment tracking, model registry with governance, CI/CD pipelines for ML, real-time model monitoring, and automated retraining triggered by performance degradation
+
+Constraint All models must pass governance review before production deployment
+Constraint Experiment tracking must capture all parameters, metrics, and artifacts for full reproducibility
+Constraint CI/CD pipelines must validate model performance, fairness, and security before deployment
+Constraint Model monitoring must detect performance degradation within 15 minutes of onset
+Constraint Automated retraining must not deploy without human approval for production-critical models
+
+Risk Experiment tracking data loss causing irreproducible results
+Recovery Implement multi-region replicated artifact storage; maintain write-ahead log for experiment metadata; enable point-in-time recovery from backups; validate artifact integrity on retrieval
+
+Risk Model registry corruption from concurrent registration conflicts
+Recovery Implement optimistic locking on model version registration; deploy transactional registration with rollback; maintain audit trail of all registry mutations; enable recovery from registry snapshots
+
+Risk CI/CD pipeline deploying biased or unsafe model to production
+Recovery Implement mandatory fairness and safety gates in pipeline; deploy canary validation with automated rollback; require human approval gate before full deployment; enforce policy-as-code checks
+
+Risk Model monitoring blind spot missing gradual performance degradation
+Recovery Deploy multi-signal monitoring with statistical process control; implement sliding window analysis with adaptive thresholds; use ensemble of drift detection methods; require periodical manual review
+
+Risk Automated retraining producing worse model than current production
+Recovery Implement champion-challenger comparison before any deployment; require automated evaluation to beat current model on all metrics; maintain rollback capability to previous champion; log all retraining decisions
+
+Risk Infrastructure cost overrun from uncontrolled retraining jobs
+Recovery Implement cost budgets per project with hard limits; prioritize retraining jobs by business impact; use spot instances for training; enforce resource quotas and time limits on jobs
+
+Layer ExperimentTracking
+    SubLayer: ParameterLogging
+    SubLayer: MetricCollection
+    SubLayer: ArtifactStorage
+Layer ModelRegistry
+    SubLayer: VersionManagement
+    SubLayer: GovernanceReview
+    SubLayer: ArtifactSigning
+Layer CICD
+    SubLayer: PipelineOrchestration
+    SubLayer: ValidationGates
+    SubLayer: DeploymentAutomation
+Layer Monitoring
+    SubLayer: PerformanceMonitoring
+    SubLayer: DriftDetection
+    SubLayer: AlertManagement
+Layer Retraining
+    SubLayer: TriggerEvaluation
+    SubLayer: TrainingOrchestration
+    SubLayer: ChampionChallenger
+
+Validation All experiment parameters and metrics must be captured within 1 second of logging
+Validation Model registration must enforce uniqueness of model name and version combination
+Validation CI/CD pipeline must complete validation within 2 hours for standard models
+Validation Model monitoring must detect 5% accuracy degradation within 15 minutes
+Validation Automated retraining must achieve equal or better metrics than current production model
+Validation Governance review must complete within 24 hours of submission
+Validation Artifact integrity must be verified via checksum on every retrieval
+Validation Cost alerts must trigger within 5 minutes of budget threshold breach
+
+# Level 2 - Entities
+
+Entity Experiment
+    experimentId: string
+    experimentName: string
+    projectName: string
+    parameters: dict
+    metrics: dict
+    artifactUris: list
+    tags: list
+    status: string
+    startTime: datetime
+    endTime: datetime
+    createdBy: string
+    parentId: string
+
+Entity ModelRegistration
+    registrationId: string
+    modelName: string
+    modelVersion: string
+    framework: string
+    artifactUri: string
+    artifactChecksum: string
+    signatureUri: string
+    experimentId: string
+    governanceStatus: string
+    registeredAt: datetime
+    registeredBy: string
+    description: string
+
+Entity CICDPipeline
+    pipelineId: string
+    pipelineName: string
+    modelTarget: string
+    stages: list
+    validationGates: list
+    approvalRequirements: list
+    rollbackConfig: dict
+    lastRunId: string
+    status: string
+    createdAt: datetime
+
+Entity MonitoringAlert
+    alertId: string
+    modelId: string
+    alertType: string
+    severity: string
+    metricName: string
+    currentValue: float
+    thresholdValue: float
+    detectionTime: datetime
+    status: string
+    assignedTo: string
+    remediationAction: string
+
+Entity RetrainingJob
+    jobId: string
+    modelId: string
+    triggerReason: string
+    datasetVersion: string
+    hyperparameters: dict
+    trainingMetrics: dict
+    evaluationMetrics: dict
+    challengerStatus: string
+    submittedAt: datetime
+    completedAt: datetime
+    costUsd: float
+
+Entity GovernanceReview
+    reviewId: string
+    modelRegistrationId: string
+    reviewer: string
+    reviewStatus: string
+    fairnessReport: dict
+    securityReport: dict
+    performanceReport: dict
+    approvalConditions: list
+    submittedAt: datetime
+    reviewedAt: datetime
+    comments: string
+
+# Level 3 - Behaviors
+
+Behavior TrackExperiment
+    Input:
+        experimentConfig: dict
+        parameters: dict
+        metrics: dict
+        artifacts: list
+    Output:
+        experiment: Experiment
+        trackingReport: dict
+    Action:
+        Create experiment entry with unique identifier
+        Log all hyperparameters with type validation
+        Record metrics with timestamps for time-series analysis
+        Store artifact references with checksum verification
+        Link to parent experiment if specified
+        Emit ExperimentCreated event for tracking
+
+Behavior RegisterModel
+    Input:
+        modelArtifact: dict
+        metadata: dict
+        governanceConfig: dict
+    Output:
+        registration: ModelRegistration
+        governanceReview: GovernanceReview
+    Action:
+        Validate model artifact integrity via checksum
+        Check model name and version uniqueness in registry
+        Compute model signature from input/output schema
+        Submit model for governance review
+        Create registration entry with pending governance status
+        Emit ModelRegistered event for pipeline integration
+
+Behavior ExecuteCICDPipeline
+    Input:
+        pipeline: CICDPipeline
+        modelRegistration: ModelRegistration
+        executionConfig: dict
+    Output:
+        pipelineResult: dict
+        deploymentDecision: dict
+    Action:
+        Validate model passes all pre-deployment checks
+        Run unit tests on model serving code
+        Execute integration tests against staging environment
+        Run fairness and bias evaluation gates
+        Run security scanning on model artifact
+        Evaluate canary deployment metrics
+        Generate deployment decision with evidence
+        Emit PipelineCompleted event
+
+Behavior MonitorModelPerformance
+    Input:
+        modelId: string
+        monitoringConfig: dict
+    Output:
+        performanceReport: dict
+        alerts: list
+    Action:
+        Collect real-time inference metrics from serving endpoint
+        Compute rolling accuracy, latency, and error rate metrics
+        Apply statistical process control for anomaly detection
+        Compare current metrics against baseline thresholds
+        Generate alerts for any threshold violations
+        Compute feature drift metrics on input distributions
+        Return performance report with alert list
+
+Behavior TriggerRetraining
+    Input:
+        modelId: string
+        triggerReason: string
+        retrainingConfig: dict
+    Output:
+        retrainingJob: RetrainingJob
+        approvalRequest: dict
+    Action:
+        Evaluate trigger reason and severity
+        Fetch latest approved training dataset version
+        Configure hyperparameters from retraining policy
+        Submit retraining job to training orchestrator
+        Schedule champion-challenger evaluation upon completion
+        Request human approval if model is production-critical
+        Emit RetrainingTriggered event for tracking
+
+Behavior ConductGovernanceReview
+    Input:
+        modelRegistration: ModelRegistration
+        reviewConfig: dict
+    Output:
+        governanceReview: GovernanceReview
+        approvalDecision: dict
+    Action:
+        Generate fairness report across protected attributes
+        Run security scan on model artifact and dependencies
+        Validate performance meets minimum thresholds
+        Check compliance with model risk tier requirements
+        Assign reviewer based on model risk classification
+        Compile approval decision with conditions
+        Emit GovernanceReviewCompleted event
+
+# Level 4 - Conditions
+
+Condition: PerformanceDegradationDetected
+    When model accuracy drops more than 5% from baseline over 1-hour window
+    Then trigger monitoring alert; initiate retraining evaluation; activate shadow deployment of backup model; alert model owner
+
+Condition: GovernanceReviewExpired
+    When governance review remains pending for more than 48 hours
+    Then escalate to governance lead; block model deployment; notify model owner and reviewer; flag for compliance audit
+
+Condition: CICDPipelineFailure
+    When any pipeline validation gate fails
+    Then halt deployment immediately; generate failure report with root cause; notify pipeline owner; block subsequent deployments until issue resolved
+
+Condition: RetrainingBudgetExceeded
+    When cumulative retraining cost exceeds project budget allocation
+    Then pause all pending retraining jobs; alert project owner; require budget approval to resume; prioritize critical retraining only
+
+Condition: ArtifactIntegrityViolation
+    When artifact checksum verification fails during retrieval
+    Then block artifact usage immediately; alert security team; quarantine artifact; initiate integrity investigation; fall back to last verified version
+
+# Level 5 - Events
+
+Event: ExperimentCreated
+    On new experiment logged in tracking system
+    Action: index experiment for search; notify project dashboard; validate parameter completeness; link to project hierarchy
+
+Event: ModelRegistered
+    On model artifact registered in model registry
+    Action: initiate governance review; trigger CI/CD pipeline; update model catalog; notify stakeholders
+
+Event: GovernanceReviewCompleted
+    On governance review decision rendered
+    Action: update model registration status; notify model owner of decision; if approved, enable deployment; if rejected, document remediation steps
+
+Event: DeploymentCompleted
+    On model successfully deployed through CI/CD pipeline
+    Action: activate monitoring; initialize baseline metrics; notify operations team; update deployment dashboard; archive previous model version
+
+Event: MonitoringAlertTriggered
+    On model monitoring detecting threshold violation
+    Action: create alert with severity classification; notify on-call team; evaluate auto-remediation options; log alert for post-incident review
+
+Event: RetrainingCompleted
+    On automated retraining job finishing
+    Action: evaluate challenger vs champion; generate comparison report; request deployment approval; update retraining metrics dashboard
+
+# Level 6 - Concurrency
+
+Parallel:
+    Multiple experiment tracking writes from concurrent training runs
+    Model registration alongside governance review processing
+    CI/CD pipeline stages with independent validation gates
+    Performance monitoring across multiple deployed models
+    Retraining job execution with monitoring
+    Artifact integrity verification concurrent with retrieval
+
+# Level 7 - Optimization
+
+Optimize: Experiment tracking write throughput
+    Priority: Asynchronous metric logging with batching; compressed artifact storage; partitioned tracking database by project
+
+Optimize: CI/CD pipeline execution time
+    Priority: Parallelize independent validation gates; cache test datasets; incremental testing based on changed components only
+
+Optimize: Model monitoring cost efficiency
+    Priority: Sample-based monitoring with adaptive sampling rates; aggregate metrics before storage; tiered retention with downsampling
+
+# Level 8 - Learning
+
+Learn: Optimal monitoring thresholds per model
+    Goal: Set detection thresholds that catch real degradation while minimizing false alerts
+    Adapt: Alert thresholds and detection window parameters per model
+    Based: Historical alert accuracy, missed detections, and false positive rates
+
+Learn: Retraining trigger policy optimization
+    Goal: Retrain models at optimal frequency to maintain performance without wasting resources
+    Adapt: Retraining trigger conditions, cooldown periods, and dataset selection
+    Based: Degradation patterns, retraining outcomes, and cost-benefit analysis
+
+Learn: CI/CD pipeline stage optimization
+    Goal: Minimize pipeline execution time while maintaining validation quality
+    Adapt: Stage ordering, parallelization strategy, and test selection
+    Based: Historical pipeline execution times, failure patterns, and stage dependencies
+
+Learn: Governance review prioritization
+    Goal: Prioritize reviews for highest-risk models while maintaining SLA for all reviews
+    Adapt: Review queue ordering and reviewer assignment
+    Based: Model risk classification, business impact, and review SLA compliance history
+
+# Level 9 - Security
+
+Security:
+    Encrypt: All model artifacts and experiment data at rest using AES-256 with envelope encryption
+    Encrypt: API communication with mutual TLS 1.3 and OAuth2 Bearer token authentication
+    Protect: Model registry from unauthorized modifications via signed artifact verification and RBAC
+    Protect: Experiment tracking data with project-scoped access controls
+    Encrypt: CI/CD pipeline secrets and deployment credentials with vault integration
+    Protect: Monitoring alert data from tampering via append-only audit logging
+    Protect: Governance review decisions with digital signature from authorized reviewers
+
+# Level 10 - Native
+
+Native: python
+{
+import hashlib
+import json
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass, field
+from collections import defaultdict
+
+@dataclass
+class ExperimentTracker:
+    experiments: Dict[str, Dict] = field(default_factory=dict)
+
+    def log_experiment(self, name: str, params: Dict, metrics: Dict,
+                       artifacts: List[str], project: str = "default",
+                       parent_id: Optional[str] = None) -> Dict:
+        exp_id = hashlib.sha256(
+            f"{name}:{datetime.utcnow().isoformat()}".encode()
+        ).hexdigest()[:16]
+
+        experiment = {
+            "experiment_id": exp_id,
+            "experiment_name": name,
+            "project_name": project,
+            "parameters": params,
+            "metrics": metrics,
+            "artifact_uris": artifacts,
+            "tags": [],
+            "status": "running",
+            "start_time": datetime.utcnow().isoformat(),
+            "end_time": None,
+            "created_by": "system",
+            "parent_id": parent_id
+        }
+        self.experiments[exp_id] = experiment
+        return experiment
+
+    def log_metric(self, experiment_id: str, metric_name: str,
+                   value: float, step: int = 0) -> None:
+        if experiment_id in self.experiments:
+            exp = self.experiments[experiment_id]
+            if "metric_history" not in exp:
+                exp["metric_history"] = defaultdict(list)
+            exp["metric_history"][metric_name].append({
+                "value": value,
+                "step": step,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+
+@dataclass
+class ModelRegistry:
+    models: Dict[str, List[Dict]] = field(default_factory=dict)
+
+    def register(self, name: str, version: str, artifact_uri: str,
+                 framework: str, experiment_id: str,
+                 description: str = "") -> Tuple[Dict, bool]:
+        if name not in self.models:
+            self.models[name] = []
+
+        existing_versions = [m["version"] for m in self.models[name]]
+        if version in existing_versions:
+            return {"error": f"Version {version} already exists for {name}"}, False
+
+        checksum = hashlib.sha256(artifact_uri.encode()).hexdigest()
+
+        registration = {
+            "registration_id": hashlib.sha256(
+                f"{name}:{version}".encode()
+            ).hexdigest()[:16],
+            "model_name": name,
+            "model_version": version,
+            "framework": framework,
+            "artifact_uri": artifact_uri,
+            "artifact_checksum": checksum,
+            "experiment_id": experiment_id,
+            "governance_status": "pending",
+            "registered_at": datetime.utcnow().isoformat(),
+            "description": description
+        }
+        self.models[name].append(registration)
+        return registration, True
+
+    def get_model(self, name: str, version: str) -> Optional[Dict]:
+        versions = self.models.get(name, [])
+        for m in versions:
+            if m["model_version"] == version:
+                return m
+        return None
+
+    def list_versions(self, name: str) -> List[Dict]:
+        return self.models.get(name, [])
+
+@dataclass
+class PerformanceMonitor:
+    baselines: Dict[str, Dict] = field(default_factory=dict)
+    alert_history: List[Dict] = field(default_factory=list)
+    degradation_threshold_pct: float = 5.0
+    evaluation_window_minutes: int = 60
+
+    def set_baseline(self, model_id: str, metrics: Dict) -> None:
+        self.baselines[model_id] = {
+            "metrics": metrics,
+            "set_at": datetime.utcnow().isoformat()
+        }
+
+    def evaluate(self, model_id: str, current_metrics: Dict) -> Dict:
+        baseline = self.baselines.get(model_id)
+        if not baseline:
+            return {"status": "no_baseline", "model_id": model_id}
+
+        alerts = []
+        baseline_metrics = baseline["metrics"]
+        for metric_name, baseline_value in baseline_metrics.items():
+            if metric_name not in current_metrics:
+                continue
+            current_value = current_metrics[metric_name]
+            if baseline_value != 0:
+                pct_change = ((current_value - baseline_value) / abs(baseline_value)) * 100
+            else:
+                pct_change = 0.0
+
+            if pct_change < -self.degradation_threshold_pct:
+                alert = {
+                    "model_id": model_id,
+                    "metric_name": metric_name,
+                    "baseline_value": baseline_value,
+                    "current_value": current_value,
+                    "pct_change": pct_change,
+                    "severity": "high" if pct_change < -10 else "medium",
+                    "detected_at": datetime.utcnow().isoformat()
+                }
+                alerts.append(alert)
+                self.alert_history.append(alert)
+
+        return {
+            "model_id": model_id,
+            "alerts": alerts,
+            "degradation_detected": len(alerts) > 0
+        }
+
+@dataclass
+class ChampionChallenger:
+    champion: Optional[Dict] = None
+    challenger: Optional[Dict] = None
+    minimum_improvement_pct: float = 1.0
+
+    def evaluate_challenger(self, challenger_metrics: Dict) -> Dict:
+        if not self.champion:
+            self.challenger = challenger_metrics
+            return {"decision": "promote", "reason": "no_existing_champion"}
+
+        champion_score = self.champion.get("primary_metric", 0)
+        challenger_score = challenger_metrics.get("primary_metric", 0)
+
+        if champion_score != 0:
+            improvement = ((challenger_score - champion_score) / abs(champion_score)) * 100
+        else:
+            improvement = 100.0 if challenger_score > 0 else 0.0
+
+        if improvement >= self.minimum_improvement_pct:
+            self.challenger = challenger_metrics
+            return {
+                "decision": "promote",
+                "improvement_pct": improvement,
+                "champion_score": champion_score,
+                "challenger_score": challenger_score
+            }
+        return {
+            "decision": "reject",
+            "improvement_pct": improvement,
+            "reason": f"Improvement {improvement:.2f}% below minimum {self.minimum_improvement_pct}%"
+        }
+}

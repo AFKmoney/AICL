@@ -1,0 +1,393 @@
+# AICL Example: Distributed Consensus System
+# Implements a Raft-based distributed consensus protocol with leader election, log replication,
+# split-brain prevention, and commit index management for strongly consistent state machines.
+
+# Level 1: Architecture
+Goal: Provide a fault-tolerant distributed consensus mechanism ensuring linearizable consistency across a cluster of nodes using the Raft protocol, with automatic leader election, log replication, and split-brain prevention.
+
+Constraint: Quorum must be maintained with (N/2 + 1) nodes for any state mutation
+Constraint: Leader election timeout must be randomized between 150ms-300ms to prevent split votes
+Constraint: Log entries must be committed only after replication to a majority of nodes
+Constraint: Term numbers must be monotonically increasing and never reused
+Constraint: Candidates must increment term before requesting votes
+
+Risk: Network partition causing split-brain with dual leaders
+Recovery: Enforce strict term-based leadership; nodes in minority partition automatically step down to follower when detecting higher term from majority partition heartbeat
+
+Risk: Leader failure during log replication leaving followers with divergent logs
+Recovery: Followers truncate conflicting log entries beyond the last agreed-upon index and re-replicate from the new leader's log using AppendEntries consistency check
+
+Risk: Split vote during leader election with no candidate achieving majority
+Recovery: Randomized election timeouts ensure candidates retry at staggered intervals; subsequent election round produces a clear winner with high probability
+
+Risk: Stale leader continuing to serve requests after network partition heals
+Recovery: Stale leader detects higher term in AppendEntries or RequestVote response and immediately steps down to follower, discarding uncommitted entries
+
+Risk: Log divergence across nodes due to missed entries during transient failures
+Recovery: Leader maintains nextIndex and matchIndex per follower; decrements nextIndex on consistency failure and re-sends entries from the point of divergence
+
+Risk: Quorum loss causing complete system unavailability
+Recovery: Remaining nodes enter pre-vote candidate state; system remains in degraded read-only mode until quorum is restored; write operations are rejected with explicit error
+
+Layer: ConsensusCore
+    SubLayer: LeaderElection
+    SubLayer: LogReplication
+    SubLayer: CommitManagement
+    SubLayer: SafetyGuarantees
+Layer: ClusterManagement
+    SubLayer: MembershipTracking
+    SubLayer: ConfigurationChange
+    SubLayer: SnapshotRecovery
+Layer: ClientInterface
+    SubLayer: RequestRouting
+    SubLayer: ResponseCoalescing
+
+Validation: Quorum must be achievable before accepting any write operation
+Validation: Leader term must be strictly greater than all previous terms observed by a majority
+Validation: Committed entries must never be overwritten or truncated across any node
+Validation: Leader completeness property — any committed entry must be present in the log of any future leader
+Validation: Log matching property — if two entries at the same index share the same term, all preceding entries must be identical
+Validation: Election safety — at most one leader can exist per term
+Validation: Snapshot last_included_index must never exceed the commit index
+
+# Level 2: Entities
+Entity ConsensusNode
+    nodeId: string
+    currentTerm: integer
+    votedFor: string
+    log: list
+    commitIndex: integer
+    lastApplied: integer
+    state: string
+    leaderId: string
+    electionTimeout: float
+    heartbeatInterval: float
+
+Entity LogEntry
+    index: integer
+    term: integer
+    command: bytes
+    clientRequestId: string
+    timestamp: datetime
+    isCommitted: boolean
+    snapshotBoundary: boolean
+
+Entity LeaderState
+    nextIndex: dict
+    matchIndex: dict
+    replicationInProgress: dict
+    lastHeartbeatSent: datetime
+    pendingClientRequests: list
+    leaseExpiry: datetime
+
+Entity ClusterConfig
+    nodes: list
+    votingMembers: set
+    nonVotingMembers: set
+    jointConfiguration: boolean
+    configurationIndex: integer
+    version: integer
+    minElectionTimeout: float
+    maxElectionTimeout: float
+
+Entity Snapshot
+    lastIncludedIndex: integer
+    lastIncludedTerm: integer
+    stateMachineData: bytes
+    configuration: dict
+    createdAt: datetime
+    sizeBytes: integer
+    checksum: string
+
+Entity VoteRequest
+    candidateId: string
+    term: integer
+    lastLogIndex: integer
+    lastLogTerm: integer
+    priority: integer
+    preVote: boolean
+
+Entity AppendEntriesRequest
+    leaderId: string
+    term: integer
+    prevLogIndex: integer
+    prevLogTerm: integer
+    entries: list
+    leaderCommit: integer
+    leaseDuration: float
+
+# Level 3: Behaviors
+Behavior RequestVote
+    Input: voteRequest: VoteRequest
+    Output: term: integer, voteGranted: boolean
+    Action:
+        If voteRequest.term < currentTerm, reject with currentTerm
+        If voteRequest.preVote is true, evaluate log-up-to-date without updating term
+        If votedFor is null or equals candidateId, and candidate log is at least as up-to-date, grant vote
+        Reset election timer upon granting vote
+        Persist votedFor to stable storage before responding
+
+Behavior AppendEntries
+    Input: appendRequest: AppendEntriesRequest
+    Output: term: integer, success: boolean, conflictIndex: integer, conflictTerm: integer
+    Action:
+        If appendRequest.term < currentTerm, reject immediately
+        If prevLogIndex exceeds log length, return conflictIndex = len(log) and conflictTerm = None
+        If log[prevLogIndex].term != prevLogTerm, find conflictTerm and earliest conflictIndex
+        Truncate any conflicting entries beyond matching prefix
+        Append new entries not already in log
+        If leaderCommit > commitIndex, advance commitIndex to min(leaderCommit, index of last new entry)
+        Reset election timer to prevent unnecessary election
+
+Behavior BecomeLeader
+    Input: term: integer, nodeId: string
+    Output: void
+    Action:
+        Transition state to leader
+        Initialize nextIndex for all peers to lastLogIndex + 1
+        Initialize matchIndex for all peers to 0
+        Append no-op entry to log to commit entries from previous terms
+        Begin sending periodic heartbeats with lease duration
+        Acquire leader lease for read requests
+
+Behavior SubmitCommand
+    Input: command: bytes, clientRequestId: string
+    Output: index: integer, term: integer, isCommitted: boolean
+    Action:
+        Validate leader state; redirect to current leader if follower
+        Append entry to local log with current term
+        Replicate entry to all followers via AppendEntries
+        Wait for majority acknowledgment
+        Advance commit index
+        Apply to state machine once committed
+        Respond to client with commit confirmation
+
+Behavior InstallSnapshot
+    Input: leaderId: string, term: integer, lastIncludedIndex: integer, lastIncludedTerm: integer, data: bytes, offset: integer, done: boolean
+    Output: term: integer
+    Action:
+        Validate term; reject if stale
+        If snapshot lastIncludedIndex <= lastApplied, discard and acknowledge
+        If partial snapshot, write data at offset to temporary snapshot buffer
+        If done is true, discard log entries covered by snapshot
+        Reset state machine with snapshot data
+        Persist snapshot to stable storage
+        Update lastIncludedIndex and lastIncludedTerm
+
+Behavior TransferLeadership
+    Input: targetId: string, timeout: float
+    Output: success: boolean, newLeaderId: string
+    Action:
+        Stop accepting new client requests
+        If target is not up-to-date, send AppendEntries to bring it current
+        Send TimeoutNow request to target node
+        Target node starts immediate election with minimal timeout
+        Wait for new leader to emerge within timeout
+        Resume accepting requests under new leader
+
+Behavior AdvanceCommitIndex
+    Input: void
+    Output: newCommitIndex: integer
+    Action:
+        Find highest index N such that N > commitIndex and majority of matchIndex[i] >= N
+        Verify log[N].term == currentTerm (only commit entries from current term)
+        Set commitIndex = N
+        Apply all entries between lastApplied and commitIndex to state machine
+        Return new commit index
+
+# Level 4: Conditions
+Condition: LeaderStepDown
+    When leader receives RequestVote or AppendEntries with term > currentTerm
+    Then immediately transition to follower state, update currentTerm, reset votedFor, and abort pending client requests
+
+Condition: ElectionTimeoutExpired
+    When election timer fires without receiving valid heartbeat from leader
+    Then increment currentTerm, transition to candidate state, vote for self, and broadcast RequestVote to all peers
+
+Condition: QuorumLost
+    When number of responsive nodes falls below (totalNodes / 2 + 1)
+    Then leader steps down to follower, all write operations are rejected, system enters read-only degraded mode, and alert is emitted to cluster operator
+
+Condition: LogConflictDetected
+    When AppendEntries consistency check fails at prevLogIndex
+    Then decrement nextIndex for that follower and retry AppendEntries with earlier log entries until consistency point is found
+
+Condition: ConfigChangeUnsafe
+    When joint consensus configuration change is in progress and a second change is attempted
+    Then reject the second configuration change until the first is committed; only one config change may be outstanding at a time
+
+# Level 5: Events
+Event: OnLeaderElected
+    On new leader confirmed by majority votes
+    Action: Initialize leader state, emit leadership transition metric, notify client redirect service, begin heartbeat cycle, append no-op entry to commit prior term entries
+
+Event: OnLogCommitted
+    On entry committed at new commit index
+    Action: Apply entry to state machine, respond to waiting client, emit latency metric from submission to commit, update lastApplied index, trigger snapshot if log size exceeds threshold
+
+Event: OnNodeJoined
+    On new node added to cluster configuration
+    Action: Add to non-voting members initially, begin log catchup via AppendEntries, promote to voting member once caught up, update cluster configuration with joint consensus, broadcast new config
+
+Event: OnSnapshotCreated
+    On snapshot completed and persisted
+    Action: Truncate log entries covered by snapshot, emit snapshot size metric, update lastIncludedIndex, notify peers of new snapshot availability, free memory from compacted log entries
+
+Event: OnFollowerLagDetected
+    On follower matchIndex falls behind commitIndex by more than 1000 entries
+    Action: Switch to sending InstallSnapshot instead of incremental AppendEntries, emit lag warning metric, consider throttling client submissions if replication backlog grows unbounded
+
+# Level 6: Concurrency
+Parallel:
+    Leader heartbeat broadcast to all followers
+    Log replication streams to individual followers
+    State machine application of committed entries
+    Snapshot creation on background thread
+    Client request acknowledgment processing
+
+# Level 7: Optimization
+Optimize: Log replication throughput
+    Priority: Batch multiple log entries into a single AppendEntries RPC when follower is behind, reducing round trips; pipeline AppendEntries requests to overlapping followers to maximize network utilization
+
+Optimize: Leader election latency
+    Priority: Use pre-vote protocol to avoid disruptive elections from partitioned nodes; prioritize nodes with more complete logs as election candidates to reduce post-election catchup
+
+Optimize: Read request serving
+    Priority: Implement leader lease-based reads without logging; serve read-only requests from followers using ReadIndex protocol for linearizable reads without write latency impact
+
+# Level 8: Learning
+Learn: Optimal election timeout for current network conditions
+    Goal: Minimize leader election latency while avoiding unnecessary elections from transient network delays
+    Adapt: electionTimeout range
+    Based: Observed round-trip times to peers and historical false election rates over sliding 1000-election window
+
+Learn: Optimal batch size for AppendEntries
+    Goal: Maximize replication throughput without causing excessive memory pressure or latency spikes
+    Adapt: maxEntriesPerBatch
+    Based: Follower response times and network bandwidth utilization metrics over the last 60 seconds
+
+Learn: Snapshot trigger threshold
+    Goal: Balance log compaction frequency against snapshot I/O overhead
+    Adapt: snapshotThreshold (log size in bytes before triggering snapshot)
+    Based: Snapshot creation duration, disk I/O load, and application read/write ratio over the last 100 snapshots
+
+# Level 9: Security
+Security:
+    Encrypt: All RPC communication between nodes using TLS 1.3 with mutual certificate authentication
+    Encrypt: Snapshot data at rest using AES-256-GCM
+    Encrypt: Vote persistence records on stable storage
+    Protect: Leader election against unauthorized nodes by validating cluster membership certificates
+    Protect: Log entries against tampering by computing Merkle hash chains across term boundaries
+    Protect: Client request integrity by requiring signed clientRequestId with replay protection nonce
+    Protect: Configuration change requests against unauthorized modification via multi-party authorization
+
+# Level 10: Native
+Native: Go
+{
+package raft
+
+import (
+    "context"
+    "sync"
+    "time"
+)
+
+type State int
+
+const (
+    Follower State = iota
+    Candidate
+    Leader
+)
+
+type Node struct {
+    mu              sync.RWMutex
+    id              string
+    state           State
+    currentTerm     uint64
+    votedFor        string
+    log             []*LogEntry
+    commitIndex     uint64
+    lastApplied     uint64
+    nextIndex       map[string]uint64
+    matchIndex      map[string]uint64
+    heartbeatTick   *time.Ticker
+    electionTimer   *time.Timer
+    config          *ClusterConfig
+    stateMachine    StateMachine
+    snapshotStore   SnapshotStore
+    transport       Transport
+    applyCh         chan *LogEntry
+    stopCh          chan struct{}
+}
+
+func (n *Node) Run(ctx context.Context) {
+    for {
+        select {
+        case <-n.electionTimer.C:
+            n.startElection()
+        case <-n.heartbeatTick.C:
+            if n.state == Leader {
+                n.broadcastHeartbeat()
+            }
+        case entry := <-n.applyCh:
+            n.stateMachine.Apply(entry.Command)
+        case <-ctx.Done():
+            n.shutdown()
+            return
+        }
+    }
+}
+
+func (n *Node) startElection() {
+    n.mu.Lock()
+    n.state = Candidate
+    n.currentTerm++
+    n.votedFor = n.id
+    term := n.currentTerm
+    lastIdx, lastTerm := n.lastLogInfo()
+    n.mu.Unlock()
+
+    votesReceived := 1
+    quorum := len(n.config.VotingMembers)/2 + 1
+
+    for _, peer := range n.config.VotingMembers {
+        if peer == n.id {
+            continue
+        }
+        go func(peerID string) {
+            resp, err := n.transport.RequestVote(peerID, &VoteRequest{
+                CandidateId:  n.id,
+                Term:         term,
+                LastLogIndex: lastIdx,
+                LastLogTerm:  lastTerm,
+            })
+            if err != nil {
+                return
+            }
+            n.mu.Lock()
+            defer n.mu.Unlock()
+            if resp.Term > n.currentTerm {
+                n.becomeFollower(resp.Term)
+                return
+            }
+            if resp.VoteGranted && n.state == Candidate {
+                votesReceived++
+                if votesReceived >= quorum {
+                    n.becomeLeader()
+                }
+            }
+        }(peer)
+    }
+    n.resetElectionTimer()
+}
+
+func (n *Node) becomeLeader() {
+    n.state = Leader
+    lastIdx := n.lastLogIndex()
+    for peer := range n.nextIndex {
+        n.nextIndex[peer] = lastIdx + 1
+        n.matchIndex[peer] = 0
+    }
+    n.appendNoOp()
+}

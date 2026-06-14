@@ -1,0 +1,431 @@
+# AICL Example: Factory Pattern System
+# Implements a comprehensive factory pattern system with abstract factory, builder pattern,
+# prototype-based cloning, lazy initialization, and dependency injection container integration.
+
+# Level 1: Architecture
+Goal: Build a factory pattern system that provides abstract factories for product families,
+    builder pattern for complex object construction, prototype registry for efficient cloning,
+    lazy initialization for deferred resource allocation, and DI container integration for
+    automatic dependency resolution and lifecycle management.
+
+Constraint: Factories must return abstract types; concrete types never exposed to consumers.
+Constraint: Builder steps must be validated in order before build() is called.
+Constraint: Prototype clones must be deep copies with no shared mutable references.
+Constraint: Lazy instances must be thread-safe on first access.
+Constraint: DI container must detect circular dependencies at registration time.
+
+Risk: Circular dependency causes infinite resolution loop
+Recovery: Detect cycles via graph traversal at registration; throw descriptive error with dependency chain
+
+Risk: Prototype shallow clone leaks shared state
+Recovery: Enforce deep copy validation via serialization round-trip test at prototype registration
+
+Risk: Builder incomplete construction produces invalid object
+Recovery: Validate all required fields before build; throw with list of missing fields
+
+Risk: Lazy initialization race condition creates duplicate instances
+Recovery: Use double-checked locking with volatile reference; only one thread creates instance
+
+Risk: Factory produces object with unresolved dependencies
+Recovery: Validate dependency graph completeness before factory invocation; fail-fast with missing list
+
+Risk: Memory leak from singleton accumulation in DI container
+Recovery: Implement disposable lifecycle; container shutdown triggers dispose on all singletons
+
+Layer: Factory
+    SubLayer: AbstractFactory
+    SubLayer: ConcreteFactory
+    SubLayer: FactoryRegistry
+Layer: Builder
+    SubLayer: StepBuilder
+    SubLayer: ValidationEngine
+    SubLayer: ObjectAssembler
+Layer: Prototype
+    SubLayer: PrototypeRegistry
+    SubLayer: CloneEngine
+Layer: DI
+    SubLayer: Container
+    SubLayer: LifecycleManager
+    SubLayer: DependencyResolver
+
+Validation: Factory output must implement declared abstract interface
+Validation: Builder must have all required steps completed before build
+Validation: Prototype clone must pass deep-copy equality test (original != clone, values equal)
+Validation: Lazy initializer must produce exactly one instance across concurrent access
+Validation: DI registration must not introduce circular dependency
+Validation: Singleton lifecycle must include dispose method for container shutdown
+
+# Level 2: Entities
+Entity FactoryRegistration
+    registrationId: string
+    abstractType: string
+    concreteType: string
+    scope: string
+    dependencies: list
+    creationMethod: string
+    isEnabled: boolean
+    priority: integer
+
+Entity BuilderStep
+    stepId: string
+    builderType: string
+    stepName: string
+    fieldName: string
+    fieldType: string
+    isRequired: boolean
+    defaultValue: any
+    validationRule: dict
+    stepOrder: integer
+
+Entity PrototypeEntry
+    prototypeId: string
+    prototypeType: string
+    instance: any
+    cloneMethod: string
+    registrationTime: datetime
+    cloneCount: integer
+    lastClonedAt: datetime
+    deepCopyValidated: boolean
+
+Entity LazyInstance
+    instanceId: string
+    instanceType: string
+    factoryMethod: string
+    isCreated: boolean
+    instance: any
+    createdAt: datetime
+    accessCount: integer
+    creationDuration: integer
+
+Entity DIRegistration
+    registrationId: string
+    serviceType: string
+    implementationType: string
+    lifetime: string
+    factory: string
+    dependencies: list
+    isResolved: boolean
+    instance: any
+
+Entity DependencyGraph
+    graphId: string
+    nodes: list
+    edges: list
+    hasCycle: boolean
+    cyclePath: list
+    resolutionOrder: list
+    totalRegistrations: integer
+
+# Level 3: Behaviors
+Behavior CreateViaFactory
+    Input:
+        abstractType: string
+        parameters: dict
+    Output:
+        instance: any
+    Action:
+        Look up concrete factory for abstract type
+        Resolve factory dependencies via DI container
+        Validate parameters against factory contract
+        Create instance via factory method
+        Inject post-construction dependencies
+        Register instance in lifecycle manager if scoped
+        Return created instance
+
+Behavior BuildObject
+    Input:
+        builderType: string
+        steps: dict
+    Output:
+        instance: any
+    Action:
+        Validate all required steps have been provided
+        Apply step values in declared order
+        Run validation rules for each field
+        Apply default values for optional missing fields
+        Assemble final object from accumulated state
+        Run cross-field validation on assembled object
+        Return built instance
+
+Behavior ClonePrototype
+    Input:
+        prototypeType: string
+        overrides: dict
+    Output:
+        clonedInstance: any
+    Action:
+        Look up prototype in registry
+        Execute deep clone via registered method
+        Apply any override values to cloned instance
+        Validate cloned instance integrity
+        Update prototype clone metrics
+        Return cloned instance
+
+Behavior ResolveLazy
+    Input:
+        instanceId: string
+    Output:
+        instance: any
+    Action:
+        Check if instance already created
+        If not created, acquire creation lock
+        Double-check instance still null
+        Execute factory method to create instance
+        Set created flag and store instance
+        Release creation lock
+        Increment access counter
+        Return instance
+
+Behavior RegisterDependency
+    Input:
+        serviceType: string
+        implementationType: string
+        lifetime: string
+    Output:
+        registrationId: string
+    Action:
+        Validate service and implementation types
+        Analyze constructor for dependency requirements
+        Add node to dependency graph
+        Check for circular dependency introduction
+        If cycle detected, reject registration with cycle path
+        Store registration in container
+        Return registration ID
+
+Behavior ResolveDependency
+    Input:
+        serviceType: string
+    Output:
+        instance: any
+    Action:
+        Look up registration for service type
+        If singleton and already resolved, return cached instance
+        If scoped, return from current scope
+        If transient, create new instance
+        Recursively resolve constructor dependencies
+        Invoke factory or constructor with resolved deps
+        Cache instance if singleton or scoped
+        Return resolved instance
+
+# Level 4: Conditions
+Condition: MissingRequiredBuilderStep
+    When build() called without all required steps completed
+    Then throw BuilderIncompleteException listing missing required field names
+
+Condition: DependencyCycleDetected
+    When registration creates cycle in dependency graph
+    Then reject registration with error showing full cycle path from root back to cycle entry
+
+Condition: PrototypeCloneFailure
+    When deep clone produces instance that shares mutable references with original
+    Then reject clone, log validation failure, and fall back to serialization-based clone
+
+# Level 5: Events
+Event: OnFactoryRegistered
+    On new factory mapping registered in factory registry
+    Action: Validate factory contract, run smoke test, update dependency graph
+
+Event: OnInstanceCreated
+    On factory or builder successfully produces a new instance
+    Action: Track instance in lifecycle manager, emit creation metric
+
+Event: OnPrototypeCloned
+    On prototype deep clone operation completed
+    Action: Increment clone counter, validate clone integrity, update metrics
+
+Event: OnLazyInitialized
+    On lazy instance first accessed and created
+    Action: Log creation duration, validate instance, alert if creation exceeds threshold
+
+# Level 6: Concurrency
+Parallel:
+    Multiple factory invocations creating independent instances
+    Builder step validation for different builder instances
+    Lazy instance resolution with double-checked locking
+    Dependency graph cycle detection for concurrent registrations
+    Prototype clone operations for independent prototypes
+
+# Level 7: Optimization
+Optimize: Instance creation throughput
+    Priority: Cache reflection results for factory methods; pool expensive resource allocations
+
+Optimize: Dependency resolution speed
+    Priority: Pre-compute resolution order at registration time; cache singleton instances eagerly
+
+# Level 8: Learning
+Learn: Factory creation cost profiles
+    Goal: Identify expensive factory methods for optimization or lazy initialization
+    Adapt: Switch eager factories to lazy when creation cost exceeds threshold
+    Based: Instance creation duration distribution and access frequency per type
+
+Learn: Optimal DI lifetime choices
+    Goal: Suggest singleton vs scoped vs transient based on actual usage patterns
+    Adapt: Lifetime recommendations per registration
+    Based: Instance access patterns, state mutation frequency, and concurrency requirements
+
+# Level 9: Security
+Security:
+    Encrypt: Factory configuration containing connection strings and credentials with vault integration
+    Encrypt: Prototype instances containing sensitive data before storage using AES-256
+    Protect: DI container from unauthorized registration via signed assembly validation
+    Protect: Factory methods from injection attacks by validating all input parameters against schema
+    Protect: Lazy initialization from resource exhaustion by enforcing per-type instance limits
+
+# Level 10: Native
+Kotlin
+{
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.locks.ReentrantLock
+
+interface Product {
+    val id: String
+    val type: String
+    fun validate(): Boolean
+}
+
+data class ConcreteProductA(
+    override val id: String,
+    override val type: String = "A",
+    val name: String,
+    val value: Int,
+    val metadata: Map<String, String> = emptyMap()
+) : Product {
+    override fun validate(): Boolean = id.isNotBlank() && name.isNotBlank()
+}
+
+data class ConcreteProductB(
+    override val id: String,
+    override val type: String = "B",
+    val label: String,
+    val score: Double,
+    val tags: Set<String> = emptySet()
+) : Product {
+    override fun validate(): Boolean = id.isNotBlank() && label.isNotBlank()
+}
+
+interface AbstractFactory {
+    fun create(parameters: Map<String, Any>): Product
+}
+
+class ProductAFactory : AbstractFactory {
+    override fun create(parameters: Map<String, Any>): Product {
+        return ConcreteProductA(
+            id = parameters["id"] as String,
+            name = parameters["name"] as String,
+            value = parameters["value"] as Int,
+            metadata = parameters["metadata"] as? Map<String, String> ?: emptyMap()
+        )
+    }
+}
+
+class ProductBFactory : AbstractFactory {
+    override fun create(parameters: Map<String, Any>): Product {
+        return ConcreteProductB(
+            id = parameters["id"] as String,
+            label = parameters["label"] as String,
+            score = parameters["score"] as Double,
+            tags = parameters["tags"] as? Set<String> ?: emptySet()
+        )
+    }
+}
+
+class ProductBuilder<T : Product>(private val factory: AbstractFactory) {
+    private val steps = mutableMapOf<String, Any>()
+    private val required = mutableListOf<String>()
+
+    fun withStep(name: String, value: Any, isRequired: Boolean = false): ProductBuilder<T> {
+        steps[name] = value
+        if (isRequired) required.add(name)
+        return this
+    }
+
+    fun build(): T {
+        val missing = required.filter { it !in steps.keys }
+        require(missing.isEmpty()) { "Missing required steps: $missing" }
+        return factory.create(steps) as T
+    }
+}
+
+class PrototypeRegistry {
+    private val prototypes = ConcurrentHashMap<String, Product>()
+
+    fun register(key: String, prototype: Product) {
+        val clone = deepClone(prototype)
+        require(clone !== prototype) { "Shallow clone detected for $key" }
+        prototypes[key] = prototype
+    }
+
+    fun clone(key: String, overrides: Map<String, Any> = emptyMap()): Product {
+        val original = prototypes[key] ?: throw IllegalArgumentException("No prototype: $key")
+        val cloned = deepClone(original)
+        return applyOverrides(cloned, overrides)
+    }
+
+    private fun deepClone(product: Product): Product = when (product) {
+        is ConcreteProductA -> product.copy(metadata = product.metadata.toMap())
+        is ConcreteProductB -> product.copy(tags = product.tags.toSet())
+        else -> throw IllegalArgumentException("Unknown product type")
+    }
+
+    private fun applyOverrides(product: Product, overrides: Map<String, Any>): Product {
+        return product
+    }
+}
+
+class LazyInitializer<T>(private val factory: () -> T) {
+    private val ref = AtomicReference<T?>()
+    private val lock = ReentrantLock()
+
+    val instance: T
+        get() {
+            ref.get()?.let { return it }
+            lock.lock()
+            try {
+                ref.get()?.let { return it }
+                val created = factory()
+                ref.set(created)
+                return created
+            } finally {
+                lock.unlock()
+            }
+        }
+}
+
+class DIContainer {
+    private val registrations = mutableMapOf<Class<*>, DIReg<*>>()
+    private val singletons = ConcurrentHashMap<Class<*>, Any>()
+
+    data class DIReg<T>(
+        val type: Class<T>,
+        val factory: (DIContainer) -> T,
+        val lifetime: Lifetime
+    )
+
+    enum class Lifetime { SINGLETON, SCOPPED, TRANSIENT }
+
+    inline fun <reified T> register(noinline factory: (DIContainer) -> T, lifetime: Lifetime) {
+        registrations[T::class.java] = DIReg(T::class.java, factory, lifetime)
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    fun <T> resolve(type: Class<T>): T {
+        val reg = registrations[type] as? DIReg<T>
+            ?: throw IllegalArgumentException("No registration for ${type.name}")
+        return when (reg.lifetime) {
+            Lifetime.SINGLETON -> singletons.getOrPut(type) { reg.factory(this) } as T
+            Lifetime.TRANSIENT -> reg.factory(this)
+            Lifetime.SCOPPED -> reg.factory(this)
+        }
+    }
+}
+
+fun main() {
+    val registry = PrototypeRegistry()
+    registry.register("productA", ConcreteProductA("proto-1", name = "Prototype", value = 42))
+    val cloned = registry.clone("productA")
+    println("Cloned: $cloned")
+
+    val lazy = LazyInitializer { ConcreteProductB("lazy-1", label = "Lazy", score = 99.9) }
+    println("Lazy instance: ${lazy.instance}")
+}

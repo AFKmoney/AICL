@@ -1,0 +1,364 @@
+# AICL Example: IoT Sensor Network
+# Comprehensive IoT sensor network with device management, data collection, edge processing,
+# OTA updates, and protocol translation across heterogeneous sensor deployments.
+
+Goal: Manage a distributed IoT sensor network supporting millions of devices with reliable
+    data collection, edge processing, over-the-air firmware updates, and multi-protocol
+    translation while maintaining low latency and high availability.
+
+Constraint: Sensor devices operate on constrained hardware with limited CPU, memory, and battery;
+    network connectivity may be intermittent with varying bandwidth across deployment zones.
+
+Constraint: All sensor data must be collected with timestamps synchronized to within 10ms of UTC
+    using NTP or GPS time sources.
+
+Constraint: OTA firmware updates must be deployed incrementally with automatic rollback capability
+    and must not interrupt ongoing sensor data collection.
+
+Constraint: Protocol translation must support MQTT, CoAP, HTTP, Modbus, BLE, Zigbee, and LoRaWAN
+    with zero data loss during translation.
+
+Risk: Sensor device failure leads to data gaps in critical monitoring zones
+Recovery: Activate redundant sensor nodes in the affected zone; interpolate missing data
+    from neighboring sensors using spatial-temporal correlation algorithms
+
+Risk: Network partition isolates edge gateways from the central platform
+Recovery: Switch to store-and-forward mode on edge gateways; queue data locally with
+    compression; auto-sync when connectivity is restored with conflict resolution
+
+Risk: OTA firmware update corrupts device firmware rendering sensors inoperable
+Recovery: Trigger bootloader recovery mode on affected devices; flash last-known-good
+    firmware from local gateway cache; mark device as degraded if recovery fails
+
+Risk: Protocol translation introduces data loss or schema mismatch between protocols
+Recovery: Enable dead-letter queue for failed translations; apply schema reconciliation
+    with default values; alert operations team for manual intervention on persistent failures
+
+Risk: Battery depletion on remote sensors causes unplanned device outages
+Recovery: Dynamically reduce sampling frequency to extend battery life; activate solar
+    charging schedule if available; dispatch maintenance crew for critical low-battery devices
+
+Risk: Edge processing overload causes data buffer overflow and data loss
+Recovery: Apply backpressure signaling to upstream sensors; shed non-critical processing
+    pipelines; prioritize safety-critical data streams for guaranteed delivery
+
+Layer: IoTPlatform
+    SubLayer: DeviceManagement
+    SubLayer: DataCollection
+    SubLayer: EdgeProcessing
+    SubLayer: ProtocolTranslation
+    SubLayer: OTAUpdates
+
+Validation: Every sensor reading must include a valid device_id, timestamp, and at least one measurement value
+Validation: OTA update deployment must achieve 99.9% success rate before marking as complete
+Validation: Edge processing latency must remain below 50ms for safety-critical data streams
+Validation: Protocol translation must preserve all original data fields with zero information loss
+Validation: Battery levels below 10% must trigger alert within 30 seconds of detection
+Validation: Data collection completeness must exceed 99.5% across all sensor zones per 24-hour period
+Validation: Device registration must validate firmware compatibility before allowing data ingestion
+
+# Level 2: Entities
+
+Entity SensorDevice
+    device_id: string
+    device_type: string
+    firmware_version: string
+    battery_level: float
+    signal_strength: float
+    last_heartbeat: datetime
+    zone_id: string
+    sampling_rate: float
+    is_active: boolean
+    protocol: string
+
+Entity SensorReading
+    reading_id: string
+    device_id: string
+    timestamp: datetime
+    measurement_type: string
+    value: float
+    unit: string
+    quality_score: float
+    metadata: dict
+
+Entity EdgeGateway
+    gateway_id: string
+    zone_id: string
+    ip_address: string
+    cpu_usage: float
+    memory_usage: float
+    connected_devices: integer
+    firmware_version: string
+    buffer_size: integer
+    is_online: boolean
+
+Entity OTAPackage
+    package_id: string
+    target_device_type: string
+    version: string
+    checksum: string
+    size_bytes: integer
+    rollout_strategy: string
+    created_at: datetime
+    signature: string
+
+Entity ProtocolTranslator
+    translator_id: string
+    source_protocol: string
+    target_protocol: string
+    schema_mapping: dict
+    transformation_rules: list
+    error_count: integer
+    last_sync: datetime
+    is_active: boolean
+
+Entity DataBuffer
+    buffer_id: string
+    gateway_id: string
+    capacity_bytes: integer
+    used_bytes: integer
+    oldest_record: datetime
+    compression_ratio: float
+    overflow_count: integer
+
+# Level 3: Behaviors
+
+Behavior RegisterDevice
+    Input:
+        device_id: string
+        device_type: string
+        protocol: string
+        zone_id: string
+    Output:
+        registration_status: boolean
+        assigned_gateway: string
+    Action:
+        Validate device credentials and firmware compatibility
+        Assign device to nearest available edge gateway by zone_id
+        Configure protocol translator for device communication
+        Initialize data buffer allocation for device readings
+        Send registration confirmation to device with sampling configuration
+
+Behavior CollectSensorData
+    Input:
+        device_id: string
+        readings: list
+    Output:
+        accepted_count: integer
+        rejected_count: integer
+    Action:
+        Validate each reading against schema and quality thresholds
+        Enrich readings with gateway timestamp and quality score
+        Route validated readings to appropriate processing pipeline
+        Buffer readings if downstream processing is unavailable
+        Acknowledge receipt to device to allow local buffer cleanup
+
+Behavior ProcessAtEdge
+    Input:
+        raw_readings: list
+        processing_config: dict
+    Output:
+        processed_results: list
+        anomalies_detected: integer
+    Action:
+        Apply configured transformations and aggregations
+        Run anomaly detection model on streaming data
+        Filter noise and apply smoothing algorithms
+        Aggregate readings into time-windowed summaries
+        Forward results to central platform with priority classification
+
+Behavior DeployOTAUpdate
+    Input:
+        package_id: string
+        target_devices: list
+        rollout_strategy: string
+    Output:
+        deployment_id: string
+        devices_updated: integer
+        devices_failed: integer
+    Action:
+        Validate package checksum and signature
+        Select target devices based on rollout strategy (canary, blue-green, rolling)
+        Download package to edge gateway cache
+        Push update to devices with retry logic
+        Monitor device health post-update and trigger rollback if needed
+
+Behavior TranslateProtocol
+    Input:
+        source_data: dict
+        source_protocol: string
+        target_protocol: string
+    Output:
+        translated_data: dict
+        translation_success: boolean
+    Action:
+        Look up schema mapping between source and target protocols
+        Apply field transformations and data type conversions
+        Handle protocol-specific headers, QoS, and delivery semantics
+        Validate translated data against target schema
+        Route to dead-letter queue on translation failure with error details
+
+# Level 4: Conditions
+
+Condition: CriticalDataGap
+    When sensor_reading_gap exceeds 300 seconds for safety-critical zone
+    Then escalate alert to operations dashboard and activate redundant sensor
+        coverage in the affected zone with interpolated data feed
+
+Condition: EdgeGatewayOverloaded
+    When edge_gateway cpu_usage exceeds 85 percent or memory_usage exceeds 90 percent
+    Then activate load shedding for non-critical pipelines and redistribute
+        connected devices to neighboring gateways within the same zone
+
+Condition: OTAUpdateFailure
+    When ota_deployment failure_rate exceeds 5 percent within any rollout batch
+    Then pause rollout immediately and initiate automatic rollback on affected
+        devices using last-known-good firmware from gateway cache
+
+Condition: BatteryCritical
+    When sensor_device battery_level drops below 5 percent
+    Then reduce sampling_rate to minimum viable frequency and dispatch
+        urgent maintenance notification to field operations team
+
+Condition: ProtocolTranslationDegraded
+    When protocol_translator error_count exceeds 100 within a 5-minute window
+    Then route traffic through backup translator instance and trigger
+        diagnostic analysis of schema mapping for the affected protocol pair
+
+# Level 5: Events
+
+Event: DeviceRegistered
+    On device_registration_completed
+    Action: Initialize monitoring profile for new device, configure alerting
+        thresholds based on device_type, and update zone device count metrics
+
+Event: AnomalyDetected
+    On edge_anomaly_detection_positive
+    Action: Enrich anomaly record with contextual data from neighboring sensors,
+        classify anomaly severity, and route to appropriate response pipeline
+
+Event: OTAUpdateCompleted
+    On ota_deployment_finished
+    Action: Validate device health post-update, update device registry with new
+        firmware version, and record deployment metrics for audit trail
+
+Event: GatewayFailover
+    On edge_gateway_health_check_failure
+    Action: Reassign all connected devices to backup gateway, replay buffered
+        data from failed gateway's persistent store, and trigger incident response
+
+# Level 6: Concurrency
+
+Parallel:
+    Device heartbeat monitoring across all zones
+    Sensor data collection and validation pipeline
+    Edge processing and anomaly detection
+    OTA update distribution and monitoring
+    Protocol translation for all active protocol pairs
+    Battery level tracking and power management
+
+# Level 7: Optimization
+
+Optimize: Data collection throughput and edge processing latency
+    Priority: Safety-critical sensor data takes highest priority in processing queue
+    Priority: Edge processing batch size optimized based on current gateway load
+    Priority: OTA updates scheduled during off-peak hours to minimize bandwidth impact
+    Priority: Protocol translation caching for frequently used schema mappings
+
+# Level 8: Learning
+
+Learn: Optimal sampling rates per device type and zone
+    Goal: Maximize data quality while minimizing battery consumption and network usage
+    Adapt: Sampling frequency for each sensor device
+        Based: Historical data quality scores, battery drain rate, and anomaly frequency
+
+Learn: Edge processing model accuracy for anomaly detection
+    Goal: Reduce false positive rate below 2% while maintaining 95% true positive detection
+    Adapt: Anomaly detection threshold and feature weights
+        Based: Feedback from operations team confirming or rejecting anomaly alerts
+
+# Level 9: Security
+
+Security:
+    Encrypt: All sensor data in transit using TLS 1.3 with mutual authentication
+    Encrypt: Data at rest in edge gateway buffers using AES-256-GCM
+    Protect: Device credentials and firmware signing keys in HSM-backed vault
+    Protect: OTA update packages with code signing and integrity verification
+    Protect: Protocol translation schema mappings from unauthorized modification
+    Encrypt: Device-to-gateway communication using DTLS for constrained protocols
+
+# Level 10: Native
+
+Native: Python
+{
+import asyncio
+import hashlib
+from datetime import datetime, timezone
+from typing import Dict, List, Optional
+
+class IoTSensorNetwork:
+    def __init__(self, gateway_id: str, zone_id: str):
+        self.gateway_id = gateway_id
+        self.zone_id = zone_id
+        self.devices: Dict[str, dict] = {}
+        self.data_buffer: List[dict] = []
+        self.buffer_max_size = 100_000
+        self.translators: Dict[str, dict] = {}
+
+    async def register_device(self, device_id: str, device_type: str,
+                              protocol: str, zone_id: str) -> dict:
+        if device_id in self.devices:
+            return {"status": False, "error": "Device already registered"}
+        self.devices[device_id] = {
+            "device_id": device_id,
+            "device_type": device_type,
+            "protocol": protocol,
+            "zone_id": zone_id,
+            "registered_at": datetime.now(timezone.utc).isoformat(),
+            "battery_level": 100.0,
+            "is_active": True,
+            "sampling_rate": self._default_sampling_rate(device_type),
+        }
+        return {
+            "status": True,
+            "assigned_gateway": self.gateway_id,
+            "sampling_config": {"rate_hz": self.devices[device_id]["sampling_rate"]}
+        }
+
+    def _default_sampling_rate(self, device_type: str) -> float:
+        rates = {"temperature": 0.1, "pressure": 1.0, "motion": 10.0, "gas": 0.5}
+        return rates.get(device_type, 1.0)
+
+    async def collect_readings(self, device_id: str,
+                               readings: List[dict]) -> dict:
+        accepted, rejected = 0, 0
+        for reading in readings:
+            if self._validate_reading(reading, device_id):
+                enriched = {
+                    **reading,
+                    "gateway_timestamp": datetime.now(timezone.utc).isoformat(),
+                    "quality_score": self._compute_quality(reading),
+                }
+                self.data_buffer.append(enriched)
+                accepted += 1
+            else:
+                rejected += 1
+        if len(self.data_buffer) > self.buffer_max_size:
+            self._compress_buffer()
+        return {"accepted": accepted, "rejected": rejected}
+
+    def _validate_reading(self, reading: dict, device_id: str) -> bool:
+        required = {"timestamp", "measurement_type", "value"}
+        return required.issubset(reading.keys()) and device_id in self.devices
+
+    def _compute_quality(self, reading: dict) -> float:
+        score = 1.0
+        if reading.get("value", 0) == 0:
+            score -= 0.2
+        if "metadata" not in reading:
+            score -= 0.1
+        return max(0.0, score)
+
+    def _compress_buffer(self):
+        self.data_buffer = self.data_buffer[-self.buffer_max_size // 2:]
+}

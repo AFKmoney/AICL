@@ -1,0 +1,378 @@
+# AICL Example: Zero-Knowledge Proof System
+# Comprehensive ZKP system supporting proof generation, verification, circuit compilation,
+# trusted setup ceremonies, and multiple proof systems (Groth16, PLONK, STARK)
+
+Goal Build a production-grade zero-knowledge proof system supporting multiple proof systems, efficient circuit compilation from high-level descriptions, secure trusted setup ceremonies, recursive proof composition, and privacy-preserving application development
+
+Constraint Proof generation must complete within 60 seconds for circuits with up to 1 million constraints
+Constraint Proof size must not exceed 512 bytes for Groth16 and 2KB for PLONK proofs
+Constraint Verification must complete in under 10 milliseconds regardless of circuit complexity
+Constraint Trusted setup must require minimum 3 independent participants with transcript verification
+Constraint Circuit compilation must preserve semantic equivalence with source specification
+
+Risk Trusted setup toxic waste leakage enables proof forgery and system compromise
+Recovery Implement multi-party computation ceremony with thousands of participants, verify transcript completeness, publish all round contributions, and ensure at least one honest participant guarantees security
+Risk Circuit implementation bug produces incorrect but verifying proofs
+Recovery Enforce formal verification of circuit constraints, implement differential testing against reference implementation, and require audit of all arithmetic gates
+Risk Proof generation denial of service through oversized circuit submission
+Recovery Enforce maximum constraint limit per proof request, implement proof request queuing with resource quotas, and reject circuits exceeding computational budget
+Risk Side-channel attack during proof generation reveals witness data
+Recovery Implement constant-time arithmetic operations, randomize memory access patterns, and use oblivious RAM techniques for sensitive witness data
+Risk Recursive proof composition vulnerability allows invalid proofs to verify
+Recovery Validate each recursion level independently, enforce consistent verification key across composition, and implement cumulative soundness error tracking
+
+Layer ZKPSystem
+    SubLayer: CircuitCompiler
+        # High-level language to R1CS/AIR compilation and optimization
+    SubLayer: ProofGenerator
+        # Multi-system proof generation with witness computation
+    SubLayer: ProofVerifier
+        # Fast verification for Groth16, PLONK, and STARK proofs
+    SubLayer: TrustedSetup
+        # MPC ceremony coordination and transcript verification
+    SubLayer: RecursiveComposer
+        # Proof composition and aggregation for recursive SNARKs
+
+Validation Circuit constraint system must be satisfiable for valid witnesses and unsatisfiable for invalid ones
+Validation Proof must verify against declared verification key and public inputs
+Validation Trusted setup transcript must be verifiably complete with all participant contributions
+Validation Recursive proof must verify at every level of composition
+Validation Circuit output must match reference implementation for all test vectors
+Validation Public input commitment must match Merkle root of declared public values
+Validation Verification key must correspond to proving key from same trusted setup
+
+Entity ZKPCircuit
+    circuit_id: string
+    name: string
+    constraint_count: integer
+    variable_count: integer
+    public_input_count: integer
+    circuit_type: string
+    source_hash: string
+    r1cs_bytes: bytes
+    proving_key_hash: string
+    verification_key_hash: string
+    max_degree: integer
+
+Entity Proof
+    proof_id: string
+    circuit_id: string
+    proof_system: string
+    proof_bytes: bytes
+    public_inputs: list
+    proof_size: integer
+    generation_time_ms: integer
+    verification_time_ms: integer
+    is_recursive: boolean
+    recursion_depth: integer
+
+Entity TrustedSetupCeremony
+    ceremony_id: string
+    circuit_id: string
+    proof_system: string
+    participant_count: integer
+    current_round: integer
+    total_rounds: integer
+    transcript_hash: string
+    ceremony_state: string
+    start_time: datetime
+    end_time: datetime
+    contributions: list
+
+Entity SetupContribution
+    contribution_id: string
+    ceremony_id: string
+    participant_id: string
+    round_number: integer
+    contribution_hash: string
+    timestamp: datetime
+    is_verified: boolean
+    previous_contribution_hash: string
+    participant_public_key: bytes
+
+Entity WitnessData
+    witness_id: string
+    circuit_id: string
+    private_inputs: dict
+    public_inputs: dict
+    intermediate_values: list
+    constraint_assignments: dict
+    is_valid: boolean
+    computation_time_ms: integer
+
+Entity VerificationKey
+    key_id: string
+    circuit_id: string
+    proof_system: string
+    key_bytes: bytes
+    alpha_beta_g1: bytes
+    gamma_g2: bytes
+    delta_g2: bytes
+    ic_coefficients: list
+    key_hash: string
+    setup_ceremony: string
+
+Entity RecursionLayer
+    layer_id: string
+    outer_circuit: ZKPCircuit
+    inner_proof: Proof
+    aggregation_count: integer
+    cumulative_soundness_error: float
+    verification_key_commitment: string
+    composition_type: string
+
+Behavior CompileCircuit
+    Input:
+        source_code: string
+        language: string
+        proof_system: string
+        optimization_level: integer
+    Output:
+        circuit: ZKPCircuit
+        r1cs: bytes
+        warnings: list
+    Action:
+        Parse high-level circuit description into abstract syntax tree
+        Perform type checking and constraint completeness analysis
+        Flatten arithmetic expressions into R1CS or AIR representation
+        Optimize constraint count through gate merging and subexpression elimination
+        Compute variable and constraint counts for resource estimation
+        Generate proving and verification key placeholders
+        Validate circuit satisfiability with random test witness
+        Return compiled circuit with R1CS and optimization report
+
+Behavior GenerateProof
+    Input:
+        circuit: ZKPCircuit
+        proving_key: bytes
+        witness: WitnessData
+        proof_system: string
+    Output:
+        proof: Proof
+        public_outputs: list
+    Action:
+        Validate witness satisfies all circuit constraints
+        Load proving key and circuit parameters
+        Execute multi-scalar multiplication for Groth16 or polynomial commitment for PLONK
+        Compute proof elements according to proof system protocol
+        Apply Fiat-Shamir heuristic for non-interactive transformation
+        Encode proof in compact byte representation
+        Verify generated proof before returning
+        Return proof with public inputs and timing metrics
+
+Behavior VerifyProof
+    Input:
+        proof: Proof
+        verification_key: VerificationKey
+        public_inputs: list
+        proof_system: string
+    Output:
+        is_valid: boolean
+        verification_time_ms: integer
+    Action:
+        Deserialize proof bytes according to proof system format
+        Validate proof element encoding and curve membership
+        Compute pairing check for Groth16 verification equation
+        Or verify polynomial commitment and evaluation for PLONK
+        Or verify FRI protocol for STARK verification
+        Compare result to identity element for accept or reject
+        Return verification result with timing measurement
+
+Behavior ConductTrustedSetup
+    Input:
+        ceremony_config: TrustedSetupCeremony
+        circuit: ZKPCircuit
+        participants: list
+    Output:
+        ceremony: TrustedSetupCeremony
+        proving_key: bytes
+        verification_key: VerificationKey
+    Action:
+        Initialize ceremony with circuit parameters and randomness beacon
+        For each round, collect participant contributions
+        Verify each contribution is well-formed and extends previous state
+        Update ceremony transcript with verified contribution
+        After all rounds, extract proving and verification keys
+        Compute and publish final transcript hash
+        Securely delete intermediate toxic waste
+        Return ceremony record with derived keys
+
+Behavior ComposeRecursiveProof
+    Input:
+        inner_proofs: list
+        outer_circuit: ZKPCircuit
+        composition_type: string
+    Output:
+        recursive_proof: Proof
+        soundness_error: float
+    Action:
+        Verify all inner proofs independently before composition
+        Encode inner proof verification as constraints in outer circuit
+        Aggregate multiple proofs using accumulation scheme
+        Track cumulative soundness error across recursion depth
+        Generate outer proof attesting to inner proof validity
+        Verify recursive proof with single verification
+        Return recursive proof with soundness analysis
+
+Behavior ComputeWitness
+    Input:
+        circuit: ZKPCircuit
+        private_inputs: dict
+        public_inputs: dict
+    Output:
+        witness: WitnessData
+        is_valid: boolean
+    Action:
+        Initialize witness assignment from provided inputs
+        Execute circuit computation forward through constraint system
+        Record all intermediate wire values
+        Verify all constraints are satisfied with computed values
+        Identify any constraint violations
+        Return witness with validity flag and computation metrics
+
+Behavior OptimizeCircuit
+    Input:
+        circuit: ZKPCircuit
+        target: string
+        constraints: dict
+    Output:
+        optimized_circuit: ZKPCircuit
+        optimization_report: dict
+    Action:
+        Identify redundant constraints and subexpression duplicates
+        Apply gate merging for compatible arithmetic operations
+        Rearrange constraint ordering for cache efficiency
+        Implement lookup tables for range checks and other patterns
+        Estimate constraint reduction and proof generation improvement
+        Validate optimized circuit against original test vectors
+        Return optimized circuit with detailed report
+
+Condition:
+    When proof_generation_time exceeds 120 seconds for any single proof
+    Then emit performance_alert and suggest circuit optimization or proof system migration
+
+Condition:
+    When trusted_setup participant count drops below minimum threshold during active ceremony
+    Then pause ceremony and require additional participants before resuming
+
+Condition:
+    When recursive_proof soundness error exceeds 2^-80 security parameter
+    Then reject recursive composition and require additional verification of inner proofs
+
+Condition:
+    When witness constraint violation detected during computation
+    Then halt proof generation, report violated constraint details, and mark witness as invalid
+
+Condition:
+    When proof verification fails for previously verified proof
+    Then emit critical_integrity_alert, verify verification key integrity, and audit proof system implementation
+
+Event:
+    On circuit_compiled
+    Action: Cache compiled circuit, emit constraint statistics, update circuit registry, notify dependent applications
+
+Event:
+    On proof_generated
+    Action: Store proof in proof database, emit generation metrics, update usage statistics, cache for batch verification
+
+Event:
+    On proof_verified
+    Action: Log verification result, update verification analytics, emit verification receipt, track verification throughput
+
+Event:
+    On setup_contribution_received
+    Action: Verify contribution integrity, update ceremony transcript, advance ceremony round, notify next participant
+
+Event:
+    On circuit_optimization_completed
+    Action: Update circuit registry, validate against test vectors, emit optimization report, suggest re-setup if constraint count changed significantly
+
+Parallel:
+    Circuit compilation with multi-pass optimization stages
+    Proof generation with multi-scalar multiplication acceleration
+    Batch proof verification with pairing batch optimization
+    Trusted setup ceremony with parallel participant processing
+
+Optimize: Proof generation speed for large circuits
+    Priority: Reduce proof generation time by 50 percent through GPU-accelerated multi-scalar multiplication and optimized FFT implementations
+
+Optimize: Circuit constraint count reduction
+    Priority: Minimize constraint count through custom gates, lookup tables, and subexpression sharing to reduce proof generation cost
+
+Optimize: Batch verification throughput
+    Priority: Maximize batch verification throughput using aggregated pairing checks and proof-specific batching strategies
+
+Learn: Optimal proof system selection per circuit type
+    Goal: Automatically recommend best proof system based on circuit characteristics and deployment requirements
+    Adapt: Proof system recommendation weights and selection criteria
+    Based: Historical proof generation and verification metrics across proof systems, circuit size correlation, and deployment context analysis
+
+Learn: Circuit optimization opportunity prediction
+    Goal: Predict which optimization passes will yield greatest constraint reduction before running them
+    Adapt: Optimization pass scheduling and priority ordering
+    Based: Circuit structural analysis, previous optimization results, and constraint pattern classification
+
+Learn: Proof generation resource estimation
+    Goal: Accurately predict proof generation time and memory requirements before execution
+    Adapt: Resource estimation model parameters and scaling coefficients
+    Based: Historical generation metrics, constraint count correlation, witness size analysis, and hardware benchmark data
+
+Security:
+    Encrypt: Witness data during proof generation using AES-256-GCM with memory-locked key storage
+    Encrypt: Trusted setup contributions in transit using TLS 1.3 with participant certificate authentication
+    Protect: Proof generation against side-channel attacks using constant-time field arithmetic and randomized computation order
+    Protect: Trusted setup against malicious participants using contribution verification and transcript binding
+    Protect: Verification keys against substitution using key commitment in proof verification protocol
+    Protect: Recursive composition against soundness degradation through cumulative error tracking and threshold enforcement
+
+Native: rust
+    {
+    use ark_ff::{Field, PrimeField};
+    use ark_groth16::{Groth16, Proof, VerifyingKey};
+    use ark_r1cs_std::prelude::*;
+    use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef};
+    use ark_bn254::Bn254;
+    use ark_snark::SNARK;
+
+    struct MerkleMembershipCircuit<F: PrimeField> {
+        leaf: Option<F>,
+        path_elements: Vec<Option<F>>,
+        path_indices: Vec<Option<bool>>,
+        root: Option<F>,
+    }
+
+    impl<F: PrimeField> ConstraintSynthesizer<F> for MerkleMembershipCircuit<F> {
+        fn generate_constraints(self, cs: ConstraintSystemRef<F>) -> ark_relations::r1cs::Result<()> {
+            let leaf = FpVar::new_input(cs.clone(), || self.leaf.ok_or(ark_relations::r1cs::SynthesisError::AssignmentMissing))?;
+            let root = FpVar::new_input(cs.clone(), || self.root.ok_or(ark_relations::r1cs::SynthesisError::AssignmentMissing))?;
+
+            let mut current = leaf;
+            for (i, (element, index)) in self.path_elements.iter().zip(self.path_indices.iter()).enumerate() {
+                let sibling = FpVar::new_witness(cs.clone(), || element.ok_or(ark_relations::r1cs::SynthesisError::AssignmentMissing))?;
+                let is_right = Boolean::new_witness(cs.clone(), || index.ok_or(ark_relations::r1cs::SynthesisError::AssignmentMissing))?;
+
+                let hash_input = conditionally_select(&is_right, &sibling, &current, &current, &sibling);
+                current = poseidon_hash(&hash_input);
+            }
+
+            current.enforce_equal(&root)?;
+            Ok(())
+        }
+    }
+
+    fn generate_groth16_proof(
+        circuit: MerkleMembershipCircuit<ark_bn254::Fr>,
+        pk: &ark_groth16::ProvingKey<Bn254>,
+    ) -> Proof<Bn254> {
+        let mut rng = ark_std::test_rng();
+        Groth16::prove(pk, circuit, &mut rng).unwrap()
+    }
+
+    fn verify_groth16_proof(
+        vk: &VerifyingKey<Bn254>,
+        proof: &Proof<Bn254>,
+        public_inputs: &[ark_bn254::Fr],
+    ) -> bool {
+        Groth16::verify(vk, public_inputs, proof).unwrap()
+    }
+    }

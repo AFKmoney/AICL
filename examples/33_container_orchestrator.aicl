@@ -1,0 +1,414 @@
+# AICL Example: Container Orchestrator
+# Implements a container orchestration platform with scheduling, auto-scaling, self-healing,
+# rolling updates, resource quotas, and pod-level lifecycle management.
+
+# Level 1: Architecture
+Goal: Provide a production-grade container orchestration platform that automates deployment, scaling, and management of containerized applications with intelligent scheduling, self-healing capabilities, zero-downtime rolling updates, and strict resource quota enforcement across multi-tenant clusters.
+
+Constraint: Scheduler must place pods within 5 seconds of creation under normal load
+Constraint: Rolling update must maintain at least 75% of desired replicas available at all times
+Constraint: Resource quotas must be enforced at namespace level before pod admission
+Constraint: Self-healing must detect and replace failed containers within 30 seconds
+Constraint: Horizontal scaling decisions must consider both resource utilization and custom metrics
+
+Risk: Resource starvation causing pod eviction and cascading failures
+Recovery: Implement guaranteed QoS classes with resource reservations; enforce limits via cgroups; overcommit ratio capped at 2x for memory; OOM killer targets best-effort pods first; critical workloads have dedicated node pools
+
+Risk: Rolling update stuck due to new pod version failing health checks
+Recovery: Auto-rollback if progress deadline exceeded (600s default); maintain old ReplicaSet at scaled-down size for instant rollback; canary analysis with progressive traffic shift; manual rollback API
+
+Risk: Scheduler hot-spot causing imbalanced resource utilization across nodes
+Recovery: Implement bin-packing with spread constraints; anti-affinity rules prevent co-locating replicas; descheduler rebalances periodically; node auto-provisioning adds capacity when utilization exceeds 80%
+
+Risk: StatefulSet volume detachment failure during node failure
+Recovery: Force detach with verification after 60-second grace period; attach volume to replacement node; validate data integrity before serving traffic; implement volume replication for critical workloads
+
+Risk: Resource quota violation through orphaned resources accumulating
+Recovery: Periodic garbage collection of completed jobs and orphaned pods; resource quota accounting includes terminating pods; admission controller validates quota before creation; alert on quota approaching limits
+
+Risk: Control plane failure preventing cluster management operations
+Recovery: Multi-master HA with etcd quorum; leader election for scheduler and controller manager; cached state serves read-only queries during partial outage; etcd snapshots for disaster recovery
+
+Layer: ControlPlane
+    SubLayer: APIServer
+    SubLayer: Scheduler
+    SubLayer: ControllerManager
+    SubLayer: EtcdCluster
+Layer: NodeAgent
+    SubLayer: Kubelet
+    SubLayer: ContainerRuntime
+    SubLayer: VolumeManager
+    SubLayer: NetworkPlugin
+Layer: WorkloadManagement
+    SubLayer: DeploymentController
+    SubLayer: StatefulSetController
+    SubLayer: JobController
+    SubLayer: HPAController
+
+Validation: Pod spec must include resource requests for CPU and memory
+Validation: Rolling update surge must not exceed 25% of desired replicas
+Validation: Pod disruption budget must be respected during voluntary evictions
+Validation: Namespace resource quotas must not be exceeded by new pod admissions
+Validation: Container images must come from approved registries only
+Validation: Network policies must default deny all ingress unless explicitly allowed
+
+# Level 2: Entities
+Entity Pod
+    podId: string
+    namespace: string
+    nodeName: string
+    phase: string
+    conditions: list
+    containers: list
+    volumes: list
+    resourceRequests: dict
+    resourceLimits: dict
+    labels: dict
+    annotations: dict
+    createdAt: datetime
+
+Entity Node
+    nodeId: string
+    hostname: string
+    ipAddress: string
+    capacityCpu: float
+    capacityMemory: integer
+    allocatableCpu: float
+    allocatableMemory: integer
+    conditions: list
+    labels: dict
+    taints: list
+    status: string
+    lastHeartbeat: datetime
+
+Entity Deployment
+    deploymentId: string
+    namespace: string
+    replicas: integer
+    selector: dict
+    template: dict
+    strategy: string
+    maxSurge: integer
+    maxUnavailable: integer
+    revisionHistoryLimit: integer
+    progressDeadlineSeconds: integer
+    updatedReplicas: integer
+
+Entity HorizontalPodAutoscaler
+    hpaId: string
+    namespace: string
+    targetRef: string
+    minReplicas: integer
+    maxReplicas: integer
+    currentReplicas: integer
+    targetCpuUtilization: float
+    targetMemoryUtilization: float
+    customMetrics: list
+    scaleTargetRef: dict
+    lastScaleTime: datetime
+
+Entity ResourceQuota
+    quotaId: string
+    namespace: string
+    hardLimits: dict
+    usedResources: dict
+    scopes: list
+    createdAt: datetime
+    lastUpdated: datetime
+
+Entity ScheduleDecision
+    decisionId: string
+    podId: string
+    nodeName: string
+    score: float
+    reasons: list
+    constraintsSatisfied: list
+    constraintsViolated: list
+    timestamp: datetime
+    algorithm: string
+
+# Level 3: Behaviors
+Behavior SchedulePod
+    Input: podSpec: dict, namespace: string, priority: integer
+    Output: nodeName: string, score: float, scheduleTime: float
+    Action:
+        Filter nodes that satisfy pod constraints (taints, affinities, resources)
+        Score remaining nodes using priority functions (resource fit, spread, affinity)
+        Select highest-scoring node for pod placement
+        Bind pod to selected node via API server
+        If no suitable node found, add to scheduling queue with backoff
+        Record scheduling decision with reasoning for debugging
+        Emit scheduling latency metric
+
+Behavior ScaleWorkload
+    Input: workloadRef: string, targetReplicas: integer, reason: string
+    Output: currentReplicas: integer, targetReplicas: integer, scalingAction: string
+    Action:
+        Validate target replicas within HPA min/max bounds
+        Compute replica delta from current to target
+        If scaling up, create new pod specs and submit to scheduler
+        If scaling down, select pods for termination using prioritization
+        Respect pod disruption budgets during scale down
+        Update deployment status with new replica counts
+        Emit scaling event metric with reason code
+
+Behavior PerformRollingUpdate
+    Input: deploymentId: string, newTemplate: dict, strategy: dict
+    Output: updatedReplicas: integer, availableReplicas: integer, progress: float
+    Action:
+        Create new ReplicaSet with updated template at 0 replicas
+        Incrementally scale up new ReplicaSet by maxSurge
+        Incrementally scale down old ReplicaSet respecting maxUnavailable
+        Wait for new pods to pass readiness probes before continuing
+        If progress deadline exceeded, auto-rollback to previous revision
+        Clean up old ReplicaSets beyond revisionHistoryLimit
+        Emit update progress metric
+
+Behavior SelfHeal
+    Input: nodeId: string, podId: string, failureType: string
+    Output: action: string, newPodId: string, recoveryTime: float
+    Action:
+        Detect failure via node heartbeat timeout or container exit code
+        If node unreachable, mark node as NotReady after grace period
+        Taint node with node.kubernetes.io/unreachable
+        For pods with restartPolicy=Always, schedule replacement on healthy node
+        For StatefulSets, wait for volume detach before rescheduling
+        Force delete pod on unreachable node after pod-eviction-timeout
+        Emit healing action metric with failure classification
+
+Behavior EnforceResourceQuota
+    Input: namespace: string, resourceRequest: dict, operation: string
+    Output: allowed: boolean, quotaUsage: dict, denialReason: string
+    Action:
+        Fetch current resource quota for namespace
+        Calculate projected usage if request is admitted
+        If projected usage exceeds hard limits, deny with specific reason
+        If allowed, reserve resources atomically
+        Update quota usage counters
+        Track quota utilization percentage for alerting
+        Emit quota check metric with allow/deny result
+
+Behavior RebalanceCluster
+    Input: strategy: string, constraints: dict, dryRun: boolean
+    Output: migrations: list, estimatedImprovement: float
+    Action:
+        Analyze current resource utilization across all nodes
+        Identify over-utilized and under-utilized nodes
+        Compute optimal rebalancing plan respecting affinity rules
+        Prioritize migrations by improvement score
+        If dryRun, return plan without executing
+        If executing, evict and reschedule pods in controlled batches
+        Emit rebalancing progress metric
+
+# Level 4: Conditions
+Condition: NodeNotReady
+    When node fails to report heartbeat for node-monitor-grace-period (40s)
+    Then mark node condition as NotReady; add unreachable taint; start pod eviction timer; after pod-eviction-timeout (300s), force delete pods and schedule replacements on healthy nodes
+
+Condition: PodCrashLooping
+    When container restart count exceeds 5 within 10 minutes with CrashLoopBackOff status
+    Then emit crash loop alert with container logs; if HPA managed, do not scale on crash loop; trigger debugging assistance notification; consider marking deployment as degraded
+
+Condition: ResourceQuotaExceeded
+    When namespace resource usage reaches 90% of hard quota
+    Then emit warning alert; throttle new pod admissions; recommend cleanup of completed jobs; if hard limit reached, reject all new resource creation in namespace
+
+Condition: RollingUpdateStalled
+    When deployment progress stalls for progressDeadlineSeconds (600s default)
+    Then auto-rollback to previous stable revision; emit update-stalled alert; retain failed ReplicaSet for debugging; notify deployment pipeline of failure
+
+Condition: HpaScalingLimitReached
+    When HPA reaches maxReplicas and utilization still exceeds target
+    Then emit scaling-limit alert; recommend increasing maxReplicas or optimizing resource usage; consider node auto-provisioning if cluster has capacity; log scaling ceiling event
+
+# Level 5: Events
+Event: OnPodScheduled
+    On pod successfully bound to a node
+    Action: Start container runtime on target node, pull images, execute init containers, start main containers, run startup probes then readiness probes, emit scheduling-complete metric
+
+Event: OnNodeAdded
+    On new node joins the cluster
+    Action: Register node with API server, label node with capacity and topology, begin heartbeat, update scheduler cache, consider for pending pod assignment, emit node-join metric
+
+Event: OnDeploymentRolledBack
+    On deployment rolled back to previous revision
+    Action: Scale up previous ReplicaSet, scale down current ReplicaSet, emit rollback metric with reason, notify deployment pipeline, retain rollback history for audit
+
+Event: OnHPAScaleDecision
+    On HPA controller makes a scaling decision
+    Action: Execute scale operation, record decision with metrics and reasoning, enforce cooldown period before next scale, emit scale-decision metric, log current vs target utilization
+
+Event: OnResourceQuotaCritical
+    On namespace resource usage exceeds 95% of quota
+    Action: Emit critical alert, pause non-essential workloads, trigger automated cleanup of completed jobs and orphaned resources, recommend quota increase, log critical usage snapshot
+
+# Level 6: Concurrency
+Parallel:
+    Independent pod scheduling decisions across priority classes
+    Per-node container lifecycle management via kubelet
+    HPA metric evaluation and scaling decisions
+    Rolling update progression across deployments
+    Resource quota enforcement during pod admission
+
+# Level 7: Optimization
+Optimize: Scheduling latency
+    Priority: Cache node resource information; use incremental scheduling with pre-filtering; batch low-priority pods for deferred scheduling; implement scheduling framework with extensible plugins
+
+Optimize: Rolling update zero-downtime
+    Priority: Pre-pull images on target nodes; use readiness gates for external health validation; overlap old and new versions within surge budget; implement canary analysis before full rollout
+
+Optimize: Cluster resource utilization
+    Priority: Bin-packing for batch workloads; spread for service workloads; descheduler for periodic rebalancing; node auto-provisioning for elastic capacity; right-size recommendations from usage metrics
+
+# Level 8: Learning
+Learn: Optimal resource requests per workload
+    Goal: Right-size resource requests to minimize waste while ensuring performance
+    Adapt: recommendedCpuRequest and recommendedMemoryRequest per deployment
+    Based: Actual resource consumption patterns over 7-day windows, P99 usage peaks, and OOM event history
+
+Learn: Optimal HPA scaling parameters
+    Goal: Configure HPA to respond quickly to load changes without oscillation
+    Adapt: targetUtilization and stabilizationWindowSeconds per HPA
+    Based: Historical scaling event patterns, utilization oscillation frequency, and application warm-up time
+
+Learn: Node auto-scaling thresholds
+    Goal: Add/remove nodes at the right time to balance cost and availability
+    Adapt: scaleUpThreshold and scaleDownThreshold for cluster autoscaler
+    Based: Pending pod queue depth, node utilization trends, and cluster scaling history
+
+# Level 9: Security
+Security:
+    Encrypt: All control plane communication using TLS with mutual authentication
+    Encrypt: etcd data at rest using AES-256 encryption
+    Encrypt: Secrets using envelope encryption with KMS integration
+    Protect: Pod security via admission controllers (PSA, PSS)
+    Protect: Network isolation via network policies with default-deny
+    Protect: API server access via RBAC with namespace-scoped roles
+    Protect: Container runtime via seccomp profiles and AppArmor policies
+
+# Level 10: Native
+Native: Go
+{
+package scheduler
+
+import (
+    "context"
+    "sort"
+    "sync"
+)
+
+type Scheduler struct {
+    cache       *SchedulerCache
+    framework   *SchedulingFramework
+    binder      Binder
+    queue       *SchedulingQueue
+    metrics     *SchedulerMetrics
+}
+
+type ScheduleResult struct {
+    NodeName    string
+    Score       float64
+    Evaluations int
+    Duration    float64
+}
+
+func (s *Scheduler) ScheduleOne(ctx context.Context, pod *Pod) (*ScheduleResult, error) {
+    start := time.Now()
+    
+    // Phase 1: Filter - find feasible nodes
+    nodes, err := s.framework.RunFilterPlugins(ctx, pod, s.cache.GetNodes())
+    if err != nil {
+        return nil, fmt.Errorf("no feasible nodes: %w", err)
+    }
+    
+    if len(nodes) == 0 {
+        s.metrics.RecordSchedulingFailure(pod, "no feasible nodes")
+        return nil, ErrUnschedulable
+    }
+    
+    // Phase 2: Score - rank feasible nodes
+    scores, err := s.framework.RunScorePlugins(ctx, pod, nodes)
+    if err != nil {
+        return nil, fmt.Errorf("scoring failed: %w", err)
+    }
+    
+    // Phase 3: Select - pick highest scoring node
+    selectedNode := s.selectHighestScore(scores)
+    
+    // Phase 4: Reserve - atomically reserve resources
+    if err := s.cache.Reserve(pod, selectedNode); err != nil {
+        s.metrics.RecordSchedulingFailure(pod, "reservation conflict")
+        return nil, ErrReservationConflict
+    }
+    
+    // Phase 5: Bind - persist scheduling decision
+    if err := s.binder.Bind(ctx, pod, selectedNode); err != nil {
+        s.cache.Unreserve(pod, selectedNode)
+        return nil, fmt.Errorf("bind failed: %w", err)
+    }
+    
+    result := &ScheduleResult{
+        NodeName:    selectedNode,
+        Score:       scores[selectedNode],
+        Evaluations: len(nodes),
+        Duration:    time.Since(start).Seconds(),
+    }
+    
+    s.metrics.RecordSchedulingSuccess(pod, result)
+    return result, nil
+}
+
+func (s *Scheduler) selectHighestScore(scores map[string]float64) string {
+    type nodeScore struct {
+        name  string
+        score float64
+    }
+    var sorted []nodeScore
+    for name, score := range scores {
+        sorted = append(sorted, nodeScore{name, score})
+    }
+    sort.Slice(sorted, func(i, j int) bool {
+        return sorted[i].score > sorted[j].score
+    })
+    return sorted[0].name
+}
+
+type SchedulerCache struct {
+    mu       sync.RWMutex
+    nodes    map[string]*NodeInfo
+    pods     map[string]*PodInfo
+}
+
+type NodeInfo struct {
+    Node              *Node
+    RequestedCPU      float64
+    RequestedMemory   int64
+    AllocatableCPU    float64
+    AllocatableMemory int64
+    PodCount          int
+    Images            map[string]bool
+}
+
+func (c *SchedulerCache) Reserve(pod *Pod, nodeName string) error {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+    
+    nodeInfo, ok := c.nodes[nodeName]
+    if !ok {
+        return fmt.Errorf("node %s not found", nodeName)
+    }
+    
+    cpuReq := pod.ResourceRequests["cpu"]
+    memReq := pod.ResourceRequests["memory"]
+    
+    if nodeInfo.RequestedCPU+cpuReq > nodeInfo.AllocatableCPU ||
+       nodeInfo.RequestedMemory+memReq > nodeInfo.AllocatableMemory {
+        return fmt.Errorf("insufficient resources on %s", nodeName)
+    }
+    
+    nodeInfo.RequestedCPU += cpuReq
+    nodeInfo.RequestedMemory += memReq
+    nodeInfo.PodCount++
+    
+    return nil
+}
