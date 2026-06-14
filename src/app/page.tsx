@@ -8,7 +8,8 @@ import {
   Info, XCircle, CheckCircle, Loader2, Terminal, BookOpen,
   Copy, Download, RotateCcw, Maximize2, Minimize2, PanelLeftClose,
   PanelLeftOpen, PanelRightClose, PanelRightOpen,
-  Layers, ShieldCheck, Bug, Lightbulb, GitBranch, Gauge
+  Layers, ShieldCheck, Bug, Lightbulb, GitBranch, Gauge,
+  MessageSquare, Send, Bot, User
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -147,14 +148,23 @@ export default function AICLEditor() {
   const [findText, setFindText] = useState('');
   const [replaceText, setReplaceText] = useState('');
   const [fileCounter, setFileCounter] = useState(2);
-  const [rightPanelContent, setRightPanelContent] = useState<'output' | 'tree' | 'code' | 'tests'>('output');
+  const [rightPanelContent, setRightPanelContent] = useState<'output' | 'tree' | 'code' | 'tests' | 'chat'>('output');
   const [treeData, setTreeData] = useState('');
   const [compiledCode, setCompiledCode] = useState('');
   const [testCode, setTestCode] = useState('');
 
+  // --- AI Chat state ---
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
+    { role: 'assistant', content: 'Hello! I\'m the AICL AI Assistant. I can help you write AICL specifications, understand concepts like the No-Orphan Property and Proof of Origin, and guide you through the editor. Ask me anything!' },
+  ]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const replInputRef = useRef<HTMLInputElement>(null);
   const findInputRef = useRef<HTMLInputElement>(null);
+  const chatInputRef = useRef<HTMLInputElement>(null);
 
   const activeFile = files.find(f => f.id === activeFileId) || files[0];
 
@@ -829,6 +839,38 @@ export default function AICLEditor() {
     setIsRunning(false);
   }, [activeExercise, activeFile]);
 
+  // --- AI Chat ---
+  const sendChatMessage = useCallback(async () => {
+    const msg = chatInput.trim();
+    if (!msg || chatLoading) return;
+
+    const userMessage = { role: 'user' as const, content: msg };
+    setChatMessages(prev => [...prev, userMessage]);
+    setChatInput('');
+    setChatLoading(true);
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [...chatMessages, userMessage].map(m => ({ role: m.role, content: m.content })),
+          context: activeFile.content,
+        }),
+      });
+      const data = await res.json();
+      setChatMessages(prev => [...prev, { role: 'assistant', content: data.message || 'Sorry, I could not generate a response.' }]);
+    } catch {
+      setChatMessages(prev => [...prev, { role: 'assistant', content: 'Connection error. Please try again.' }]);
+    }
+    setChatLoading(false);
+  }, [chatInput, chatLoading, chatMessages, activeFile.content]);
+
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
+
   // Load tree when panel opens
   useEffect(() => {
     if (rightPanelContent === 'tree' && !treeData) {
@@ -889,6 +931,10 @@ export default function AICLEditor() {
           <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30] text-[#c586c0]" onClick={runExplain} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Brain className="h-3.5 w-3.5 mr-1" />}Explain</Button></TooltipTrigger><TooltipContent>Explain compilation provenance</TooltipContent></Tooltip>
           <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30] text-[#6a9955]" onClick={runTree} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <TreePine className="h-3.5 w-3.5 mr-1" />}Tree</Button></TooltipTrigger><TooltipContent>Architecture tree</TooltipContent></Tooltip>
           <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30] text-[#ce9178]" onClick={runOptimize} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Zap className="h-3.5 w-3.5 mr-1" />}Optimize</Button></TooltipTrigger><TooltipContent>Optimize architecture</TooltipContent></Tooltip>
+
+          <div className="w-px h-4 bg-[#3c3c3c] mx-1" />
+
+          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 text-xs hover:bg-[#2d2d30] text-[#c586c0]" onClick={() => { setRightPanelOpen(true); setRightPanelContent('chat'); setTimeout(() => chatInputRef.current?.focus(), 100); }}><MessageSquare className="h-3.5 w-3.5 mr-1" />AI Chat</Button></TooltipTrigger><TooltipContent>Open AI Assistant chat</TooltipContent></Tooltip>
 
           <div className="w-px h-4 bg-[#3c3c3c] mx-1" />
 
@@ -1115,18 +1161,20 @@ export default function AICLEditor() {
               <div className="w-80 bg-[#252526] border-l border-[#3c3c3c] flex flex-col flex-shrink-0 overflow-hidden">
                 {/* Right panel tabs */}
                 <div className="flex border-b border-[#3c3c3c]">
-                  {(['output', 'tree', 'code'] as const).map(tab => (
+                  {(['output', 'tree', 'code', 'chat'] as const).map(tab => (
                     <button
                       key={tab}
                       className={`flex-1 px-2 py-1.5 text-[10px] font-medium capitalize ${rightPanelContent === tab ? 'text-[#cd2d48] border-b-2 border-[#cd2d48]' : 'text-[#808080] hover:text-[#d4d4d4]'}`}
                       onClick={() => {
                         setRightPanelContent(tab);
                         if (tab === 'tree') setTreeData('');
+                        if (tab === 'chat') setTimeout(() => chatInputRef.current?.focus(), 100);
                       }}
                     >
                       {tab === 'output' && <FileSearch className="h-3 w-3 inline mr-1" />}
                       {tab === 'tree' && <TreePine className="h-3 w-3 inline mr-1" />}
                       {tab === 'code' && <Code2 className="h-3 w-3 inline mr-1" />}
+                      {tab === 'chat' && <MessageSquare className="h-3 w-3 inline mr-1" />}
                       {tab}
                     </button>
                   ))}
@@ -1196,6 +1244,67 @@ export default function AICLEditor() {
                       )}
                     </div>
                   </ScrollArea>
+                )}
+
+                {/* AI Chat */}
+                {rightPanelContent === 'chat' && (
+                  <div className="flex-1 flex flex-col overflow-hidden">
+                    <ScrollArea className="flex-1">
+                      <div className="p-3 space-y-3">
+                        {chatMessages.map((msg, i) => (
+                          <div key={i} className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                            {msg.role === 'assistant' && (
+                              <div className="w-6 h-6 rounded-full bg-[#cd2d48] flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <Bot className="h-3.5 w-3.5 text-white" />
+                              </div>
+                            )}
+                            <div className={`max-w-[85%] px-3 py-2 rounded-lg text-xs leading-relaxed ${
+                              msg.role === 'user'
+                                ? 'bg-[#cd2d48] text-white rounded-br-sm'
+                                : 'bg-[#2d2d30] text-[#d4d4d4] rounded-bl-sm'
+                            }`}>
+                              <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                            </div>
+                            {msg.role === 'user' && (
+                              <div className="w-6 h-6 rounded-full bg-[#3c3c3c] flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <User className="h-3.5 w-3.5 text-[#d4d4d4]" />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        {chatLoading && (
+                          <div className="flex gap-2 justify-start">
+                            <div className="w-6 h-6 rounded-full bg-[#cd2d48] flex items-center justify-center flex-shrink-0">
+                              <Bot className="h-3.5 w-3.5 text-white" />
+                            </div>
+                            <div className="bg-[#2d2d30] px-3 py-2 rounded-lg rounded-bl-sm">
+                              <Loader2 className="h-4 w-4 animate-spin text-[#cd2d48]" />
+                            </div>
+                          </div>
+                        )}
+                        <div ref={chatEndRef} />
+                      </div>
+                    </ScrollArea>
+                    <div className="flex items-center gap-2 px-3 py-2 border-t border-[#3c3c3c]">
+                      <input
+                        ref={chatInputRef}
+                        className="flex-1 bg-[#3c3c3c] border border-[#4f4f4f] rounded px-2 py-1.5 text-xs text-[#d4d4d4] focus:outline-none focus:border-[#cd2d48]"
+                        placeholder="Ask about AICL, the editor, or your code..."
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } }}
+                        disabled={chatLoading}
+                      />
+                      <Button
+                        size="sm"
+                        className="h-7 w-7 p-0 bg-[#cd2d48] hover:bg-[#a8233b]"
+                        onClick={sendChatMessage}
+                        disabled={chatLoading || !chatInput.trim()}
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </div>
             </>

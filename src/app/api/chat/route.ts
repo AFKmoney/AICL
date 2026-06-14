@@ -165,6 +165,7 @@ The editor has a VS Code-like dark theme layout (AICL red accent: #cd2d48):
    - **Explain** button (purple, Brain icon) — Explains WHY each line was generated. Shows provenance records with type, source, confidence, pattern
    - **Tree** button (green, TreePine icon) — Generates architecture tree visualization
    - **Optimize** button (orange, Zap icon) — Suggests architectural improvements with risk levels
+   - **AI Chat** button (purple, MessageSquare icon) — Opens this AI assistant chat panel in the right panel
    - **Clear** button — Clears the output panel
    - **Find** button (Ctrl+F) — Opens find/replace bar
 
@@ -187,10 +188,11 @@ The editor has a VS Code-like dark theme layout (AICL red accent: #cd2d48):
    - **Ctrl+F**: Find/Replace
    - **Ctrl+H**: Find/Replace
 
-5. **RIGHT PANEL** (toggle with panel buttons) — Three tabs:
+5. **RIGHT PANEL** (toggle with panel buttons) — Four tabs:
    - **Output** tab — Shows timestamped compilation/verification/audit results with color-coded messages (green=success, red=error, yellow=warning, gray=system)
    - **Tree** tab — Shows architecture tree in teal monospace text
    - **Code** tab — Shows compiled output code (main.py + test_main.py) with Copy buttons
+   - **Chat** tab — AI Assistant chat (this is where you are!). Users type questions and get AICL help. Shows conversation history with bot (red circle) and user (gray circle) avatars. The AI receives the current editor code as context automatically.
 
 6. **BOTTOM PANEL** (toggle with minimize/maximize) — Three tabs:
    - **Output** tab — Same output as right panel (alternative location)
