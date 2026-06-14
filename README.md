@@ -4,8 +4,9 @@
 
 **Architecture Compilation Language**
 
-*If the compiler cannot explain why it generated a line, it should not generate it.*
-*And this property must be independently verifiable without trusting the compiler.*
+*AICL is not a programming language. It is a cognitive representation language*
+*designed for the learning, reasoning, and autonomous evolution of AI systems.*
+*The generated code is a byproduct. The architecture is the real program.*
 
 [![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](https://github.com/AFKmoney/AICL)
 [![Status](https://img.shields.io/badge/status-beta-green.svg)](https://github.com/AFKmoney/AICL)
@@ -18,9 +19,49 @@
 [![CogNet](https://img.shields.io/badge/CogNet-1B%20ONNX-9cf.svg)](https://github.com/AFKmoney/AICL)
 [![License](https://img.shields.io/badge/license-MIT-purple.svg)](https://github.com/AFKmoney/AICL/blob/main/LICENSE)
 
-[Install](#install) · [Quick Start](#quick-start) · [Proof of Origin](#proof-of-origin) · [Autonomous Compilation](#autonomous-compilation) · [AI Self-Writing](#ai-powered-self-writing-compilation) · [CogNet-1B](#cognet-1b--local-ai-assistant) · [Web Editor](#web-editor) · [Language Reference](#language-levels) · [Grammar](spec/grammar.md) · [White Paper](docs/whitepaper.pdf)
+[Cognitive Vision](#cognitive-vision) · [Install](#install) · [Quick Start](#quick-start) · [Proof of Origin](#proof-of-origin) · [Autonomous Compilation](#autonomous-compilation) · [AI Self-Writing](#ai-powered-self-writing-compilation) · [CogNet-1B](#cognet-1b--local-ai-assistant) · [Web Editor](#web-editor) · [Language Reference](#language-levels) · [Grammar](spec/grammar.md) · [White Paper](docs/whitepaper.pdf)
 
 </div>
+
+---
+
+## Cognitive Vision
+
+You make a critical error if you consider AICL to be simply a programming language.
+
+AICL is a **cognitive language** designed for the learning, reasoning, and autonomous evolution of AI systems. The generated code is a byproduct. The architectural representation is the primary artifact.
+
+### The Problem
+
+Current AI systems learn from Python, JavaScript, C++, Rust. These languages are optimized for **Human → Machine**. They are not optimized for **AI → Architecture → AI**. They mix objectives, implementation, constraints, risks, recovery, and validation in the same space, dramatically increasing learning noise.
+
+### The Hypothesis
+
+An AI trained on explicit architectural representations will learn faster, with less noise, with better planning capabilities, and with better overall coherence than an AI trained on traditional code.
+
+### AICL's Role
+
+AICL forces the explicit declaration of Goal, Constraint, Layer, Risk, Recovery, Validation, Behavior, Condition, Event. These elements are not metadata — **they are the program**.
+
+### The Consequence
+
+AICL transforms AI best practices into mandatory structure. What is today **prompt engineering** becomes **language engineering**. Instead of asking an AI to "think about risks, think about tests, think about constraints, think about architecture" — AICL requires that these elements exist.
+
+### Long-Term Architecture
+
+```
+Architecture
+    ↓
+AICL (cognitive representation)
+    ↓
+CogNet reasons
+    ↓
+Compilation (backend)
+    ↓
+Python / Rust / Go / JavaScript
+```
+
+The compiler is a backend. The architecture is the real program. AICL is not meant to replace Python — it is meant to become a cognitive intermediate layer between AI agents and execution languages.
 
 ---
 
@@ -739,6 +780,7 @@ The position paper at [`docs/position_paper.md`](docs/position_paper.md) (v2.0) 
 | **v3.5** | Autonomous compilation loop: PatternLearner, SpecEvolver, TestRunner, convergence detection, `aicl evolve` | ✅ Done |
 | **v4.0** | AI-powered self-writing: SelfWritingCompiler, AICLGenerator, AIDiagnoser, `aicl create`, `aicl ai-fix` | ✅ Done |
 | **v4.5** | CogNet-1B local AI assistant: 1B ONNX model trained on AICL, integrated chat in Web Editor, offline fallback | ✅ Done |
+| **v5.0** | Cognitive vision: AICL reframed as a cognitive representation language for AI agents, not just a compiler. Prompt engineering → language engineering. Architecture > implementation. | ✅ Done |
 
 ### The Conceptual Trajectory
 
@@ -761,15 +803,18 @@ v3.0:        "I want the architecture to improve itself"  → Autonomous Optimiz
 v3.5:        "I want the code to write and validate itself" → Autonomous Compilation Loop
 v4.0:        "I want it to code itself for any task"      → AI Self-Writing Compiler
 v4.5:        "I want a local AI that understands AICL"    → CogNet-1B (ONNX, trained on AICL)
+v5.0:        "This is not a programming language"         → Cognitive Representation Language
 ```
 
-Each stage discovered that the previous stage's endpoint was actually the beginning of a deeper problem. Explicable compilation raised the question of measurement. Measurement raised the question of trust. Trust raised the question of independent verification. Verification raised the question of specification quality. Specification raised the question of multi-file programs. Multi-file raised the question of proof integrity. Proof integrity raised the question of language independence. Language independence raised the question of visibility. Visibility raised the question of runtime behavior. Runtime raised the question of memory safety. Memory safety raised the question of architectural evolution. Evolution raised the question of autonomous compilation. Autonomous compilation raised the question of self-writing code. And self-writing code raises the question: can a compiler that writes itself still prove where every line came from? AICL's answer is yes — because provenance is not an afterthought, it is the architecture.
+Each stage discovered that the previous stage's endpoint was actually the beginning of a deeper problem. Explicable compilation raised the question of measurement. Measurement raised the question of trust. Trust raised the question of independent verification. Verification raised the question of specification quality. Specification raised the question of multi-file programs. Multi-file raised the question of proof integrity. Proof integrity raised the question of language independence. Language independence raised the question of visibility. Visibility raised the question of runtime behavior. Runtime raised the question of memory safety. Memory safety raised the question of architectural evolution. Evolution raised the question of autonomous compilation. Autonomous compilation raised the question of self-writing code. Self-writing code raised the question of AI representation. And AI representation raises the deepest question of all: what if the programming language itself was the wrong abstraction? What if AI agents don't need a language that generates code — they need a language that represents thought? AICL's answer: the architecture is the real program. The compiler is a backend. Prompt engineering becomes language engineering.
 
 ---
 
-## CogNet-1B — Local AI Assistant
+## CogNet-1B — Cognitive AI Assistant
 
-**CogNet-1B** is a 1B parameter ONNX model trained specifically on AICL. It provides local, privacy-preserving AI assistance directly within the AICL Web Editor, with zero cloud dependency.
+**CogNet-1B** is a 1B parameter ONNX model trained specifically on AICL cognitive representations. It is not simply a model that codes in AICL — it is a model trained on a representation where **architecture > implementation**. In CogNet's token space, the most important tokens are Goal, Risk, Recovery, Validation, Layer — not for, while, if, class.
+
+CogNet provides local, privacy-preserving AI assistance directly within the AICL Web Editor, with zero cloud dependency.
 
 ### Key Features
 
@@ -945,6 +990,11 @@ MIT License — see [LICENSE](LICENSE) for details.
 *Every risk has a recovery. Every artifact has provenance. Every proof is independently verifiable.*
 *Even when the code writes itself, every line has a reason, and that reason is recorded.*
 *Even the AI that assists you runs locally, trained on the language it serves.*
-*From specification to autonomous compilation, the chain is unbroken."*
+*But AICL is not meant to replace Python.*
+*AICL is a cognitive intermediate layer between AI agents and execution languages.*
+*The compiler is a backend. The architecture is the real program.*
+*From specification to autonomous compilation, the chain is unbroken.*
+*Prompt engineering becomes language engineering.*
+*The representation is the program."*
 
 </div>
