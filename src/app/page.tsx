@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
+import type { ImperativePanelHandle } from 'react-resizable-panels';
 import {
   Play, Shield, FileSearch, Brain, TreePine, Zap, Trash2,
   FileText, FolderOpen, Save, Plus, Search, Replace,
@@ -9,7 +11,7 @@ import {
   Copy, Download, RotateCcw, Maximize2, Minimize2, PanelLeftClose,
   PanelLeftOpen, PanelRightClose, PanelRightOpen,
   Layers, ShieldCheck, Bug, Lightbulb, GitBranch, Gauge,
-  MessageSquare, Send, Bot, User
+  MessageSquare, Send, Bot, User, Code2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -184,6 +186,10 @@ export default function AICLEditor() {
   const replInputRef = useRef<HTMLInputElement>(null);
   const findInputRef = useRef<HTMLInputElement>(null);
   const chatInputRef = useRef<HTMLInputElement>(null);
+
+  const leftPanelRef = useRef<ImperativePanelHandle>(null);
+  const rightPanelRef = useRef<ImperativePanelHandle>(null);
+  const bottomPanelRef = useRef<ImperativePanelHandle>(null);
 
   const activeFile = files.find(f => f.id === activeFileId) || files[0];
 
@@ -1235,7 +1241,7 @@ export default function AICLEditor() {
 
           <div className="w-px h-5 bg-[#3c3c50] mx-1" />
 
-          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs hover:bg-[#cd2d48]/10 rounded-md text-[#cd2d48] transition-colors animate-pulse-glow" onClick={() => { setRightPanelOpen(true); setRightPanelContent('chat'); setTimeout(() => chatInputRef.current?.focus(), 100); }}><MessageSquare className="h-3.5 w-3.5 mr-1.5" />AI Chat</Button></TooltipTrigger><TooltipContent>Open AI Assistant chat</TooltipContent></Tooltip>
+          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs hover:bg-[#cd2d48]/10 rounded-md text-[#cd2d48] transition-colors animate-pulse-glow" onClick={() => { rightPanelRef.current?.expand(); setRightPanelContent('chat'); setTimeout(() => chatInputRef.current?.focus(), 100); }}><MessageSquare className="h-3.5 w-3.5 mr-1.5" />AI Chat</Button></TooltipTrigger><TooltipContent>Open AI Assistant chat</TooltipContent></Tooltip>
 
           <div className="w-px h-5 bg-[#3c3c50] mx-1" />
 
@@ -1309,18 +1315,25 @@ export default function AICLEditor() {
         )}
 
         {/* ======== MAIN CONTENT ======== */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* --- Left Panel --- */}
-          {leftPanelOpen && (
-            <>
-              <div className="w-60 bg-[#1e1e36] border-r border-[#3c3c50] flex flex-col flex-shrink-0 overflow-hidden panel-depth">
+        <ResizablePanelGroup direction="vertical" className="flex-1 overflow-hidden">
+          <ResizablePanel defaultSize={75} minSize={30}>
+            <ResizablePanelGroup direction="horizontal" className="h-full">
+              {/* --- Left Panel --- */}
+              <ResizablePanel
+                ref={leftPanelRef}
+                defaultSize={18}
+                minSize={10}
+                maxSize={35}
+                collapsible
+                collapsedSize={0}
+                onCollapse={() => setLeftPanelOpen(false)}
+                onExpand={() => setLeftPanelOpen(true)}
+              >
+                <div className="h-full bg-[#1e1e36] flex flex-col overflow-hidden panel-depth">
                 {/* Cognitive Vision Banner */}
                 <div className="welcome-gradient border-b border-[#3c3c50] p-3">
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center mb-2">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-[#cd2d48]">Cognitive Vision</span>
-                    <button className="text-[#808090] hover:text-white text-xs transition-colors" onClick={() => setLeftPanelOpen(false)}>
-                      <X className="h-3 w-3" />
-                    </button>
                   </div>
                   <div className="flex items-center gap-1.5 text-[10px] font-mono">
                     <span className="px-1.5 py-0.5 rounded bg-[#4ec9b0]/15 text-[#4ec9b0] font-semibold">Architecture</span>
@@ -1408,13 +1421,14 @@ export default function AICLEditor() {
                     </div>
                   </ScrollArea>
                 )}
-              </div>
-              <div className="resize-handle w-1 bg-[#3c3c50] hover:bg-[#cd2d48] cursor-col-resize flex-shrink-0" />
-            </>
-          )}
+                </div>
+              </ResizablePanel>
 
-          {/* --- Center: Code Editor --- */}
-          <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+              <ResizableHandle withHandle className="bg-[#3c3c50] hover:bg-[#cd2d48]/60 data-[resize-handle-active]:bg-[#cd2d48]" />
+
+              {/* --- Center: Code Editor --- */}
+              <ResizablePanel defaultSize={52} minSize={30}>
+                <div className="h-full flex flex-col overflow-hidden min-w-0">
             {/* Auto-complete hint */}
             <div className="flex items-center gap-2 px-3 py-1 bg-[#1e1e36] border-b border-[#3c3c50] flex-shrink-0">
               <span className="text-[10px] text-[#808090]">
@@ -1422,10 +1436,10 @@ export default function AICLEditor() {
               </span>
               <div className="flex-1" />
               <span className="text-[10px] text-[#4ec9b0]/60 font-mono">{activeFile.content.split('\n').length} lines</span>
-              <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs hover:bg-[#2d2d3d] transition-colors" onClick={() => setLeftPanelOpen(!leftPanelOpen)}>
+              <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs hover:bg-[#2d2d3d] transition-colors" onClick={() => { if (leftPanelOpen) leftPanelRef.current?.collapse(); else leftPanelRef.current?.expand(); }}>
                 {leftPanelOpen ? <PanelLeftClose className="h-3.5 w-3.5" /> : <PanelLeftOpen className="h-3.5 w-3.5" />}
               </Button></TooltipTrigger><TooltipContent>Toggle left panel</TooltipContent></Tooltip>
-              <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs hover:bg-[#2d2d3d] transition-colors" onClick={() => setRightPanelOpen(!rightPanelOpen)}>
+              <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs hover:bg-[#2d2d3d] transition-colors" onClick={() => { if (rightPanelOpen) rightPanelRef.current?.collapse(); else rightPanelRef.current?.expand(); }}>
                 {rightPanelOpen ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRightOpen className="h-3.5 w-3.5" />}
               </Button></TooltipTrigger><TooltipContent>Toggle right panel</TooltipContent></Tooltip>
             </div>
@@ -1474,13 +1488,23 @@ export default function AICLEditor() {
                 </div>
               </div>
             </div>
-          </div>
+                </div>
+              </ResizablePanel>
 
-          {/* --- Right Panel --- */}
-          {rightPanelOpen && (
-            <>
-              <div className="resize-handle w-1 bg-[#3c3c50] hover:bg-[#cd2d48] cursor-col-resize flex-shrink-0" />
-              <div className={`w-80 flex flex-col flex-shrink-0 overflow-hidden panel-depth ${rightPanelContent === 'chat' ? 'chat-panel-bg border-l border-[#3c3c50]' : 'bg-[#1e1e36] border-l border-[#3c3c50]'}`}>
+              <ResizableHandle withHandle className="bg-[#3c3c50] hover:bg-[#cd2d48]/60 data-[resize-handle-active]:bg-[#cd2d48]" />
+
+              {/* --- Right Panel --- */}
+              <ResizablePanel
+                ref={rightPanelRef}
+                defaultSize={30}
+                minSize={15}
+                maxSize={50}
+                collapsible
+                collapsedSize={0}
+                onCollapse={() => setRightPanelOpen(false)}
+                onExpand={() => setRightPanelOpen(true)}
+              >
+                <div className={`h-full flex flex-col overflow-hidden panel-depth ${rightPanelContent === 'chat' ? 'chat-panel-bg' : 'bg-[#1e1e36]'}`}>
                 {/* Right panel tabs */}
                 <div className="flex border-b border-[#3c3c50] bg-[#1e1e36]">
                   {(['output', 'tree', 'code', 'chat'] as const).map(tab => (
@@ -1778,14 +1802,25 @@ export default function AICLEditor() {
                     </div>
                   </div>
                 )}
-              </div>
-            </>
-          )}
-        </div>
+                </div>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          </ResizablePanel>
 
-        {/* ======== BOTTOM PANEL ======== */}
-        {bottomPanelOpen && (
-          <div className="h-52 bg-[#1e1e36] border-t border-[#3c3c50] flex flex-col flex-shrink-0 panel-depth">
+          <ResizableHandle withHandle className="bg-[#3c3c50] hover:bg-[#cd2d48]/60 data-[resize-handle-active]:bg-[#cd2d48]" />
+
+          {/* ======== BOTTOM PANEL ======== */}
+          <ResizablePanel
+            ref={bottomPanelRef}
+            defaultSize={25}
+            minSize={10}
+            maxSize={50}
+            collapsible
+            collapsedSize={0}
+            onCollapse={() => setBottomPanelOpen(false)}
+            onExpand={() => setBottomPanelOpen(true)}
+          >
+            <div className="h-full bg-[#1e1e36] border-t border-[#3c3c50] flex flex-col panel-depth">
             {/* Bottom panel tabs */}
             <div className="flex items-center border-b border-[#3c3c50] bg-[#1e1e36]">
               {(['output', 'repl', 'exercises'] as const).map(tab => (
@@ -1801,7 +1836,7 @@ export default function AICLEditor() {
                 </button>
               ))}
               <div className="flex-1" />
-              <Button variant="ghost" size="sm" className="h-6 px-2 mr-1 text-xs hover:bg-[#2d2d3d] transition-colors" onClick={() => setBottomPanelOpen(false)}>
+              <Button variant="ghost" size="sm" className="h-6 px-2 mr-1 text-xs hover:bg-[#2d2d3d] transition-colors" onClick={() => bottomPanelRef.current?.collapse()}>
                 <Minimize2 className="h-3 w-3" />
               </Button>
             </div>
@@ -1916,8 +1951,9 @@ export default function AICLEditor() {
                 </div>
               </ScrollArea>
             )}
-          </div>
-        )}
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
 
         {/* ======== STATUS BAR ======== */}
         <div className="flex items-center justify-between px-3 py-1 bg-gradient-to-r from-[#cd2d48] via-[#b02540] to-[#cd2d48] text-white text-[11px] flex-shrink-0 shadow-[0_-2px_8px_rgba(205,45,72,0.15)]">
@@ -1943,7 +1979,7 @@ export default function AICLEditor() {
             <span>UTF-8</span>
             {isRunning && <span className="flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />Processing...</span>}
             {!bottomPanelOpen && (
-              <button className="hover:text-white/80 transition-colors" onClick={() => setBottomPanelOpen(true)}>
+              <button className="hover:text-white/80 transition-colors" onClick={() => bottomPanelRef.current?.expand()}>
                 <Maximize2 className="h-3 w-3" />
               </button>
             )}
@@ -1954,11 +1990,3 @@ export default function AICLEditor() {
   );
 }
 
-// Small helper icon component for code tab
-function Code2({ className }: { className?: string }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="m18 16 4-4-4-4" /><path d="m6 8-4 4 4 4" /><path d="m14.5 4-5 16" />
-    </svg>
-  );
-}
