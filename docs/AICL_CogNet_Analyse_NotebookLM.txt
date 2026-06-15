@@ -3,7 +3,7 @@
   =================================================================================
   Exploration approfondie des dépôts GitHub :
   - AFKmoney/AICL (Architecture Compilation Language, v2.1.0)
-  - AFKmoney/CogNet (Non-Transformer LM, 40M params, CPU-trained)
+  - AFKmoney/CogNet (Non-Transformer LM, 40M params, CPU-pretrained, EN ATTENTE D'ENTRAÎNEMENT AICL)
   - AFKmoney/CogNet-1B (Non-Transformer LM, 1.06B params, GPU-optimized)
   =================================================================================
   Auteur de l'analyse : Lecteur IA autonome
@@ -383,8 +383,10 @@ par un mécanisme de "cognitive routing" en O(n) et une mémoire hiérarchique
 
 Le projet est directement lié à AICL : le pipeline de données de CogNet-1B
 inclut les exemples AICL, le code source AICL, les specs et les tests,
-répétés 10x pour augmenter leur poids dans l'entraînement. L'objectif est
-d'entraîner CogNet à comprendre et raisonner sur le langage AICL.
+répétés 10x pour augmenter leur poids dans l'entraînement. CogNet est
+DEJA sur HuggingFace, mais ATTEND d'être entraîné sur les données AICL
+et le langage naturel. Le pipeline existe, l'entraînement AICL n'a pas
+encore eu lieu.
 
 --------------------------------------------------------------------------------
 2.2 — L'ARCHITECTURE (VERSION ORIGINALE 40M)
@@ -539,7 +541,7 @@ Architecture → AICL (représentation cognitive) → CogNet raisonne →
 Compilation (backend) → Python/Rust/JS/Go
 
 1. Tu écris une spécification AICL (Goal, Risk, Recovery, etc.)
-2. CogNet, entraîné sur des données AICL, comprend la spécification
+2. CogNet, une fois entraîné sur les données AICL, comprendra la spécification
 3. CogNet peut raisonner sur l'architecture (compléter, corriger, optimiser)
 4. Le compilateur AICL génère le code cible
 5. Le code s'auto-améliore via l'autonomous compilation
@@ -628,8 +630,9 @@ Le cognitive routing peut apprendre à spécialiser les canaux :
    significativement complexe.
 
 3. LES 85 EXEMPLES — QUALITÉ VS QUANTITÉ
-   Ils sont très complets et bien structurés, mais sont-ils tous compilables
-   vers du code réellement fonctionnel ?
+   Ils sont très complets et bien structurés. AICL COMPILE — le compilateur
+   fonctionne et produit du code exécutable. Les exemples ne sont pas juste
+   décoratifs.
 
 4. L'APPRENTISSAGE (NIVEAU 8) — ASSEZ VAPORWARE ?
    "Learn: Transaction fraud patterns" est déclaratif mais sa compilation
@@ -654,9 +657,10 @@ EXÉCUTION TECHNIQUE : 7/10 — Impressionnant mais compilateur monolithique
 DOCUMENTATION : 9/10 — README exceptionnel, white paper, manuels, grammaire
 UTILISABILITÉ : 6/10 — Éditeur web accessible, courbe d'apprentissage significative
 POTENTIEL D'IMPACT : 8/10 — Si l'hypothèse est prouvée
-MATURITÉ : 5/10 — 3 jours, 1 star, pas d'utilisation en production
+MATURITÉ : 7/10 — Le compilateur fonctionne et compile réellement. Proof of
+  Origin vérifiable, multi-cible fonctionnel. Le projet est jeune mais OPÉRATIONNEL.
 
-NOTE GÉNÉRALE AICL : 7.5/10
+NOTE GÉNÉRALE AICL : 8/10
 
 
 ################################################################################
@@ -813,11 +817,13 @@ compilation autonome qui s'auto-corrige, un compilateur auto-écrivant assisté
 par IA, et un éditeur web complet avec chat IA intégré.
 
 CogNet est un modèle de langage non-transformer avec cognitive routing O(n) et
-mémoire hiérarchique à 3 tiers (Working/Episodic/Semantic). Entraîné sur CPU
-(40M) puis scalé à 1B avec 13 optimisations. Le pipeline de données inclut
-les données AICL répétées 10x, faisant de CogNet un modèle spécifiquement
-entraîné pour comprendre et raisonner sur l'architecture logicielle exprimée
-en AICL.
+mémoire hiérarchique à 3 tiers (Working/Episodic/Semantic). Pré-entraîné sur
+CPU (40M) puis scalé à 1B avec 13 optimisations. Le modèle EST DÉJÀ sur
+HuggingFace, mais ATTEND d'être entraîné sur les données AICL et le langage
+naturel. Le pipeline de préparation de données existe (incluant les données
+AICL répétées 10x), mais l'entraînement AICL n'a PAS ENCORE EU LIEU.
+L'objectif est de faire de CogNet un modèle capable de comprendre et
+raisonner sur l'architecture logicielle exprimée en AICL.
 
 L'idée la plus puissante : l'ingénierie logicielle peut être transformée en
 ingénierie linguistique — au lieu de demander aux IA de "penser" aux risques,
@@ -829,14 +835,21 @@ fiable en production. La traçabilité n'est pas la fiabilité.
 
 La synergie AICL + CogNet est conceptuellement fascinante : un langage cognitif
 + un modèle cognitif = potentiellement plus performant que Transformer +
-Python sur les tâches architecturales. Mais cette hypothèse reste À PROUVER.
+Python sur les tâches architecturales. AICL compile et fonctionne. CogNet
+est sur HuggingFace et attend son entraînement AICL. L'hypothèse centrale
+— qu'un modèle non-transformer entraîné sur un langage cognitif structuré
+surpassera les Transformers sur les tâches architecturales — est la
+prochaine étape critique à valider.
 
-Le verdict global : projets fascinants, ambitieux, bien exécutés pour leur
-âge, mais qui ont besoin de maturité, de validation empirique et d'adoption
-réelle pour prouver leur valeur. La direction "langage cognitif + modèle
-cognitif" est une des plus originales dans l'espace AI récent. À surveiller
-de très près.
+Le verdict global : projets fascinants, ambitieux, et plus avancés qu'ils
+n'en ont l'air. AICL n'est pas un concept abstrait — il compile et produit
+du code. CogNet n'est pas un projet théorique — il est sur HuggingFace en
+attendant l'entraînement AICL. La direction "langage cognitif + modèle
+cognitif" est une des plus originales dans l'espace AI récent. La boucle
+AICL → CogNet → amélioration AICL est le chemin le plus prometteur vers
+une architecture AGI. À surveiller de TRÈS près.
 
 ================================================================================
 FIN DE L'ANALYSE COMPLÈTE AICL + COGNET
 ================================================================================
+
