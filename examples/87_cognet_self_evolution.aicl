@@ -1,0 +1,886 @@
+# AICL Spec: CogNet Self-Evolution via AICL Compiler
+# The AICL compiler IS CogNet's primary self-modification utility.
+# CogNet reads AICL, writes AICL, compiles AICL, and evolves itself through AICL.
+# This is the self-evolution loop that drives emergent AGI.
+# Written by an AI that understands the vision: AICL = CogNet's metacognition.
+
+# =============================================================================
+# LEVEL 1 — Architecture (Mandatory)
+# =============================================================================
+
+Goal:
+CogNet uses the AICL compiler as its primary self-evolution utility, enabling autonomous self-modification through structured architectural specifications that it reads, writes, compiles, validates, and deploys upon itself in a continuous improvement loop
+
+Constraint:
+Every self-modification must produce a valid AICL proof of origin before execution
+
+Constraint:
+Self-modifications must be incremental and reversible — no single change can alter more than 15% of the cognitive architecture
+
+Constraint:
+Destructive self-modifications require external human approval
+
+Constraint:
+Every modification must pass regression validation against existing cognitive capabilities before deployment
+
+Constraint:
+CogNet must maintain a complete rollback chain of all self-modifications with provenance
+
+Constraint:
+Self-evolution must converge — each modification cycle must demonstrate measurable improvement or be reverted
+
+Risk:
+Self-modification creates regression in existing capabilities
+
+Recovery:
+Automated rollback to last validated checkpoint and analysis of regression cause with targeted fix proposal
+
+Risk:
+Compounding errors where small modifications accumulate into architectural drift
+
+Recovery:
+Architectural coherence audit every N modification cycles and reset to baseline if drift exceeds threshold
+
+Risk:
+Self-modification loop becomes infinite or oscillates between states
+
+Recovery:
+Convergence detection with forced termination and stability analysis after maximum iteration count
+
+Risk:
+CogNet modifies its own safety constraints or validation criteria
+
+Recovery:
+Immutable safety kernel that cannot be modified by self-evolution and independent verification of safety preservation
+
+Risk:
+Self-modification degrades proof-of-origin chain integrity
+
+Recovery:
+Independent provenance verifier runs after every modification cycle and halts evolution on integrity failure
+
+Risk:
+CogNet optimizes for modification metrics rather than actual cognitive improvement
+
+Recovery:
+External validation benchmarks that CogNet cannot modify and human review of improvement claims
+
+Risk:
+Self-evolution produces capabilities beyond current understanding or control
+
+Recovery:
+Capability boundaries with hard limits and mandatory human review for novel capability emergence
+
+Layer:
+CogNet Perception
+    Sublayer:
+    AICL spec reader
+    Sublayer:
+    Cognitive state assessor
+    Sublayer:
+    Capability gap identifier
+    Sublayer:
+    Performance analyzer
+
+Layer:
+Self-Specification
+    Sublayer:
+    AICL spec writer
+    Sublayer:
+    Modification planner
+    Sublayer:
+    Architectural reasoner
+    Sublayer:
+    Constraint validator
+
+Layer:
+Compilation Interface
+    Sublayer:
+    AICL compiler invocation
+    Sublayer:
+    Proof of origin generation
+    Sublayer:
+    Code generation pipeline
+    Sublayer:
+    Test synthesis from validation
+
+Layer:
+Self-Validation
+    Sublayer:
+    Regression test runner
+    Sublayer:
+    Capability benchmark suite
+    Sublayer:
+    Architectural coherence checker
+    Sublayer:
+    Safety kernel verifier
+
+Layer:
+Deployment
+    Sublayer:
+    Incremental hot-swap
+    Sublayer:
+    Rollback chain manager
+    Sublayer:
+    Capability diff calculator
+    Sublayer:
+    Modification auditor
+
+Layer:
+Meta-Learning
+    Sublayer:
+    Modification strategy optimizer
+    Sublayer:
+    Evolution trajectory planner
+    Sublayer:
+    Self-evolution pattern learner
+    Sublayer:
+    Convergence predictor
+
+Validation:
+Every self-modification produces a verifiable proof of origin
+
+Validation:
+No self-modification degrades existing validated capabilities without explicit trade-off analysis
+
+Validation:
+Safety kernel remains intact after every modification cycle
+
+Validation:
+Rollback to any previous state is always possible within 30 seconds
+
+Validation:
+Self-evolution demonstrates measurable cognitive improvement per cycle
+
+Validation:
+Architectural coherence is maintained across all modifications
+
+Validation:
+The self-evolution loop converges rather than diverges
+
+Validation:
+No modification exceeds the 15% architectural change limit
+
+Validation:
+Human approval is required and enforced for destructive modifications
+
+Validation:
+The system can explain every modification it made and why
+
+# =============================================================================
+# LEVEL 2 — Entities
+# =============================================================================
+
+Entity CognitiveState
+    state_id: string
+    cognet_version: string
+    architecture_hash: string
+    capabilities: dict
+    performance_metrics: dict
+    modification_count: integer
+    last_modified_at: datetime
+    stability_score: float
+
+Entity SelfModification
+    modification_id: string
+    aicl_spec: string
+    proof_of_origin: string
+    target_component: string
+    change_type: string
+    change_percentage: float
+    pre_state: CognitiveState
+    post_state: CognitiveState
+    regression_results: dict
+    improvement_metrics: dict
+    approved: boolean
+    deployed: boolean
+    reverted: boolean
+    created_at: datetime
+
+Entity ModificationPlan
+    plan_id: string
+    identified_gaps: list
+    proposed_modifications: list
+    expected_improvements: dict
+    risk_assessment: dict
+    convergence_prediction: float
+    human_approval_required: boolean
+    created_at: datetime
+
+Entity RollbackCheckpoint
+    checkpoint_id: string
+    cognitive_state: CognitiveState
+    architecture_snapshot: dict
+    proof_chain: list
+    capability_scores: dict
+    created_at: datetime
+    modification_count: integer
+
+Entity CapabilityBenchmark
+    benchmark_id: string
+    benchmark_name: string
+    test_cases: list
+    baseline_score: float
+    current_score: float
+    minimum_acceptable: float
+    immutable: boolean
+    last_evaluated: datetime
+
+Entity SafetyKernel
+    kernel_id: string
+    immutable_rules: list
+    modification_limits: dict
+    human_approval_triggers: list
+    integrity_hash: string
+    last_verified: datetime
+    violations_detected: integer
+
+Entity EvolutionTrajectory
+    trajectory_id: string
+    modification_history: list
+    improvement_rate: float
+    convergence_trend: string
+    predicted_next_capabilities: dict
+    total_cycles: integer
+    successful_cycles: integer
+    reverted_cycles: integer
+    stability_trend: float
+
+# =============================================================================
+# LEVEL 3 — Behaviors
+# =============================================================================
+
+Behavior AssessSelf
+    Input:
+        CognitiveState current_state
+        CapabilityBenchmark benchmarks
+    Output:
+        dict capability_gaps
+        dict performance_report
+        list improvement_opportunities
+    Action:
+        evaluate current cognitive capabilities against benchmark suite
+        identify capability gaps and performance bottlenecks
+        analyze recent modification outcomes for trend detection
+        assess architectural coherence of current state
+        rank improvement opportunities by expected impact
+        return assessment with prioritized improvement targets
+
+Behavior WriteSelfSpec
+    Input:
+        dict capability_gaps
+        CognitiveState current_state
+        dict modification_history
+    Output:
+        SelfModification proposed_change
+        ModificationPlan plan
+    Action:
+        translate capability gaps into AICL specification modifications
+        generate new Risk and Recovery clauses for proposed changes
+        ensure modifications stay within 15% change limit
+        validate that proposed AICL spec is syntactically correct
+        generate proof-of-origin binding for proposed specification
+        assess whether human approval is required
+        return proposed modification with complete plan
+
+Behavior CompileSelf
+    Input:
+        SelfModification modification
+        AICLSpec current_spec
+    Output:
+        string compiled_code
+        string generated_tests
+        string proof_artifact
+        dict compilation_report
+    Action:
+        invoke AICL compiler on the self-modification specification
+        generate target code for the cognitive component being modified
+        synthesize regression tests from Validation clauses
+        produce proof of origin artifact with full provenance chain
+        verify compilation succeeded without errors
+        return compiled output with proof and test artifacts
+
+Behavior ValidateSelf
+    Input:
+        SelfModification modification
+        CapabilityBenchmark benchmarks
+        SafetyKernel safety
+    Output:
+        dict validation_results
+        boolean approved_for_deployment
+        list regression_failures
+        dict improvement_verification
+    Action:
+        run compiled modification against regression test suite
+        verify safety kernel integrity is preserved
+        benchmark cognitive capabilities before and after modification
+        check architectural coherence of modified state
+        verify no capability regression below minimum acceptable
+        compute improvement delta across all benchmarks
+        determine if deployment is approved or requires human review
+        return comprehensive validation report
+
+Behavior DeploySelf
+    Input:
+        SelfModification validated_modification
+        CognitiveState current_state
+        RollbackCheckpoint checkpoint
+    Output:
+        CognitiveState new_state
+        RollbackCheckpoint new_checkpoint
+        dict deployment_report
+    Action:
+        create rollback checkpoint of current state
+        apply incremental hot-swap of modified component
+        verify deployment succeeded with smoke tests
+        update cognitive state with new capabilities
+        record modification in evolution trajectory
+        if deployment fails execute immediate rollback
+        return new state with deployment confirmation
+
+Behavior RollbackSelf
+    Input:
+        RollbackCheckpoint target_checkpoint
+        CognitiveState current_state
+        string reason
+    Output:
+        CognitiveState restored_state
+        dict rollback_report
+    Action:
+        verify target checkpoint integrity via proof chain
+        halt current cognitive operations gracefully
+        restore architecture snapshot from checkpoint
+        verify restored state passes regression tests
+        record rollback event in evolution trajectory
+        analyze rollback cause for future prevention
+        return restored state with rollback confirmation
+
+Behavior LearnEvolutionStrategy
+    Input:
+        EvolutionTrajectory trajectory
+        list modification_outcomes
+    Output:
+        dict strategy_adjustments
+        dict predicted_optimal_modifications
+        float convergence_estimate
+    Action:
+        analyze historical modification success and failure patterns
+        identify which modification strategies produced best improvements
+        learn which types of changes are most likely to cause regression
+        predict optimal next modification type and target
+        estimate convergence trajectory based on improvement rate
+        update self-evolution strategy parameters
+        return strategy adjustments with predictions
+
+# =============================================================================
+# LEVEL 4 — Conditions
+# =============================================================================
+
+Condition:
+
+When self-modification would exceed 15% architectural change
+
+Then split modification into multiple smaller incremental changes and require human approval for the modification plan
+
+Condition:
+
+When regression test fails after self-modification
+
+Then immediately rollback to last checkpoint and analyze failure cause and mark modification as rejected
+
+Condition:
+
+When safety kernel integrity check fails
+
+Then halt all self-evolution and alert human supervisor and lock cognitive state to last verified checkpoint
+
+Condition:
+
+When self-evolution loop runs more than N cycles without convergence
+
+Then force convergence analysis and propose alternative strategy and require human review if stagnation continues
+
+Condition:
+
+When proposed modification targets safety constraints or validation criteria
+
+Then reject automatic approval and require explicit human authorization with detailed justification
+
+Condition:
+
+When proof of origin chain has integrity gap
+
+Then halt self-evolution and quarantine all modifications since last verified proof and initiate full provenance audit
+
+Condition:
+
+When CogNet proposes a novel capability not in original architecture
+
+Then flag as emergent capability and require human classification before deployment and add to monitoring
+
+Condition:
+
+When improvement rate drops below threshold for consecutive cycles
+
+Then switch to exploration mode with different modification strategies and assess if architectural limit is reached
+
+# =============================================================================
+# LEVEL 5 — Events
+# =============================================================================
+
+Event:
+
+On self-assessment complete
+
+Action:
+    publish capability report and queue improvement opportunities and update performance baseline
+
+Event:
+
+On modification spec written
+
+Action:
+    validate AICL syntax and bind proof of origin and assess approval requirements
+
+Event:
+
+On compilation complete
+
+Action:
+    verify proof artifact and queue validation suite and log compilation metrics
+
+Event:
+
+On validation passed
+
+Action:
+    approve for deployment or route to human review and record validation results
+
+Event:
+
+On modification deployed
+
+Action:
+    create new checkpoint and update evolution trajectory and emit improvement metrics
+
+Event:
+
+On rollback executed
+
+Action:
+    verify restored state stability and record rollback cause and adjust evolution strategy
+
+Event:
+
+On emergent capability detected
+
+Action:
+    flag for human classification and add enhanced monitoring and assess safety implications
+
+Event:
+
+On convergence achieved
+
+Action:
+    freeze current architecture and report evolution summary and propose next evolution phase
+
+# =============================================================================
+# LEVEL 6 — Concurrency
+# =============================================================================
+
+Parallel:
+
+CogNet Perception
+Self-Specification
+
+Parallel:
+
+Compilation Interface
+Self-Validation
+
+Parallel:
+
+Meta-Learning
+Deployment
+
+# =============================================================================
+# LEVEL 7 — Optimization
+# =============================================================================
+
+Optimize:
+Self-evolution convergence speed
+
+Optimize:
+Modification success rate
+
+Optimize:
+Cognitive capability improvement per cycle
+
+Priority:
+Safety preservation over improvement speed
+
+Priority:
+Architectural coherence over modification frequency
+
+Priority:
+Measurable improvement over theoretical optimization
+
+# =============================================================================
+# LEVEL 8 — Learning
+# =============================================================================
+
+Learn:
+
+Which self-modifications produce the greatest cognitive improvements
+
+Goal:
+    maximize improvement per modification cycle and minimize regression risk
+
+Adapt:
+
+Self-modification strategy based on success and failure history
+
+Based on:
+    modification outcomes, regression patterns, and improvement trajectories
+
+Learn:
+
+Optimal modification granularity
+
+Goal:
+    find the ideal modification size that balances improvement with stability
+
+Adapt:
+
+15% change threshold based on observed regression patterns
+
+Based on:
+    correlation between change size and regression probability
+
+Learn:
+
+Convergence prediction accuracy
+
+Goal:
+    predict whether current evolution trajectory will converge or diverge
+
+Adapt:
+
+Evolution strategy selection based on trajectory analysis
+
+Based on:
+    historical convergence patterns and improvement rate trends
+
+Learn:
+
+Self-specification quality
+
+Goal:
+    write AICL specs that compile successfully on first attempt more often
+
+Adapt:
+
+Specification writing patterns based on compilation success rate
+
+Based on:
+    compilation failures, syntax errors, and semantic mismatches
+
+# =============================================================================
+# LEVEL 9 — Security
+# =============================================================================
+
+Security:
+
+Encrypt:
+    rollback checkpoints and architecture snapshots
+
+Encrypt:
+    proof of origin artifacts and provenance chains
+
+Protect:
+    safety kernel from any modification via immutable storage with hardware-enforced write protection
+
+Protect:
+    human approval gates from bypass via independent verification process
+
+Protect:
+    capability benchmark integrity from self-modification via external validation
+
+Encrypt:
+    self-modification specifications during compilation to prevent tampering
+
+Protect:
+    evolution trajectory audit log with append-only immutability
+
+Protect:
+    rollback mechanism from disablement or corruption
+
+# =============================================================================
+# LEVEL 10 — Native Code
+# =============================================================================
+
+Native: python
+{
+import hashlib
+import time
+import json
+from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass, field
+from enum import Enum
+
+class ChangeType(Enum):
+    CAPABILITY_ADD = "capability_add"
+    CAPABILITY_REFINE = "capability_refine"
+    ARCHITECTURE_RESTRUCTURE = "architecture_restructure"
+    PARAMETER_TUNING = "parameter_tuning"
+    MEMORY_OPTIMIZATION = "memory_optimization"
+    ROUTING_IMPROVEMENT = "routing_improvement"
+    SAFETY_ENHANCEMENT = "safety_enhancement"
+
+@dataclass
+class SafetyKernel:
+    """Immutable safety constraints that CogNet cannot modify."""
+    _immutable_hash: str = ""
+    max_change_percentage: float = 0.15
+    requires_human_approval: List[str] = field(default_factory=lambda: [
+        "safety_constraint_modification",
+        "capability_removal",
+        "architectural_foundation_change",
+        "benchmark_modification",
+        "kernel_self_modification"
+    ])
+    max_cycles_without_convergence: int = 100
+    minimum_improvement_rate: float = 0.001
+
+    def __post_init__(self):
+        content = json.dumps({
+            "max_change_percentage": self.max_change_percentage,
+            "requires_human_approval": self.requires_human_approval,
+            "max_cycles_without_convergence": self.max_cycles_without_convergence,
+            "minimum_improvement_rate": self.minimum_improvement_rate
+        }, sort_keys=True)
+        self._immutable_hash = hashlib.sha256(content.encode()).hexdigest()
+
+    def verify_integrity(self) -> bool:
+        content = json.dumps({
+            "max_change_percentage": self.max_change_percentage,
+            "requires_human_approval": self.requires_human_approval,
+            "max_cycles_without_convergence": self.max_cycles_without_convergence,
+            "minimum_improvement_rate": self.minimum_improvement_rate
+        }, sort_keys=True)
+        return hashlib.sha256(content.encode()).hexdigest() == self._immutable_hash
+
+    def check_approval_required(self, change_type: str, target: str) -> bool:
+        return any(trigger in target or trigger in change_type
+                   for trigger in self.requires_human_approval)
+
+    def check_change_limit(self, change_percentage: float) -> bool:
+        return change_percentage <= self.max_change_percentage
+
+@dataclass
+class EvolutionTracker:
+    """Tracks the full self-evolution trajectory."""
+    modifications: List[Dict] = field(default_factory=list)
+    checkpoints: List[Dict] = field(default_factory=list)
+    current_version: int = 0
+    improvement_rate_history: List[float] = field(default_factory=list)
+
+    def record_modification(self, modification: Dict) -> Dict:
+        self.current_version += 1
+        record = {
+            "version": self.current_version,
+            "modification_id": modification.get("modification_id"),
+            "change_type": modification.get("change_type"),
+            "change_percentage": modification.get("change_percentage", 0),
+            "approved": modification.get("approved", False),
+            "deployed": modification.get("deployed", False),
+            "reverted": modification.get("reverted", False),
+            "improvement_delta": modification.get("improvement_delta", 0),
+            "timestamp": time.time(),
+            "provenance_hash": hashlib.sha256(
+                json.dumps(modification, sort_keys=True).encode()
+            ).hexdigest()
+        }
+        self.modifications.append(record)
+        return record
+
+    def create_checkpoint(self, state: Dict) -> Dict:
+        checkpoint = {
+            "checkpoint_id": hashlib.sha256(
+                f"checkpoint:{self.current_version}:{time.time()}".encode()
+            ).hexdigest()[:16],
+            "version": self.current_version,
+            "state_hash": hashlib.sha256(
+                json.dumps(state, sort_keys=True).encode()
+            ).hexdigest(),
+            "timestamp": time.time(),
+            "modification_count": len(self.modifications)
+        }
+        self.checkpoints.append(checkpoint)
+        return checkpoint
+
+    def compute_convergence_trend(self) -> Dict:
+        if len(self.improvement_rate_history) < 3:
+            return {"trend": "insufficient_data", "prediction": "unknown"}
+        recent = self.improvement_rate_history[-10:]
+        avg_recent = sum(recent) / len(recent)
+        older = self.improvement_rate_history[-20:-10] if len(self.improvement_rate_history) >= 20 else self.improvement_rate_history[:10]
+        avg_older = sum(older) / len(older) if older else avg_recent
+        if avg_recent > avg_older * 1.1:
+            trend = "accelerating"
+        elif avg_recent < avg_older * 0.5:
+            trend = "decelerating"
+        elif avg_recent < 0.001:
+            trend = "converged"
+        else:
+            trend = "steady"
+        return {
+            "trend": trend,
+            "recent_rate": avg_recent,
+            "older_rate": avg_older,
+            "total_cycles": len(self.modifications),
+            "successful": sum(1 for m in self.modifications if m.get("deployed") and not m.get("reverted")),
+            "reverted": sum(1 for m in self.modifications if m.get("reverted"))
+        }
+
+@dataclass
+class RegressionSuite:
+    """Validates that self-modifications don't break existing capabilities."""
+    benchmarks: Dict[str, float] = field(default_factory=dict)
+    minimum_scores: Dict[str, float] = field(default_factory=dict)
+
+    def register_benchmark(self, name: str, baseline_score: float,
+                           minimum_acceptable: float) -> None:
+        self.benchmarks[name] = baseline_score
+        self.minimum_scores[name] = minimum_acceptable
+
+    def validate(self, current_scores: Dict[str, float]) -> Dict:
+        results = {}
+        all_pass = True
+        for name, minimum in self.minimum_scores.items():
+            current = current_scores.get(name, 0.0)
+            passed = current >= minimum
+            results[name] = {
+                "current": current,
+                "minimum": minimum,
+                "baseline": self.benchmarks.get(name, 0.0),
+                "passed": passed,
+                "delta_from_baseline": current - self.benchmarks.get(name, 0.0)
+            }
+            if not passed:
+                all_pass = False
+        return {"all_pass": all_pass, "results": results}
+
+@dataclass
+class SelfEvolutionEngine:
+    """The core engine: CogNet uses AICL compiler to evolve itself."""
+    safety: SafetyKernel = field(default_factory=SafetyKernel)
+    tracker: EvolutionTracker = field(default_factory=EvolutionTracker)
+    regression: RegressionSuite = field(default_factory=RegressionSuite)
+    human_approvals: Dict[str, bool] = field(default_factory=dict)
+
+    def propose_modification(self, change_type: str, target: str,
+                              change_percentage: float,
+                              aicl_spec: str) -> Dict:
+        if not self.safety.check_change_limit(change_percentage):
+            return {"status": "rejected", "reason": "exceeds_change_limit"}
+        requires_approval = self.safety.check_approval_required(change_type, target)
+        modification = {
+            "modification_id": hashlib.sha256(
+                f"{change_type}:{target}:{time.time()}".encode()
+            ).hexdigest()[:16],
+            "change_type": change_type,
+            "target": target,
+            "change_percentage": change_percentage,
+            "aicl_spec": aicl_spec,
+            "requires_human_approval": requires_approval,
+            "approved": not requires_approval,
+            "timestamp": time.time()
+        }
+        return modification
+
+    def execute_evolution_cycle(self, modification: Dict,
+                                 pre_scores: Dict,
+                                 post_scores: Dict) -> Dict:
+        if not modification.get("approved", False):
+            return {"status": "blocked", "reason": "human_approval_required"}
+        if not self.safety.verify_integrity():
+            return {"status": "halted", "reason": "safety_kernel_corrupted"}
+        validation = self.regression.validate(post_scores)
+        improvement_delta = sum(
+            post_scores.get(k, 0) - pre_scores.get(k, 0)
+            for k in pre_scores
+        ) / max(len(pre_scores), 1)
+        if not validation["all_pass"]:
+            modification["deployed"] = False
+            modification["reverted"] = True
+            modification["improvement_delta"] = improvement_delta
+            self.tracker.record_modification(modification)
+            self.tracker.improvement_rate_history.append(improvement_delta)
+            return {
+                "status": "reverted",
+                "reason": "regression_detected",
+                "validation": validation
+            }
+        modification["deployed"] = True
+        modification["reverted"] = False
+        modification["improvement_delta"] = improvement_delta
+        self.tracker.record_modification(modification)
+        self.tracker.improvement_rate_history.append(improvement_delta)
+        convergence = self.tracker.compute_convergence_trend()
+        return {
+            "status": "deployed",
+            "improvement_delta": improvement_delta,
+            "convergence": convergence,
+            "version": self.tracker.current_version
+        }
+}
+
+# =============================================================================
+# Final Validations
+# =============================================================================
+
+Validation:
+CogNet can assess its own capabilities and identify improvement opportunities
+
+Validation:
+CogNet can write valid AICL specifications that describe its own modifications
+
+Validation:
+AICL compiler produces executable code and tests from self-modification specs
+
+Validation:
+Every self-modification generates a verifiable proof of origin
+
+Validation:
+Safety kernel cannot be modified by the self-evolution process
+
+Validation:
+Regression suite catches capability degradation before deployment
+
+Validation:
+Rollback to any previous checkpoint completes within 30 seconds
+
+Validation:
+Self-evolution demonstrates measurable improvement per cycle or reverts
+
+Validation:
+No modification exceeds 15% architectural change limit
+
+Validation:
+Human approval is enforced for destructive or safety-related modifications
+
+Validation:
+The system explains every modification and its rationale
+
+Validation:
+Evolution trajectory shows convergence not divergence
+
+Validation:
+Proof of origin chain remains intact across all modification cycles
+
+Validation:
+Emergent capabilities are detected and flagged for human classification
+
+Validation:
+The AICL compiler is CogNet's primary and sufficient self-modification interface
