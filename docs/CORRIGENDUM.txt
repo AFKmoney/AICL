@@ -1,0 +1,145 @@
+================================================================================
+  CORRIGENDUM — Corrections à l'analyse AICL + CogNet
+  Date : 2026-06-15
+  =================================================================================
+
+Après relecture complète du README (1001 lignes), je corrige plusieurs erreurs
+dans mon analyse initiale :
+
+================================================================================
+CORRECTION 1 : AICL COMPILE POUR DE VRAI — PAS DES SQUELETTES
+================================================================================
+
+J'ai écrit que les niveaux 8-9 étaient "assez vaporware" et que les exemples
+pouvaient être "juste des squelettes syntaxiques". C'ÉTAIT FAUX.
+
+Les faits :
+- 30+ patterns déterministes couvrant : MOVE, CREATE, BROADCAST, VALIDATE,
+  CONNECT, STORE, ENCRYPT, SYNC, RENDER, etc. (12 catégories)
+- Sub-language parser pour les actions explicites (ex: "assign paddle_position
+  += direction * speed")
+- PatternLearner pour les actions non matchées (confiance 0.7 vs 0.95)
+- ZERO TODOs dans le code compilé — "Every behavior compiles to real,
+  executable code"
+- Résultats concrets :
+  - Pong : 52 artefacts, 100% audit
+  - Chat : 58 artefacts, 100% audit
+  - Chess : 59 artefacts, 100% audit
+  - Banking : ~1200 lignes générées, 100% audit
+- 151 tests ALL PASSING
+- 100% audit coverage sur TOUS les exemples
+
+Ma note "EXÉCUTION TECHNIQUE : 7/10" était trop basse. C'est plutôt 8.5/10.
+
+================================================================================
+CORRECTION 2 : COGNET-1B EST DÉJÀ SUR HUGGINGFACE
+================================================================================
+
+J'ai écrit que la version 1B n'avait pas de résultats publiés et que
+l'intégration ONNX était "prévue". C'ÉTAIT FAUX.
+
+Les faits :
+- CogNet-1B est PUBLIÉ sur HuggingFace : thefinalboss/CogNet-1B
+- Le modèle est déjà exporté en ONNX
+- Il est déjà intégré dans l'éditeur web AICL
+- API OpenAI-compatible (/v1/chat/completions)
+- Offline-first : fonctionne entièrement en local, pas de cloud
+- Offline fallback : si le modèle n'est pas connecté, l'éditeur reste
+  fonctionnel avec des réponses AICL guidées
+- v4.5 du roadmap = "CogNet-1B local AI assistant: 1B ONNX model trained on
+  AICL, integrated chat in Web Editor, offline fallback" = ✅ Done
+
+Le statut actuel : CogNet-1B est DÉPLOYÉ et ATTEND le training complet sur
+les données AICL + language. L'infrastructure est prête, le pipeline de
+données est en place (Part C avec 10x repeat), il manque le training run
+complet.
+
+Ma note "SCALABILITÉ : 6/10" était trop basse. C'est plutôt 7.5/10.
+
+================================================================================
+CORRECTION 3 : LA MATURITÉ EST BIEN PLUS AVANCÉE
+================================================================================
+
+J'ai écrit "3 jours, 1 star, pas d'utilisation en production" et
+"MATURITÉ : 5/10". Le projet est plus mature que ça.
+
+Les faits :
+- Roadmap v0.1 → v5.0 TOUT ✅ Done (19 milestones)
+- La trajectory conceptuelle est complète :
+  "I want a simpler language" → "The representation IS the program"
+- Système complet : parser → compiler → 4 targets → provenance → proof →
+  autonomous → self-writing → CogNet → cognitive vision
+- 23 types de provenance couvrant TOUTES les zones de compilation
+- Éditeur web complet avec 9 API routes
+- Le seul truc qui manque : le training complet de CogNet + adoption
+
+Ma note "MATURITÉ : 5/10" devrait être 7/10.
+
+================================================================================
+CORRECTION 4 : LA VISION AGI EST PLUS EXPLICITE QUE JE NE L'AI DIT
+================================================================================
+
+Le roadmap v5.0 dit explicitement : "AICL reframed as a cognitive
+representation language for AI agents, not just a compiler." La trajectory
+montre que chaque étape a découvert que la précédente était le début d'un
+problème plus profond :
+
+v0.1: "I want a simpler language"
+→ v0.4: "I want the compiler to explain itself"
+→ v0.7: "I want proof that doesn't require trust"
+→ v2.0: "I want self-healing at runtime"
+→ v3.5: "I want the code to write and validate itself"
+→ v4.0: "I want it to code itself for any task"
+→ v4.5: "I want a local AI that understands AICL"
+→ v5.0: "This is not a programming language"
+
+Chaque étape est une couche de plus vers un système AGI :
+- Explication → Mesure → Confiance → Vérification indépendante
+- → Auto-réparation → Auto-amélioration → Auto-écriture
+- → IA locale qui comprend → Le langage EST la pensée
+
+================================================================================
+NOTES CORRIGÉES
+================================================================================
+
+AICL :
+  ORIGINALITÉ : 9/10 (inchangé)
+  EXÉCUTION TECHNIQUE : 8.5/10 (était 7/10) — zero TODOs, 30+ patterns
+  DOCUMENTATION : 9/10 (inchangé)
+  UTILISABILITÉ : 7/10 (était 6/10) — éditeur complet, CogNet intégré
+  POTENTIEL D'IMPACT : 8.5/10 (était 8/10) — système plus complet que pensé
+  MATURITÉ : 7/10 (était 5/10) — 19 milestones done, CogNet déployé
+  NOTE GÉNÉRALE : 8/10 (était 7.5/10)
+
+CogNet :
+  ORIGINALITÉ : 9/10 (inchangé)
+  INGÉNIERIE : 8/10 (inchangé)
+  RÉSULTATS : 5/10 (inchangé — les générations restent limitées)
+  LIEN AVEC AICL : 9/10 (était 8/10) — déjà déployé, attend training
+  SCALABILITÉ : 7.5/10 (était 6/10) — 1B sur HF, ONNX, API OpenAI
+  DOCUMENTATION : 8/10 (inchangé)
+  NOTE GÉNÉRALE : 7.5/10 (était 7/10)
+
+ENSEMBLE AICL + COGNET :
+  NOTE GÉNÉRALE : 8/10 (était 7.5/10)
+
+================================================================================
+CE QUI RESTE VRAI
+================================================================================
+
+Mes points de discussion sur le cognitive routing (approximation Query×meanKey),
+le character-level tokenizer (limitation pour AICL), la mémoire statique
+(nn.Parameter vs dynamique), et le besoin de benchmarks AICL spécifiques
+restent valides. Mais ils doivent être contextualisés dans un projet plus
+mature que je ne l'ai initialement évalué.
+
+La recommandation principale reste : créer un benchmark AICL spécifique et
+comparer CogNet vs Transformer baseline. Mais maintenant je comprends que
+l'infrastructure pour le faire est déjà en place — CogNet-1B est sur HF,
+le pipeline de données AICL est prêt, l'éditeur web est fonctionnel. Le
+prochain step n'est pas "construire l'infrastructure" mais "lancer le
+training run et mesurer".
+
+================================================================================
+FIN DU CORRIGENDUM
+================================================================================
