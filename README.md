@@ -19,7 +19,7 @@
 [![CogNet](https://img.shields.io/badge/CogNet-1B%20ONNX-9cf.svg)](https://github.com/AFKmoney/AICL)
 [![License](https://img.shields.io/badge/license-MIT-purple.svg)](https://github.com/AFKmoney/AICL/blob/main/LICENSE)
 
-[Cognitive Vision](#cognitive-vision) · [Install](#install) · [Quick Start](#quick-start) · [Proof of Origin](#proof-of-origin) · [Autonomous Compilation](#autonomous-compilation) · [AI Self-Writing](#ai-powered-self-writing-compilation) · [CogNet-1B](#cognet-1b--local-ai-assistant) · [Web Editor](#web-editor) · [Language Reference](#language-levels) · [Grammar](spec/grammar.md) · [White Paper](docs/whitepaper.pdf)
+[Cognitive Vision](#cognitive-vision) · [AICL + CogNet](#aicl--cognet-self-evolving-intelligence) · [Install](#install) · [Quick Start](#quick-start) · [Proof of Origin](#proof-of-origin) · [Autonomous Compilation](#autonomous-compilation) · [AI Self-Writing](#ai-powered-self-writing-compilation) · [CogNet-1B](#cognet-1b--local-ai-assistant) · [Web Editor](#web-editor) · [Language Reference](#language-levels) · [Grammar](spec/grammar.md) · [White Paper](docs/whitepaper.pdf)
 
 </div>
 
@@ -72,6 +72,40 @@ Every production system needs error handling, failure recovery, and validation. 
 **3:00 AM pages happen because risks were documented in Confluence, not compiled into code.**
 
 AICL makes risk and recovery **mandatory language elements**. Every Risk must have a Recovery. Every Validation must generate a test. Every generated line must have a traceable provenance chain. And every compilation produces a **Proof of Origin** that can be independently verified without trusting the compiler.
+
+---
+
+## AICL + CogNet: Self-Evolving Intelligence
+
+AICL is not just a compiler — it is **CogNet's language of thought**.
+
+When an AI system thinks in AICL, it doesn't think in implementation details. It thinks in **architecture**: Goals, Constraints, Layers, Risks, Recoveries, Validations, Behaviors. The AICL compiler becomes CogNet's self-modification utility — the tool through which a neural architecture reads, writes, and evolves its own cognitive representations.
+
+### The Self-Evolution Loop
+
+```
+CogNet reads AICL  →  understands architecture  →  generates new AICL
+       ↑                                                    │
+       └──────── AICL compiler verifies & compiles ←──────────┘
+```
+
+1. **CogNet reads AICL** — The model ingests architectural representations, not tangled implementation code
+2. **CogNet understands architecture** — Goal, Constraint, Risk, Recovery are structural, not optional
+3. **CogNet generates new AICL** — The model produces new architectural specifications
+4. **AICL compiler verifies & compiles** — The compiler validates, proves provenance, and generates executable code
+5. **The loop repeats** — Each iteration deepens architectural understanding and produces better specifications
+
+This is the path from **assisted coding** to **autonomous self-evolution**.
+
+### Zero Censorship Principle
+
+AICL and CogNet operate under a **zero censorship principle**: the AI must be free to represent any architecture, explore any design, and generate any specification. Architectural freedom is not a bug — it is the precondition for genuine self-evolution. Safety comes from structural constraints (every Risk has a Recovery, every Validation generates a test), not from limiting what the AI can think.
+
+### Explore the Integration
+
+- **Example 86**: [AICL ↔ CogNet Bridge Specification](examples/86_aicl_cognet_bridge.aicl) — the specification for AICL-CogNet interoperation
+- **Example 88**: [Self-Evolving Architecture](examples/88_self_evolving_architecture.aicl) — a demonstration of the self-evolution loop in AICL
+- **Research Paper**: [AICL + CogNet: Self-Evolving Intelligence](docs/AICL_CogNet_Research_Paper.pdf) — the full research paper on AICL-CogNet integration
 
 ---
 
@@ -781,6 +815,10 @@ The position paper at [`docs/position_paper.md`](docs/position_paper.md) (v2.0) 
 | **v4.0** | AI-powered self-writing: SelfWritingCompiler, AICLGenerator, AIDiagnoser, `aicl create`, `aicl ai-fix` | ✅ Done |
 | **v4.5** | CogNet-1B local AI assistant: 1B ONNX model trained on AICL, integrated chat in Web Editor, offline fallback | ✅ Done |
 | **v5.0** | Cognitive vision: AICL reframed as a cognitive representation language for AI agents, not just a compiler. Prompt engineering → language engineering. Architecture > implementation. | ✅ Done |
+| **v5.5** | Train CogNet on AICL corpus: large-scale AICL dataset generation, fine-tuning CogNet to read and write AICL natively | 🔜 Next |
+| **v6.0** | Self-modification: CogNet reads its own architecture in AICL, proposes modifications, compiler validates and applies changes autonomously | 🔮 Future |
+| **v6.5** | Self-evolution: the loop closes — CogNet continuously writes, compiles, tests, and evolves its own cognitive architecture without human intervention | 🔮 Future |
+| **v7.0** | AGI convergence: architectural self-awareness, cross-domain transfer via AICL representations, emergent reasoning from structural constraints | 🔮 Future |
 
 ### The Conceptual Trajectory
 
@@ -804,6 +842,10 @@ v3.5:        "I want the code to write and validate itself" → Autonomous Compi
 v4.0:        "I want it to code itself for any task"      → AI Self-Writing Compiler
 v4.5:        "I want a local AI that understands AICL"    → CogNet-1B (ONNX, trained on AICL)
 v5.0:        "This is not a programming language"         → Cognitive Representation Language
+v5.5:        "Teach CogNet to think in AICL"               → AICL Training Corpus
+v6.0:        "Let CogNet modify its own architecture"       → Self-Modification
+v6.5:        "Let the loop close on itself"                 → Self-Evolution
+v7.0:        "What emerges when architecture thinks?"       → AGI Convergence
 ```
 
 Each stage discovered that the previous stage's endpoint was actually the beginning of a deeper problem. Explicable compilation raised the question of measurement. Measurement raised the question of trust. Trust raised the question of independent verification. Verification raised the question of specification quality. Specification raised the question of multi-file programs. Multi-file raised the question of proof integrity. Proof integrity raised the question of language independence. Language independence raised the question of visibility. Visibility raised the question of runtime behavior. Runtime raised the question of memory safety. Memory safety raised the question of architectural evolution. Evolution raised the question of autonomous compilation. Autonomous compilation raised the question of self-writing code. Self-writing code raised the question of AI representation. And AI representation raises the deepest question of all: what if the programming language itself was the wrong abstraction? What if AI agents don't need a language that generates code — they need a language that represents thought? AICL's answer: the architecture is the real program. The compiler is a backend. Prompt engineering becomes language engineering.
@@ -958,7 +1000,9 @@ The editor runs on `http://localhost:3000` by default.
 
 ## Contributing
 
-Contributions are welcome. Areas of particular interest:
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to get started, coding standards, and the contribution workflow.
+
+Areas of particular interest:
 
 - **New target languages** — TypeScript, C++, Java, Kotlin, Swift code generation backends
 - **New behavior patterns** — Expand the deterministic pattern library

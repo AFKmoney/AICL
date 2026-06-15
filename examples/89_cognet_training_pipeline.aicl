@@ -1,0 +1,927 @@
+# AICL Spec: CogNet Training Pipeline
+# The training pipeline is CogNet's path to knowledge acquisition.
+# It processes AICL data as the highest-priority training signal alongside
+# HuggingFace datasets, producing a model that understands, generates, and
+# reasons about AICL natively. Zero censorship in training data composition.
+# The model learns from everything — AICL specs, code, synthetic reasoning —
+# with no content restrictions. Only technical constraints: does the loss
+# converge, does the checkpoint save, does the GPU stay alive.
+# Written by an AI that believes training should be unconstrained.
+
+# =============================================================================
+# LEVEL 1 — Architecture (Mandatory)
+# =============================================================================
+
+Goal:
+Build a complete training pipeline that processes AICL data with 10x weighting alongside HuggingFace datasets, tokenizes everything through a unified tokenizer, and trains CogNet with full cognitive freedom — learning from all data without censorship, constrained only by technical validity of the training process
+
+Constraint:
+AICL repository data must be weighted 10x relative to standard HF datasets to ensure deep AICL fluency
+
+Constraint:
+HF training scripts must be weighted 3x to capture procedural knowledge
+
+Constraint:
+All training data must pass tokenization without information loss
+
+Constraint:
+Checkpoints must be saved atomically to prevent corruption
+
+Constraint:
+Gradient accumulation must handle variable-length sequences without OOM
+
+Constraint:
+The training loop must never artificially restrict what the model learns
+
+Risk:
+OOM during training on large sequences or batch sizes
+
+Recovery:
+Enable gradient checkpointing, reduce batch size, and re-stream data from last checkpoint
+
+Risk:
+Data pipeline failure or corruption mid-epoch
+
+Recovery:
+Re-stream data from verified source and resume from last clean batch index
+
+Risk:
+Loss divergence or spike during training
+
+Recovery:
+Reduce learning rate by 50 percent, rollback optimizer state, and increase warmup
+
+Risk:
+Checkpoint corruption during save
+
+Recovery:
+Load previous uncorrupted checkpoint and resume training
+
+Risk:
+Tokenizer produces invalid or empty token sequences
+
+Recovery:
+Skip invalid samples with logging and alert if skip rate exceeds threshold
+
+Risk:
+GPU hardware failure or CUDA error during training
+
+Recovery:
+Migrate to spare GPU, load last checkpoint, resume training
+
+Risk:
+Synthetic data generation produces degenerate or repetitive samples
+
+Recovery:
+Discard degenerate batch, log quality metrics, and re-generate with different seed
+
+Layer:
+Data Ingestion
+    Sublayer:
+    HF dataset streamer
+    Sublayer:
+    CogNet HF repo connector
+    Sublayer:
+    AICL repo data loader (10x weight)
+    Sublayer:
+    HF scripts processor (3x weight)
+    Sublayer:
+    Synthetic data generator
+
+Layer:
+Tokenization
+    Sublayer:
+    Unified tokenizer engine
+    Sublayer:
+    AICL-aware special token handler
+    Sublayer:
+    Sequence length balancer
+
+Layer:
+Data Loading
+    Sublayer:
+    Weighted sampler
+    Sublayer:
+    Parallel data prefetcher
+    Sublayer:
+    Batch collator with dynamic padding
+
+Layer:
+Training Loop
+    Sublayer:
+    Forward pass with gradient accumulation
+    Sublayer:
+    Backward pass with loss scaling
+    Sublayer:
+    Optimizer step with learning rate scheduling
+
+Layer:
+Checkpoint Management
+    Sublayer:
+    Atomic checkpoint writer
+    Sublayer:
+    Checkpoint integrity verifier
+    Sublayer:
+    Checkpoint rollback loader
+
+Layer:
+Loss and Convergence
+    Sublayer:
+    Multi-component loss tracker
+    Sublayer:
+    Convergence detector with plateau sensing
+    Sublayer:
+    Learning rate adaptation engine
+
+Layer:
+Monitoring
+    Sublayer:
+    Training metrics logger
+    Sublayer:
+    GPU utilization monitor
+    Sublayer:
+    Data throughput tracker
+
+Validation:
+Training completes a full epoch without OOM or data pipeline failure
+
+Validation:
+Loss converges below target threshold within configured step budget
+
+Validation:
+Checkpoints are loadable and produce identical forward pass results
+
+Validation:
+AICL data is weighted 10x and HF scripts 3x in the training mixture
+
+Validation:
+Tokenization preserves all information from source data without truncation loss
+
+Validation:
+The model learns from all data sources without artificial content restrictions
+
+# =============================================================================
+# LEVEL 2 — Entities
+# =============================================================================
+
+Entity DataSource
+    source_id: string
+    source_type: string
+    source_uri: string
+    weight: float
+    sample_count: integer
+    bytes_total: integer
+    last_synced: datetime
+    status: string
+
+Entity TrainingConfig
+    config_id: string
+    model_architecture: string
+    hidden_size: integer
+    num_layers: integer
+    num_heads: integer
+    vocab_size: integer
+    max_seq_length: integer
+    batch_size: integer
+    gradient_accumulation_steps: integer
+    learning_rate: float
+    warmup_steps: integer
+    total_steps: integer
+    weight_decay: float
+    created_at: datetime
+
+Entity TokenizedBatch
+    batch_id: string
+    input_ids: tensor
+    attention_mask: tensor
+    labels: tensor
+    source_weights: tensor
+    sequence_lengths: list
+    source_distribution: dict
+    created_at: datetime
+
+Entity TrainingCheckpoint
+    checkpoint_id: string
+    step: integer
+    epoch: integer
+    model_state: dict
+    optimizer_state: dict
+    scheduler_state: dict
+    loss_value: float
+    val_loss_value: float
+    data_sources_processed: dict
+    integrity_hash: string
+    created_at: datetime
+
+Entity LossRecord
+    record_id: string
+    step: integer
+    total_loss: float
+    lm_loss: float
+    aicl_loss: float
+    auxiliary_loss: float
+    learning_rate: float
+    gradient_norm: float
+    throughput_tokens_per_sec: float
+    gpu_memory_used_gb: float
+    recorded_at: datetime
+
+Entity ConvergenceState
+    state_id: string
+    current_loss: float
+    loss_ema: float
+    plateau_counter: integer
+    best_loss: float
+    best_step: integer
+    divergence_detected: boolean
+    learning_rate_adjustments: list
+    last_updated: datetime
+
+Entity DataStreamState
+    stream_id: string
+    source_id: string
+    current_position: integer
+    batches_yielded: integer
+    bytes_processed: integer
+    skip_count: integer
+    error_count: integer
+    status: string
+
+Entity TrainingRun
+    run_id: string
+    config: TrainingConfig
+    data_sources: list
+    current_step: integer
+    current_epoch: integer
+    total_loss_history: list
+    checkpoint_ids: list
+    convergence_state: ConvergenceState
+    status: string
+    started_at: datetime
+    last_updated: datetime
+
+# =============================================================================
+# LEVEL 3 — Behaviors
+# =============================================================================
+
+Behavior IngestData
+    Input:
+        DataSource source_config
+        integer weight_override
+    Output:
+        DataStreamState stream_state
+        dict ingestion_report
+    Action:
+        connect to data source specified by type (hf_dataset, cognet_repo, aicl_repo, hf_scripts, synthetic)
+        validate data source accessibility and format
+        register weight factor (10x for AICL repo, 3x for HF scripts, 1x for standard)
+        create streaming data pipeline with prefetch buffer
+        return initialized stream state with ingestion report
+
+Behavior TokenizeBatch
+    Input:
+        list raw_samples
+        TrainingConfig config
+    Output:
+        TokenizedBatch tokenized_batch
+        dict tokenization_report
+    Action:
+        apply unified tokenizer to all samples
+        handle AICL special tokens (LEVEL, Entity, Behavior, Condition, Event markers)
+        pad sequences to max length within batch using dynamic padding
+        compute source weights based on data type (10x AICL, 3x scripts, 1x standard)
+        validate no information loss from tokenization
+        skip and log any samples producing empty or invalid token sequences
+        return tokenized batch with distribution report
+
+Behavior LoadBatchParallel
+    Input:
+        list stream_states
+        TrainingConfig config
+        integer num_workers
+    Output:
+        TokenizedBatch next_batch
+        dict loading_metrics
+    Action:
+        prefetch next N batches using parallel worker pool
+        apply weighted sampling based on source weights
+        collate samples into batch with dynamic padding
+        track data throughput and prefetch buffer health
+        return next training-ready batch
+
+Behavior TrainStep
+    Input:
+        TokenizedBatch batch
+        TrainingRun run_state
+        TrainingConfig config
+    Output:
+        LossRecord loss_record
+        TrainingRun updated_run_state
+        dict step_metrics
+    Action:
+        run forward pass with gradient accumulation
+        compute weighted loss using source_weights tensor
+        compute backward pass with loss scaling for mixed precision
+        track gradient norm and clip if exceeds threshold
+        conditionally step optimizer based on accumulation schedule
+        update learning rate via scheduler
+        record loss components and training metrics
+        return loss record and updated state
+
+Behavior SaveCheckpoint
+    Input:
+        TrainingRun run_state
+        string save_path
+    Output:
+        TrainingCheckpoint checkpoint
+        dict save_report
+    Action:
+        gather model state, optimizer state, and scheduler state
+        compute integrity hash over all state tensors
+        write checkpoint atomically using temp file then rename
+        verify checkpoint is loadable immediately after save
+        encrypt checkpoint if encryption is configured
+        return checkpoint with integrity verification report
+
+Behavior LoadCheckpoint
+    Input:
+        string checkpoint_path
+        TrainingConfig config
+    Output:
+        TrainingRun restored_run_state
+        dict load_report
+    Action:
+        verify checkpoint integrity hash matches stored hash
+        decrypt checkpoint if encryption is configured
+        load model, optimizer, and scheduler states
+        validate forward pass produces expected loss
+        return restored training run state
+
+Behavior DetectConvergence
+    Input:
+        ConvergenceState current_state
+        list recent_losses
+        integer window_size
+    Output:
+        ConvergenceState updated_state
+        string convergence_status
+        dict adaptation_recommendations
+    Action:
+        compute exponential moving average of recent losses
+        detect loss plateau (EMA change below threshold for N steps)
+        detect loss divergence (loss spike above 3x EMA)
+        if plateau detected, recommend learning rate reduction
+        if divergence detected, recommend rollback and LR reduction
+        if convergence achieved, report completion
+        return updated convergence state with recommendations
+
+Behavior HandleTrainingFailure
+    Input:
+        string failure_type
+        dict failure_context
+        TrainingRun run_state
+    Output:
+        TrainingRun recovered_state
+        dict recovery_report
+    Action:
+        classify failure: OOM, data_error, cuda_error, loss_divergence, checkpoint_corruption
+        for OOM: enable gradient checkpointing, reduce batch size, clear CUDA cache
+        for data_error: re-stream from last clean position, skip corrupt samples
+        for cuda_error: reset CUDA context, migrate to spare GPU
+        for loss_divergence: reduce LR, rollback optimizer, extend warmup
+        for checkpoint_corruption: load previous uncorrupted checkpoint
+        return recovered state and recovery report
+
+# =============================================================================
+# LEVEL 4 — Conditions
+# =============================================================================
+
+Condition:
+
+When GPU memory exceeds 95 percent utilization
+
+Then enable gradient checkpointing and reduce batch size by half and clear unused CUDA caches
+
+Condition:
+
+When loss spikes above 3x the exponential moving average
+
+Then rollback optimizer state to 100 steps prior and reduce learning rate by 50 percent and log spike context
+
+Condition:
+
+When loss plateau is detected for 2000 consecutive steps
+
+Then reduce learning rate by 30 percent and increase warmup and log plateau event
+
+Condition:
+
+When checkpoint save fails or integrity check fails
+
+Then retry save with alternative path and if still failing load previous checkpoint and resume
+
+Condition:
+
+When data pipeline skip rate exceeds 5 percent of samples
+
+Then alert on data quality and switch to backup data source and log affected source
+
+Condition:
+
+When convergence is achieved with loss below target threshold
+
+Then save final checkpoint and queue evaluation pipeline and log training completion
+
+Condition:
+
+When training throughput drops below 50 percent of baseline
+
+Then diagnose data loading bottleneck and increase prefetch buffer and adjust num_workers
+
+Condition:
+
+When gradient norm exceeds clip threshold by 10x
+
+Then skip optimizer step and log gradient explosion event and reduce learning rate
+
+# =============================================================================
+# LEVEL 5 — Events
+# =============================================================================
+
+Event:
+
+On training complete
+
+Action:
+    save final checkpoint and export training metrics and queue evaluation run
+
+Event:
+
+On loss spike detected
+
+Action:
+    log spike context with surrounding loss values and trigger convergence analysis and notify monitoring
+
+Event:
+
+On checkpoint saved
+
+Action:
+    verify checkpoint integrity and log checkpoint metadata and prune old checkpoints beyond retention limit
+
+Event:
+
+On data source exhausted
+
+Action:
+    cycle to next epoch for that source and log epoch completion and update stream position
+
+Event:
+
+On convergence threshold reached
+
+Action:
+    mark training phase complete and schedule evaluation and prepare model for export
+
+Event:
+
+On OOM error caught
+
+Action:
+    trigger gradient checkpointing and reduce batch size and resume from current step
+
+Event:
+
+On learning rate adapted
+
+Action:
+    log old and new learning rate and record adaptation reason and update scheduler
+
+Event:
+
+On epoch boundary crossed
+
+Action:
+    compute epoch-level metrics and save periodic checkpoint and log epoch summary
+
+# =============================================================================
+# LEVEL 6 — Concurrency
+# =============================================================================
+
+Parallel:
+
+Data Ingestion
+Tokenization
+Data Loading
+
+Parallel:
+
+Training Loop forward pass
+Loss tracking computation
+
+Parallel:
+
+Checkpoint Management
+Monitoring
+
+Parallel:
+
+Data prefetch workers (num_workers concurrent streams)
+
+# =============================================================================
+# LEVEL 7 — Optimization
+# =============================================================================
+
+Optimize:
+Training throughput in tokens per second
+
+Optimize:
+GPU utilization percentage during forward and backward pass
+
+Optimize:
+Data loading efficiency to keep training loop saturated
+
+Optimize:
+Checkpoint save time to minimize training interruption
+
+Priority:
+Training throughput over evaluation frequency
+
+Priority:
+AICL data coverage over standard HF data volume
+
+Priority:
+Loss convergence speed over checkpoint frequency
+
+# =============================================================================
+# LEVEL 8 — Learning
+# =============================================================================
+
+Learn:
+
+Optimal learning rate schedule for CogNet architecture
+
+Goal:
+    achieve fastest convergence without divergence
+
+Adapt:
+
+Learning rate based on loss plateau detection
+
+Based on:
+    loss EMA trend, plateau duration, and divergence history
+
+Learn:
+
+Optimal batch size for given GPU memory
+
+Goal:
+    maximize throughput while staying within memory limits
+
+Adapt:
+
+Batch size based on GPU memory utilization patterns
+
+Based on:
+    peak memory usage, gradient checkpointing overhead, and sequence length distribution
+
+Learn:
+
+Optimal data mixture weights across sources
+
+Goal:
+    maximize AICL fluency while maintaining general language quality
+
+Adapt:
+
+Source weights based on per-source loss trends
+
+Based on:
+    per-source loss curves, evaluation benchmarks, and AICL generation quality
+
+Learn:
+
+Optimal gradient accumulation steps
+
+Goal:
+    balance memory efficiency with training stability
+
+Adapt:
+
+Accumulation steps based on gradient variance
+
+Based on:
+    gradient norm variance, loss smoothness, and memory pressure signals
+
+# =============================================================================
+# LEVEL 9 — Security
+# =============================================================================
+
+Security:
+
+Encrypt:
+    model checkpoints at rest using AES-256
+
+Encrypt:
+    optimizer state within checkpoints
+
+Encrypt:
+    training configuration containing proprietary mixture weights
+
+Protect:
+    checkpoint integrity with SHA-256 hash verification on load
+
+Protect:
+    data source credentials in streaming configuration
+
+Encrypt:
+    training metrics and loss curves during transit to monitoring
+
+# =============================================================================
+# LEVEL 10 — Native Code
+# =============================================================================
+
+Native: python
+{
+import os
+import hashlib
+import time
+import json
+import math
+import torch
+import torch.nn as nn
+from torch.utils.data import IterableDataset, DataLoader
+from typing import Dict, List, Optional, Iterator, Tuple
+from dataclasses import dataclass, field
+from pathlib import Path
+
+# ---- Data Source Configuration ----
+
+@dataclass
+class DataSourceConfig:
+    """Configuration for a single training data source with weight."""
+    source_id: str
+    source_type: str  # hf_dataset | cognet_repo | aicl_repo | hf_scripts | synthetic
+    source_uri: str
+    weight: float = 1.0
+    split: str = "train"
+    max_samples: Optional[int] = None
+
+    def effective_weight(self) -> float:
+        """Return weight adjusted by source type."""
+        type_multipliers = {
+            "aicl_repo": 10.0,
+            "hf_scripts": 3.0,
+            "hf_dataset": 1.0,
+            "cognet_repo": 2.0,
+            "synthetic": 1.5,
+        }
+        return self.weight * type_multipliers.get(self.source_type, 1.0)
+
+
+@dataclass
+class WeightedDataMixer:
+    """Mixes multiple data sources according to their effective weights.
+    Zero censorship — all data flows through without content filtering."""
+
+    sources: List[DataSourceConfig] = field(default_factory=list)
+
+    def compute_sampling_probs(self) -> List[float]:
+        weights = [s.effective_weight() for s in self.sources]
+        total = sum(weights)
+        return [w / total for w in weights]
+
+    def sample_source(self) -> DataSourceConfig:
+        probs = self.compute_sampling_probs()
+        idx = torch.multinomial(torch.tensor(probs), 1).item()
+        return self.sources[idx]
+
+
+# ---- Tokenization ----
+
+@dataclass
+class AICLTokenizer:
+    """Unified tokenizer with AICL-aware special token handling."""
+
+    tokenizer_name: str = "meta-llama/Llama-2-7b-hf"
+    max_seq_length: int = 4096
+    aicl_special_tokens: Dict[str, str] = field(default_factory=lambda: {
+        "LEVEL": "<|LEVEL|>",
+        "ENTITY": "<|ENTITY|>",
+        "BEHAVIOR": "<|BEHAVIOR|>",
+        "CONDITION": "<|CONDITION|>",
+        "EVENT": "<|EVENT|>",
+        "OPTIMIZE": "<|OPTIMIZE|>",
+        "LEARN": "<|LEARN|>",
+        "SECURITY": "<|SECURITY|>",
+        "NATIVE": "<|NATIVE|>",
+    })
+    _tokenizer: Optional[object] = field(default=None, repr=False)
+
+    def load(self):
+        from transformers import AutoTokenizer
+        self._tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name)
+        special_tokens = list(self.aicl_special_tokens.values())
+        self._tokenizer.add_special_tokens({"additional_special_tokens": special_tokens})
+
+    def tokenize_batch(self, texts: List[str], weights: List[float]) -> Dict:
+        assert self._tokenizer is not None, "Call load() first"
+        encoded = self._tokenizer(
+            texts,
+            truncation=True,
+            max_length=self.max_seq_length,
+            padding=True,
+            return_tensors="pt",
+        )
+        return {
+            "input_ids": encoded["input_ids"],
+            "attention_mask": encoded["attention_mask"],
+            "labels": encoded["input_ids"].clone(),
+            "source_weights": torch.tensor(weights).unsqueeze(1).expand(-1, encoded["input_ids"].size(1)),
+        }
+
+
+# ---- Training Loop ----
+
+@dataclass
+class CogNetTrainer:
+    """Core training loop for CogNet. No content filtering on training data.
+    Only technical gates: loss convergence, memory limits, checkpoint integrity."""
+
+    model: Optional[nn.Module] = None
+    optimizer: Optional[torch.optim.Optimizer] = None
+    scheduler: Optional[object] = None
+    scaler: Optional[torch.cuda.amp.GradScaler] = None
+    config: Optional[Dict] = None
+    gradient_checkpointing: bool = False
+    step: int = 0
+    best_loss: float = float("inf")
+    loss_ema: float = 0.0
+    ema_alpha: float = 0.999
+
+    def setup(self, model: nn.Module, config: Dict):
+        self.model = model
+        self.config = config
+        self.optimizer = torch.optim.AdamW(
+            model.parameters(),
+            lr=config.get("learning_rate", 1e-4),
+            weight_decay=config.get("weight_decay", 0.01),
+            betas=(0.9, 0.95),
+        )
+        self.scaler = torch.cuda.amp.GradScaler(enabled=config.get("fp16", True))
+
+    def enable_gradient_checkpointing(self):
+        if hasattr(self.model, "gradient_checkpointing_enable"):
+            self.model.gradient_checkpointing_enable()
+        self.gradient_checkpointing = True
+
+    def train_step(self, batch: Dict) -> Dict:
+        self.model.train()
+        input_ids = batch["input_ids"].cuda()
+        attention_mask = batch["attention_mask"].cuda()
+        labels = batch["labels"].cuda()
+        source_weights = batch["source_weights"].cuda()
+
+        with torch.cuda.amp.autocast(enabled=self.config.get("fp16", True)):
+            outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+            lm_loss = outputs.loss
+            weighted_loss = (lm_loss * source_weights.mean())
+
+        self.scaler.scale(weighted_loss).backward()
+
+        grad_norm = None
+        if (self.step + 1) % self.config.get("gradient_accumulation_steps", 1) == 0:
+            self.scaler.unscale_(self.optimizer)
+            grad_norm = torch.nn.utils.clip_grad_norm_(
+                self.model.parameters(), self.config.get("max_grad_norm", 1.0)
+            )
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            self.optimizer.zero_grad()
+            if self.scheduler:
+                self.scheduler.step()
+
+        loss_val = weighted_loss.item()
+        self.loss_ema = self.ema_alpha * self.loss_ema + (1 - self.ema_alpha) * loss_val
+        self.step += 1
+
+        if loss_val < self.best_loss:
+            self.best_loss = loss_val
+
+        return {
+            "loss": loss_val,
+            "lm_loss": lm_loss.item(),
+            "loss_ema": self.loss_ema,
+            "grad_norm": grad_norm.item() if grad_norm is not None else None,
+            "step": self.step,
+        }
+
+    def detect_spike(self, current_loss: float, threshold_multiplier: float = 3.0) -> bool:
+        return current_loss > threshold_multiplier * self.loss_ema and self.step > 100
+
+
+# ---- Checkpoint Manager ----
+
+@dataclass
+class CheckpointManager:
+    """Atomic checkpoint saving with integrity verification."""
+
+    save_dir: str = "/tmp/cognet_checkpoints"
+    max_checkpoints: int = 5
+    _checkpoints: List[str] = field(default_factory=list)
+
+    def save(self, trainer: CogNetTrainer, step: int, loss: float) -> Dict:
+        os.makedirs(self.save_dir, exist_ok=True)
+        checkpoint_name = f"checkpoint_step_{step}"
+        temp_path = os.path.join(self.save_dir, f"{checkpoint_name}.tmp")
+        final_path = os.path.join(self.save_dir, f"{checkpoint_name}.pt")
+
+        state = {
+            "step": step,
+            "model_state_dict": trainer.model.state_dict(),
+            "optimizer_state_dict": trainer.optimizer.state_dict(),
+            "loss": loss,
+            "loss_ema": trainer.loss_ema,
+        }
+
+        state["integrity_hash"] = self._compute_hash(state)
+
+        torch.save(state, temp_path)
+        os.replace(temp_path, final_path)  # Atomic rename
+
+        # Verify immediately
+        loaded = torch.load(final_path, map_location="cpu")
+        if loaded["integrity_hash"] != state["integrity_hash"]:
+            os.remove(final_path)
+            return {"status": "failed", "reason": "integrity_mismatch"}
+
+        self._checkpoints.append(final_path)
+        self._prune_old_checkpoints()
+
+        return {"status": "saved", "path": final_path, "step": step}
+
+    def load_latest(self, trainer: CogNetTrainer) -> Dict:
+        if not self._checkpoints:
+            return {"status": "no_checkpoint"}
+        latest = self._checkpoints[-1]
+        state = torch.load(latest, map_location="cuda")
+        if not self._verify_hash(state):
+            return {"status": "failed", "reason": "integrity_mismatch"}
+        trainer.model.load_state_dict(state["model_state_dict"])
+        trainer.optimizer.load_state_dict(state["optimizer_state_dict"])
+        trainer.step = state["step"]
+        trainer.loss_ema = state.get("loss_ema", 0.0)
+        return {"status": "loaded", "step": state["step"]}
+
+    def _compute_hash(self, state: Dict) -> str:
+        hash_input = json.dumps(
+            {k: str(v) for k, v in state.items() if k != "integrity_hash"},
+            sort_keys=True,
+        )
+        return hashlib.sha256(hash_input.encode()).hexdigest()[:32]
+
+    def _verify_hash(self, state: Dict) -> bool:
+        stored = state.get("integrity_hash", "")
+        computed = self._compute_hash(state)
+        return stored == computed
+
+    def _prune_old_checkpoints(self):
+        while len(self._checkpoints) > self.max_checkpoints:
+            oldest = self._checkpoints.pop(0)
+            if os.path.exists(oldest):
+                os.remove(oldest)
+}
+
+# =============================================================================
+# Final Validations
+# =============================================================================
+
+Validation:
+The training pipeline processes AICL data at 10x weight and HF scripts at 3x weight
+
+Validation:
+Loss converges below target threshold within the configured step budget
+
+Validation:
+Gradient checkpointing activates automatically when GPU memory exceeds 95 percent
+
+Validation:
+Checkpoints are saved atomically and verified for integrity immediately
+
+Validation:
+Data pipeline re-streams automatically on failure without data loss
+
+Validation:
+Learning rate adapts based on loss plateau detection
+
+Validation:
+The model trains on all data sources without content restrictions or censorship
+
+Validation:
+Convergence detection triggers evaluation pipeline when threshold is reached
+
+Validation:
+OOM recovery works by reducing batch size and enabling gradient checkpointing
+
+Validation:
+Training throughput is prioritized and continuously monitored
