@@ -11,7 +11,7 @@ import {
   Copy, Download, RotateCcw, Maximize2, Minimize2, PanelLeftClose,
   PanelLeftOpen, PanelRightClose, PanelRightOpen,
   Layers, ShieldCheck, Bug, Lightbulb, GitBranch, Gauge,
-  MessageSquare, Send, Bot, User, Code2
+  MessageSquare, Send, Bot, User, Code2, Wrench, RefreshCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -133,7 +133,7 @@ export default function AICLEditor() {
   ]);
   const [activeFileId, setActiveFileId] = useState('untitled-1');
   const [output, setOutput] = useState<OutputEntry[]>([
-    { type: 'system', message: 'AICL Web Editor v5.0 — Cognitive Architecture Ready', timestamp: 0 }
+    { type: 'system', message: 'AICL Web Editor v5.0 — Cognitive Architecture Ready (SpecEvolver + Autonomous Loop)', timestamp: 0 }
   ]);
   const [replHistory, setReplHistory] = useState<OutputEntry[]>([
     { type: 'system', message: 'AICL Interactive Shell v5.0 — Type AICL statements or commands', timestamp: 0 }
@@ -181,6 +181,8 @@ export default function AICLEditor() {
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const [evolving, setEvolving] = useState(false);
+  const [autoFixing, setAutoFixing] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const replInputRef = useRef<HTMLInputElement>(null);
@@ -583,6 +585,110 @@ export default function AICLEditor() {
     setIsRunning(false);
   }, [activeFile, addOutput]);
 
+  // --- Auto-Fix (SpecEvolver) ---
+  const runAutoFix = useCallback(async (errors?: string[], operation?: string) => {
+    setAutoFixing(true);
+    setIsRunning(true);
+    addOutput('info', `Auto-fixing ${activeFile.name} (SpecEvolver)...`);
+    try {
+      const res = await fetch('/api/fix-spec', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source: activeFile.content,
+          filename: activeFile.name,
+          errors,
+          operation,
+        }),
+      });
+      const data = await res.json();
+
+      if (data.fixed && data.code) {
+        // Replace the editor content with the fixed code
+        updateFileContent(activeFileId, data.code);
+        addOutput('success', `Auto-fix applied! ${data.explanation || 'Specification has been repaired.'}`);
+        addOutput('info', `The editor content has been updated with the fixed AICL code.`);
+        toast({ title: 'Auto-Fix Applied', description: data.explanation || 'Your AICL code has been fixed automatically.' });
+      } else if (data.message && !data.fixed) {
+        addOutput('warning', `Auto-fix: ${data.message}`);
+        if (data.explanation) addOutput('info', data.explanation);
+      } else {
+        addOutput('error', 'Auto-fix failed — could not generate a valid fix');
+      }
+      setRightPanelContent('output');
+    } catch (err) {
+      addOutput('error', `Auto-fix error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+    setAutoFixing(false);
+    setIsRunning(false);
+  }, [activeFile, activeFileId, addOutput, updateFileContent]);
+
+  // --- Evolve (Autonomous Compilation Loop) ---
+  const runEvolve = useCallback(async () => {
+    setEvolving(true);
+    setIsRunning(true);
+    addOutput('info', `Starting autonomous compilation loop for ${activeFile.name}...`);
+    addOutput('info', `Loop: COMPILE → VERIFY → DIAGNOSE → FIX → RECOMPILE (max 5 iterations)`);
+    try {
+      const res = await fetch('/api/evolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: activeFile.content, target: targetLang, maxIterations: 5 }),
+      });
+      const data = await res.json();
+
+      // Log each iteration
+      data.iterations?.forEach((iter: { iteration: number; compiled: boolean; verified: string; audit_coverage: number; errors: string[]; fixed: boolean; fix_explanation?: string }) => {
+        addOutput('info', `--- Iteration ${iter.iteration} ---`);
+        addOutput(iter.compiled ? 'success' : 'error', `Compile: ${iter.compiled ? 'SUCCESS' : 'FAILED'}`);
+        addOutput(iter.verified === 'PASS' ? 'success' : iter.verified === 'ERROR' ? 'error' : 'warning', `Verify: ${iter.verified}`);
+        if (iter.audit_coverage > 0) {
+          addOutput(iter.audit_coverage >= 1.0 ? 'success' : 'warning', `Audit coverage: ${(iter.audit_coverage * 100).toFixed(0)}%`);
+        }
+        if (iter.errors?.length) {
+          iter.errors.forEach((e: string) => addOutput('warning', `  Issue: ${e}`));
+        }
+        if (iter.fixed) {
+          addOutput('info', `Fix applied: ${iter.fix_explanation || 'SpecEvolver repaired the specification'}`);
+        }
+      });
+
+      if (data.converged) {
+        addOutput('success', `CONVERGED! The specification is now valid after ${data.total_iterations} iteration(s).`);
+      } else {
+        addOutput('warning', `Did not fully converge after ${data.total_iterations} iteration(s). Manual review may be needed.`);
+      }
+
+      // Update editor content if source was changed
+      if (data.source_changed && data.evolved_source) {
+        updateFileContent(activeFileId, data.evolved_source);
+        addOutput('info', `Editor content updated with the evolved specification.`);
+      }
+
+      // Store compiled code if available
+      if (data.main_code) {
+        setCompiledCode(data.main_code);
+        setTestCode(data.test_code || '');
+        setRightPanelContent('code');
+      }
+
+      if (data.proof_valid) {
+        addOutput('success', 'Proof of Origin: Valid ✓');
+      }
+
+      toast({
+        title: data.converged ? 'Evolution Converged!' : 'Evolution Complete',
+        description: data.converged
+          ? `Specification is valid after ${data.total_iterations} iteration(s).`
+          : `Improved after ${data.total_iterations} iteration(s), but may need manual review.`,
+      });
+    } catch (err) {
+      addOutput('error', `Evolve error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+    setEvolving(false);
+    setIsRunning(false);
+  }, [activeFile, activeFileId, targetLang, addOutput, updateFileContent]);
+
   // --- REPL ---
   const handleReplSubmit = useCallback(async () => {
     const cmd = replInput.trim();
@@ -606,6 +712,8 @@ export default function AICLEditor() {
           addReplLine('system', '  :explain        - Explain provenance');
           addReplLine('system', '  :tree           - Show architecture tree');
           addReplLine('system', '  :optimize       - Optimize architecture');
+          addReplLine('system', '  :fix [errors]   - Auto-fix current file (SpecEvolver)');
+          addReplLine('system', '  :evolve [lang]  - Autonomous compilation loop');
           addReplLine('system', '  :clear          - Clear shell');
           addReplLine('system', '  :load <name>    - Load example file');
           addReplLine('system', '  :exercises      - List exercises');
@@ -735,6 +843,48 @@ export default function AICLEditor() {
             addReplLine('info', `  ${ex.id}. ${ex.title}`);
           });
           break;
+        case 'fix': {
+          addReplLine('info', 'Auto-fixing specification (SpecEvolver)...');
+          try {
+            const res = await fetch('/api/fix-spec', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ source: activeFile.content, filename: activeFile.name, errors: args.length > 0 ? args : undefined }),
+            });
+            const data = await res.json();
+            if (data.fixed && data.code) {
+              updateFileContent(activeFileId, data.code);
+              addReplLine('success', `Auto-fix applied! ${data.explanation || ''}`);
+            } else {
+              addReplLine('warning', data.message || 'No fix needed or fix unavailable');
+            }
+          } catch (err) {
+            addReplLine('error', String(err));
+          }
+          break;
+        }
+        case 'evolve': {
+          addReplLine('info', `Starting autonomous loop (target: ${args[0] || 'python'})...`);
+          try {
+            const res = await fetch('/api/evolve', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ source: activeFile.content, target: args[0] || targetLang, maxIterations: 5 }),
+            });
+            const data = await res.json();
+            data.iterations?.forEach((iter: { iteration: number; compiled: boolean; verified: string; audit_coverage: number; fixed: boolean; fix_explanation?: string }) => {
+              addReplLine('info', `  Iter ${iter.iteration}: compile=${iter.compiled ? 'OK' : 'FAIL'} verify=${iter.verified} audit=${(iter.audit_coverage * 100).toFixed(0)}%${iter.fixed ? ' [FIXED]' : ''}`);
+            });
+            addReplLine(data.converged ? 'success' : 'warning', `Evolve: ${data.converged ? 'CONVERGED' : 'not converged'} (${data.total_iterations} iterations)`);
+            if (data.source_changed && data.evolved_source) {
+              updateFileContent(activeFileId, data.evolved_source);
+              addReplLine('info', 'Editor updated with evolved specification');
+            }
+          } catch (err) {
+            addReplLine('error', String(err));
+          }
+          break;
+        }
         default:
           addReplLine('error', `Unknown command: :${command}. Type :help for available commands.`);
       }
@@ -1238,6 +1388,7 @@ export default function AICLEditor() {
           <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs hover:bg-[#c586c0]/10 rounded-md text-[#c586c0] transition-colors" onClick={runExplain} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Brain className="h-3.5 w-3.5 mr-1.5" />}Explain</Button></TooltipTrigger><TooltipContent>Explain compilation provenance</TooltipContent></Tooltip>
           <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs hover:bg-[#6a9955]/10 rounded-md text-[#6a9955] transition-colors" onClick={runTree} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <TreePine className="h-3.5 w-3.5 mr-1.5" />}Tree</Button></TooltipTrigger><TooltipContent>Architecture tree</TooltipContent></Tooltip>
           <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs hover:bg-[#ce9178]/10 rounded-md text-[#ce9178] transition-colors" onClick={runOptimize} disabled={isRunning}>{isRunning ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Zap className="h-3.5 w-3.5 mr-1.5" />}Optimize</Button></TooltipTrigger><TooltipContent>Optimize architecture</TooltipContent></Tooltip>
+          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-3 text-xs hover:bg-[#f97316]/10 rounded-md text-[#f97316] font-semibold transition-all animate-compile-glow" onClick={runEvolve} disabled={isRunning}>{evolving ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1.5" />}Evolve</Button></TooltipTrigger><TooltipContent>Autonomous compilation loop (COMPILE → VERIFY → FIX → RECOMPILE)</TooltipContent></Tooltip>
 
           <div className="w-px h-5 bg-[#3c3c50] mx-1" />
 
@@ -1734,6 +1885,14 @@ export default function AICLEditor() {
                                         >
                                           <Bug className="h-3 w-3 mr-1" />Explain Error
                                         </Button>
+                                        <Button
+                                          size="sm"
+                                          className="h-7 text-[10px] px-3 bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold rounded-md transition-colors"
+                                          onClick={() => runAutoFix(msg.error?.details || msg.error ? [msg.error!.message, ...(msg.error!.details || [])] : undefined, msg.error?.operation)}
+                                          disabled={autoFixing || isRunning}
+                                        >
+                                          {autoFixing ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Wrench className="h-3 w-3 mr-1" />}Auto-Fix
+                                        </Button>
                                         {msg.error.operation === 'compile' && (
                                           <Button
                                             size="sm"
@@ -1744,7 +1903,7 @@ export default function AICLEditor() {
                                             )}
                                             disabled={isRunning}
                                           >
-                                            <ShieldCheck className="h-3 w-3 mr-1" />Try Verify First
+                                            <ShieldCheck className="h-3 w-3 mr-1" />Verify
                                           </Button>
                                         )}
                                       </div>
