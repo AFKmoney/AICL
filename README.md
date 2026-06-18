@@ -2,7 +2,7 @@
 
 # AICL
 
-**Architecture Compilation Language**
+**Artificial Intelligence-Centered Language**
 
 *Auditable compilation with Proof of Origin.*
 *If the compiler cannot explain why, it does not generate.*
