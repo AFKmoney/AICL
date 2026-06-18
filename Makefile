@@ -1,54 +1,106 @@
 # AICL — Makefile
-# Common dev tasks. Requires Python 3.10+ and (optionally) Node/Bun for the editor.
+# Common dev tasks. Requires Python 3.10+ and (optionally) Bun/Node for the editor.
+#
+# Quick start:
+#   make install      Install everything (Python pkg + editor deps + pre-commit)
+#   make test         Run the AICL Python test suite
+#   make editor       Run the web editor dev server (http://localhost:3000)
+#   make lint         Run all linters (ruff, black --check, mypy, eslint, tsc)
 
 PYTHON ?= python3
 PIP    ?= pip3
-NODE   ?= bun   # change to `npm` or `pnpm` if preferred
+NODE   ?= bun
 
-.PHONY: help install install-python install-editor test lint clean dev editor dev-editor build-editor
+.PHONY: help install install-python install-editor install-precommit test test-property lint lint-python lint-editor type-check format dev editor dev-editor build-editor build-python clean clean-all
 
 help:
 	@echo "AICL — common tasks"
 	@echo ""
-	@echo "  make install          Install both Python package and web editor deps"
-	@echo "  make install-python   Install AICL Python package (editable) + TUI extras"
-	@echo "  make install-editor   Install web editor Node dependencies"
-	@echo "  make test             Run the AICL Python test suite"
-	@echo "  make lint             Lint Python (pyflakes) + editor (eslint)"
-	@echo "  make dev              Run Python TUI"
-	@echo "  make editor           Run web editor dev server (http://localhost:3000)"
-	@echo "  make build-editor     Production build of the web editor"
-	@echo "  make clean            Remove build/test artifacts"
+	@echo "Setup:"
+	@echo "  make install              Install Python pkg + editor deps + pre-commit hooks"
+	@echo "  make install-python       Install AICL Python package (editable) + dev extras"
+	@echo "  make install-editor       Install web editor Node dependencies"
+	@echo "  make install-precommit    Install pre-commit git hooks"
+	@echo ""
+	@echo "Quality:"
+	@echo "  make test                 Run the AICL Python test suite (151 tests)"
+	@echo "  make test-property        Run only the Hypothesis property tests"
+	@echo "  make lint                 Run all linters (ruff, black --check, mypy, eslint, tsc)"
+	@echo "  make format               Auto-format Python (black + ruff --fix)"
+	@echo "  make type-check           Type-check Python (mypy) and TypeScript (tsc)"
+	@echo ""
+	@echo "Run:"
+	@echo "  make dev                  Launch the AICL terminal UI"
+	@echo "  make editor               Run web editor dev server (http://localhost:3000)"
+	@echo ""
+	@echo "Build:"
+	@echo "  make build-python         Build Python sdist + wheel (for PyPI)"
+	@echo "  make build-editor         Production build of the web editor"
+	@echo ""
+	@echo "Cleanup:"
+	@echo "  make clean                Remove build/test artifacts"
+	@echo "  make clean-all            clean + remove node_modules + .venv"
 
-install: install-python install-editor
+install: install-python install-editor install-precommit
 
 install-python:
-	$(PIP) install -e ".[tui]"
-	$(PIP) install pytest
+	cd python && $(PIP) install -e ".[tui,dev]"
 
 install-editor:
-	$(NODE) install
+	cd editor && $(NODE) install
+
+install-precommit:
+	pre-commit install
+	@echo "pre-commit hooks installed. Run 'pre-commit run --all-files' to test."
 
 test:
-	$(PYTHON) -m pytest tests/ -v
+	cd python && $(PYTHON) -m pytest tests/ -v
 
-lint:
-	$(PYTHON) -m pyflakes src/aicl/ scripts/ tools/ || true
-	cd editor 2>/dev/null && $(NODE) run lint || $(NODE) run lint || true
+test-property:
+	cd python && $(PYTHON) -m pytest tests/test_property.py -v
+
+lint: lint-python lint-editor
+
+lint-python:
+	cd python && ruff check src/ tests/ tools/ scripts/
+	cd python && black --check src/ tests/ tools/ scripts/
+	cd python && mypy
+
+lint-editor:
+	cd editor && $(NODE) run lint
+	cd editor && $(NODE) run type-check
+
+type-check:
+	cd python && mypy
+	cd editor && $(NODE) run type-check
+
+format:
+	cd python && black src/ tests/ tools/ scripts/
+	cd python && ruff check --fix src/ tests/ tools/ scripts/
 
 dev:
-	$(PYTHON) -m aicl tui
+	cd python && $(PYTHON) -m aicl tui
 
 editor:
-	$(NODE) run dev
+	cd editor && $(NODE) run dev
 
 dev-editor: editor
 
+build-python:
+	cd python && $(PYTHON) -m build
+
 build-editor:
-	$(NODE) run build
+	cd editor && $(NODE) run build
 
 clean:
-	rm -rf build/ dist/ *.egg-info src/*.egg-info
-	rm -rf .pytest_cache .mypy_cache .ruff_cache
-	rm -rf output/ .next/ out/
-	find . -type d -name __pycache__ -prune -exec rm -rf {} +
+	find python -type d -name __pycache__ -prune -exec rm -rf {} +
+	find python -type d -name .pytest_cache -prune -exec rm -rf {} +
+	find python -type d -name .mypy_cache -prune -exec rm -rf {} +
+	find python -type d -name .ruff_cache -prune -exec rm -rf {} +
+	rm -rf python/build python/dist python/src/*.egg-info
+	rm -rf python/output
+	rm -rf editor/.next editor/out
+
+clean-all: clean
+	rm -rf editor/node_modules
+	rm -rf python/.venv .venv

@@ -1,0 +1,45 @@
+# MANIFEST.in — control which files go into the sdist (python -m build)
+# See https://packaging.python.org/en/latest/guides/using-manifest-in/
+
+# --- Include the basics (setuptools usually picks these up automatically,
+#     but list them explicitly to be safe) ---
+include README.md
+include LICENSE
+include CHANGELOG.md
+include SECURITY.md
+include CONTRIBUTING.md
+include CITATION.cff
+
+# --- Python source + metadata ---
+include pyproject.toml
+recursive-include src *.py
+recursive-include src *.typed
+
+# --- Spec, examples, docs (shipped with the package for offline use) ---
+recursive-include spec *.md
+recursive-include examples *.aicl
+recursive-include examples *.md
+recursive-include examples *.ts
+recursive-include examples *.tsx
+recursive-include docs *.md
+recursive-include docs *.pdf
+
+# --- Datasets are large — keep the manifest, skip the big JSONL files ---
+include datasets/dataset_manifest.json
+
+# --- Tools (developer utilities, kept for users who want to regenerate
+#     datasets, whitepapers, etc.) ---
+recursive-include tools *.py
+recursive-include tools *.mjs
+
+# --- Tests (so downstream users can verify their install) ---
+recursive-include tests *.py
+
+# --- Explicitly exclude build cruft ---
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude *.egg-info
+global-exclude .DS_Store
+global-exclude .pytest_cache
+global-exclude .mypy_cache
+global-exclude .ruff_cache

@@ -15,24 +15,24 @@ This project is open source because architectural clarity should not be propriet
 
 **This is the easiest way to contribute.** Just write a `.aicl` file.
 
-AICL's power is demonstrated through its examples. Every spec in the `examples/` directory teaches the compiler — and any AI trained on it — how to think about a domain. A new example is a genuine contribution to the language's cognitive coverage.
+AICL's power is demonstrated through its examples. Every spec in the `python/examples/` directory teaches the compiler — and any AI trained on it — how to think about a domain. A new example is a genuine contribution to the language's cognitive coverage.
 
 See [AICL Example Program Guidelines](#aicl-example-program-guidelines) below for requirements.
 
 ### 2. Improve the Compiler
 
-The compiler lives in `src/aicl/` and `tools/`. It's written in Python and handles lexing, parsing, IR generation, multi-target compilation, and Proof of Origin verification. Key areas:
+The compiler lives in `python/src/aicl/` and `python/tools/`. It's written in Python and handles lexing, parsing, IR generation, multi-target compilation, and Proof of Origin verification. Key areas:
 
-- **Parser and AST** (`src/aicl/parser.py`, `src/aicl/ast.py`) — improve error messages, add structural validation
-- **Compiler and IR** (`src/aicl/compiler.py`, `src/aicl/ir.py`) — optimization passes, better code generation
-- **Provenance and Crypto** (`src/aicl/provenance.py`, `src/aicl/crypto_signing.py`) — strengthen the Proof of Origin chain
-- **Autonomous Mode** (`src/aicl/autonomous.py`, `src/aicl/auto_optimizer.py`) — self-improving compilation
+- **Parser and AST** (`python/src/aicl/parser.py`, `python/src/aicl/ast.py`) — improve error messages, add structural validation
+- **Compiler and IR** (`python/src/aicl/compiler.py`, `python/src/aicl/ir.py`) — optimization passes, better code generation
+- **Provenance and Crypto** (`python/src/aicl/provenance.py`, `python/src/aicl/crypto_signing.py`) — strengthen the Proof of Origin chain
+- **Autonomous Mode** (`python/src/aicl/autonomous.py`, `python/src/aicl/auto_optimizer.py`) — self-improving compilation
 
 ### 3. Add Target Language Support
 
-AICL currently compiles to Python, Rust, Go, and JavaScript (see `src/aicl/targets/`). Adding a new target means:
+AICL currently compiles to Python, Rust, Go, and JavaScript (see `python/src/aicl/targets/`). Adding a new target means:
 
-1. Create a new module in `src/aicl/targets/` extending `base.py`
+1. Create a new module in `python/src/aicl/targets/` extending `base.py`
 2. Implement the `TargetBackend` interface for your language
 3. Add tests and example compilations
 4. Update the CLI and documentation
@@ -48,7 +48,7 @@ Good documentation is not secondary to good code — it *is* good code.
 
 ### 5. Testing and Proof of Origin Verification
 
-Every compilation must produce a valid, independently verifiable Proof of Origin. Contributions to testing infrastructure, verification tooling (`tools/verify_proof.py`), and provenance visualization (`tools/visualize_provenance.py`) are critical.
+Every compilation must produce a valid, independently verifiable Proof of Origin. Contributions to testing infrastructure, verification tooling (`python/tools/verify_proof.py`), and provenance visualization (`python/tools/visualize_provenance.py`) are critical.
 
 ---
 
@@ -67,20 +67,20 @@ A good AICL example program is a complete, self-contained architectural specific
 Your example must compile successfully:
 
 ```bash
-python tools/aicl_compiler.py compile examples/your_file.aicl
+aicl compile python/examples/showcase/your_file.aicl
 ```
 
 And it must produce a valid Proof of Origin:
 
 ```bash
-python tools/verify_proof.py examples/your_file.aicl.proof
+python python/tools/verify_proof.py output/your_file.aicl-proof
 ```
 
 ### Style
 
 - Use descriptive names, not placeholders
 - Include a comment header explaining the domain
-- Look at existing examples in `examples/` for patterns
+- Look at existing examples in `python/examples/showcase/` for patterns
 - Number your file following the existing convention (e.g., `89_your_domain.aicl`)
 
 ---
@@ -162,7 +162,66 @@ test(provenance): add edge cases for Proof of Origin verification
 
 ## Language Specification
 
-The authoritative AICL grammar is at [`spec/grammar.md`](spec/grammar.md). If your contribution touches the language itself — new keywords, changed semantics, structural rules — it must be reflected in the spec first.
+The authoritative AICL grammar is at [`python/spec/grammar.md`](python/spec/grammar.md). If your contribution touches the language itself — new keywords, changed semantics, structural rules — it must be reflected in the spec first.
+
+---
+
+## Tooling
+
+### Python (required for the language)
+
+- Install: `make install-python` (or `cd python && pip install -e ".[tui,dev]"`)
+- Test: `make test`
+- Lint: `make lint-python` (ruff + black --check + mypy)
+- Format: `make format` (black + ruff --fix)
+
+The Python toolchain is **ruff** (lint), **black** (format), and **mypy**
+(types). Configuration lives in `python/pyproject.toml`. The codebase is
+not yet fully type-annotated — `disallow_untyped_defs` is currently
+`false` so existing code won't break, but new code should include type
+hints.
+
+### Editor (optional, for the web IDE)
+
+- Install: `make install-editor` (uses [Bun](https://bun.sh/) by default)
+- Dev: `make editor` → http://localhost:3000
+- Build: `make build-editor`
+
+**Bun vs npm vs pnpm:** Bun is the default because it's faster, but the
+editor works with any of them. If you prefer npm:
+
+```bash
+cd editor && npm install && npm run dev
+```
+
+If you want to switch the lockfile permanently, delete `bun.lock` and run
+`npm install` (or `pnpm install`) — the `package.json` is tool-agnostic.
+
+### Pre-commit hooks (recommended)
+
+Install the git hooks once after cloning:
+
+```bash
+make install-precommit
+# or: pre-commit install
+```
+
+This runs ruff, black, mypy, eslint, and tsc on every commit. To run
+manually across the whole repo:
+
+```bash
+pre-commit run --all-files
+```
+
+The config is in [`.pre-commit-config.yaml`](./.pre-commit-config.yaml).
+
+### CI
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push and PR:
+- Python 3.10, 3.11, 3.12 — install + test + CLI smoke test + lint
+- Editor — install + lint + type-check + production build
+
+A green CI is required for merge to `main`.
 
 ---
 

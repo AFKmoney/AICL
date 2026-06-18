@@ -24,6 +24,7 @@ pip-wheel-metadata/
 .coverage
 htmlcov/
 *.so
+.hypothesis/
 
 # --- Node / Next.js / Bun --------------------------------------------------
 node_modules/

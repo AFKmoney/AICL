@@ -9,10 +9,11 @@
 
 [![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](https://github.com/AFKmoney/AICL)
 [![Python](https://img.shields.io/badge/python-3.10+-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-151%20passing-brightgreen.svg)](#tests)
+[![Tests](https://img.shields.io/badge/tests-156%20passing-brightgreen.svg)](#tests)
 [![Audit](https://img.shields.io/badge/audit%20coverage-100%25-brightgreen.svg)](#proof-of-origin)
 [![Targets](https://img.shields.io/badge/targets-Python%20%7C%20Rust%20%7C%20JS%20%7C%20Go-blue.svg)](#targets)
 [![License](https://img.shields.io/badge/license-MIT-purple.svg)](./LICENSE)
+[![CI](https://github.com/AFKmoney/AICL/actions/workflows/ci.yml/badge.svg)](https://github.com/AFKmoney/AICL/actions/workflows/ci.yml)
 
 </div>
 
@@ -65,8 +66,7 @@ validation in the same syntactic space, maximising learning noise for both
 humans and AI. AICL forces these dimensions apart and makes each one a
 first-class, machine-checkable element of the program.
 
-The result is three properties that no conventional language gives you for
-free:
+The result is three properties no conventional language gives you for free:
 
 1. **Auditability** — every generated line has a recorded reason.
 2. **Verifiability** — every spec is checked for completeness and coherence
@@ -74,35 +74,43 @@ free:
 3. **Self-healing** — declared Risks are bound to declared Recoveries at
    compile time and executed by the runtime when the risk fires.
 
+## Demo
+
+[![asciicast](https://asciinema.org/a/0/demo.svg)](https://asciinema.org/a/0/demo)
+
+(Or open [`docs/demo.cast`](./docs/demo.cast) directly in
+[asciinema](https://asciinema.org/) — `asciinema play docs/demo.cast`.)
+
 ## Install
 
 ```bash
 git clone https://github.com/AFKmoney/AICL.git
 cd AICL
-pip install -e ".[tui]"        # core package + terminal UI
+make install-python   # or: cd python && pip install -e ".[tui,dev]"
 ```
 
-Requires Python 3.10+. The optional TUI extras pull in
+Requires Python 3.10+. The optional `tui` extras pull in
 [`textual`](https://textual.textualize.io/) and
-[`rich`](https://rich.readthedocs.io/).
+[`rich`](https://rich.readthedocs.io/). The `dev` extras add `ruff`,
+`black`, `mypy`, `pytest`, `hypothesis`, and `pre-commit`.
 
 ## Quick start
 
 ```bash
 # Compile a program
-aicl compile examples/01_blue_square.aicl
+aicl compile python/examples/showcase/01_blue_square.aicl
 
 # Inspect the architecture tree
-aicl tree examples/01_blue_square.aicl
+aicl tree python/examples/showcase/01_blue_square.aicl
 
 # Verify spec completeness
-aicl verify examples/01_blue_square.aicl
+aicl verify python/examples/showcase/01_blue_square.aicl
 
 # Audit a compilation
 aicl audit output/main.py --proof output/main.aicl-proof
 
 # Explain why each line was generated
-aicl explain examples/01_blue_square.aicl
+aicl explain python/examples/showcase/01_blue_square.aicl
 
 # Launch the interactive terminal UI
 aicl tui
@@ -113,7 +121,7 @@ aicl tui
 ## The language in one minute
 
 AICL has 27 keywords organised across 10 language levels. The full BNF is in
-[`spec/grammar.md`](./spec/grammar.md).
+[`python/spec/grammar.md`](./python/spec/grammar.md).
 
 | Level | Mandatory? | Keywords |
 |-------|-----------|----------|
@@ -157,8 +165,9 @@ generated artifact:
 - (optionally) an Ed25519 signature over the proof chain
 
 Proofs can be inspected with `aicl proof` and verified out-of-band with
-`tools/verify_proof.py`. A proof that does not verify means the compilation
-was tampered with after the fact — **the artifact is not trustworthy**.
+`python/tools/verify_proof.py`. A proof that does not verify means the
+compilation was tampered with after the fact — **the artifact is not
+trustworthy**.
 
 ## Autonomous compilation
 
@@ -171,74 +180,105 @@ spec → compile → run tests → diagnose failures → patch spec → repeat
 
 The loop terminates when the spec compiles, tests pass, and audit coverage
 hits 100%. Patterns learned across runs are persisted to a pattern library
-and reused on subsequent invocations. See `src/aicl/autonomous.py` and
-`src/aicl/ai_generator.py`.
+and reused on subsequent invocations. See `python/src/aicl/autonomous.py` and
+`python/src/aicl/ai_generator.py`.
+
+## CogNet integration (planned)
+
+AICL is designed as the cognitive representation layer for the
+[CogNet](https://github.com/AFKmoney/CogNet) non-transformer language model.
+The integration is specced end-to-end in
+[`python/examples/showcase/cognet/`](./python/examples/showcase/cognet/)
+(six AICL programs) and the rollout plan is in
+[`python/docs/cognet_integration_plan.md`](./python/docs/cognet_integration_plan.md).
+
+A placeholder `python/src/aicl/cognet/` subpackage is in place so the import
+path is stable when the bridge lands.
 
 ## Web editor (optional)
 
-The repo also ships a Next.js 16 web editor that exposes the compiler through
-a browser UI: live compilation, architecture-tree visualisation, proof
+The repo ships a Next.js 16 web editor that exposes the compiler through a
+browser UI: live compilation, architecture-tree visualisation, proof
 inspection, AI-assisted spec authoring, and interactive exercises.
 
 ```bash
 cp .env.example .env
-bun install            # or npm / pnpm install
-bun run db:push        # initialise the SQLite database
-bun run dev            # http://localhost:3000
+cd editor && bun install
+bun run db:push     # initialise the SQLite database
+bun run dev         # http://localhost:3000
 ```
 
 The editor talks to the Python `aicl` package through
-[`scripts/aicl_helper.py`](./scripts/aicl_helper.py), a small JSON-over-stdio
-bridge. The web editor is **optional** — the language is fully usable from
-the CLI and TUI without Node.
+[`python/scripts/aicl_helper.py`](./python/scripts/aicl_helper.py) via the
+JSON-over-stdio protocol documented in
+[`python/docs/bridge_protocol.md`](./python/docs/bridge_protocol.md). The web
+editor is **optional** — the language is fully usable from the CLI and TUI
+without Node.
 
 ## Tests
 
 ```bash
-pytest tests/ -v
+make test
+# or: cd python && pytest tests/ -v
 ```
 
-151 tests cover parsing, all 10 language levels, every backend, the
+**156 tests** cover parsing, all 10 language levels, every backend, the
 autonomous loop, the spec verifier, the ownership analyser, the optimiser,
-and the Proof of Origin chain. All pass on Python 3.10, 3.11, and 3.12.
+the Proof of Origin chain, and **5 Hypothesis property-based tests** that
+generate randomised valid programs and verify compiler invariants
+(determinism, 100% audit coverage, valid proof chains, idempotent
+verification). All pass on Python 3.10, 3.11, and 3.12.
 
 ## Examples
 
-91 example programs live in [`examples/`](./examples):
+The curated showcase is in [`python/examples/showcase/`](./python/examples/showcase/)
+(20 programs + 6 CogNet integration specs). The full set of 91 examples is in
+[`python/examples/archive/`](./python/examples/archive/). See
+[`python/examples/showcase/README.md`](./python/examples/showcase/README.md)
+for the gallery index.
 
-- `01_blue_square.aicl` … `04_chess.aicl` — the original four reference programs
-- `05_banking.aicl` … `85_rideshare.aicl` — domain gallery (fintech, blockchain,
-  ML pipelines, IoT, gaming, healthcare, energy, transport…)
-- `86_cognet_aicl_bridge.aicl` … `91_cognet_autonomous_deployment.aicl` —
-  integration with the CogNet cognitive engine
+## Repository layout
 
-## Project layout
-
-See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for a detailed map of the
-repository. The short version:
+The repo is a single workspace with two cooperating stacks. See
+[`ARCHITECTURE.md`](./ARCHITECTURE.md) for the full map.
 
 ```
-src/aicl/     the language (Python package — the core artifact)
-spec/         formal grammar
-examples/     91 AICL programs
-tests/        151 pytest tests
-tools/        developer utilities
-scripts/      bridge used by the web editor
-datasets/     JSONL training sets for fine-tuning LLMs on AICL
-docs/         papers, manuals, screenshots
-src/app/      Next.js 16 web editor (optional)
-prisma/       editor database schema
+python/           AICL — the language (Python package — the core artifact)
+├── src/aicl/       Compiler, runtime, CLI, TUI, cognet/ placeholder
+├── spec/           Formal BNF grammar
+├── examples/       91 AICL programs (showcase/ + archive/)
+├── tests/          156 pytest tests (incl. 5 property-based)
+├── tools/          Developer utilities (dataset gen, proof verifier, AI bridge)
+├── scripts/        aicl_helper.py — JSON bridge used by the web editor
+├── datasets/       JSONL training sets for fine-tuning LLMs on AICL
+├── docs/           Bridge protocol, CogNet integration plan
+└── pyproject.toml  Package metadata, ruff/black/mypy config
+
+editor/            AICL Editor — the web IDE (Next.js 16, optional)
+├── src/app/        Next.js API routes + page
+├── src/components/ shadcn/ui components
+├── src/lib/        aicl-bridge.ts — shared Python bridge client
+├── prisma/         Database schema (SQLite)
+├── public/         Static assets
+└── package.json    Editor metadata
+
+docs/              Cross-cutting docs (papers, screenshots, asciinema demo)
+.github/workflows/  CI (Python 3.10/3.11/3.12 + editor build)
 ```
 
 ## Documentation
 
-- [Formal grammar](./spec/grammar.md)
+- [Formal grammar](./python/spec/grammar.md)
+- [Architecture overview](./ARCHITECTURE.md)
+- [Bridge protocol (editor ↔ compiler)](./python/docs/bridge_protocol.md)
+- [CogNet integration plan](./python/docs/cognet_integration_plan.md)
 - [Position paper](./docs/position_paper.md) — why AICL exists
 - [arXiv paper (LaTeX source)](./docs/arxiv_paper.tex) — full academic treatment
 - [arXiv paper (PDF)](./docs/arxiv_paper.pdf)
 - [User manual (PDF)](./docs/AICL_User_Manual.pdf)
 - [CLI / TUI manual (PDF)](./docs/AICL_CLI_TUI_Manual.pdf)
 - [Editor manual (PDF)](./docs/AICL_Editor_Manual.pdf)
+- [Changelog](./CHANGELOG.md)
 - [Contributing](./CONTRIBUTING.md)
 - [Security policy](./SECURITY.md)
 - [Citation](./CITATION.cff)
@@ -246,6 +286,9 @@ prisma/       editor database schema
 ## Contributing
 
 Pull requests welcome. Read [`CONTRIBUTING.md`](./CONTRIBUTING.md) first.
+Install pre-commit hooks with `make install-precommit` — ruff, black, mypy,
+and eslint will run automatically on every commit.
+
 Please open an issue before starting work on a large change.
 
 ## License

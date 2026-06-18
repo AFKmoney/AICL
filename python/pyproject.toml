@@ -1,0 +1,106 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aicl"
+version = "2.1.0"
+description = "AICL — Architecture Compilation Language: Auditable compilation with Proof of Origin. Every artifact has provenance, every proof is verifiable, every compilation is auditable."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Philippe-Antoine"},
+]
+keywords = ["aicl", "compiler", "explicable-compilation", "auditable-compilation", "provenance", "audit-coverage", "proof-of-origin", "risk-first", "architecture-as-code", "self-healing-runtime", "ownership-model", "multi-language-targets", "cryptographic-signing", "autonomous-compilation", "self-writing-compiler", "pattern-learning", "spec-evolution", "ai-code-generation", "cognet", "onnx", "local-ai"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Compilers",
+    "Topic :: Software Development :: Code Generators",
+]
+
+[project.urls]
+Homepage = "https://github.com/AFKmoney/AICL"
+Repository = "https://github.com/AFKmoney/AICL"
+Documentation = "https://github.com/AFKmoney/AICL/blob/main/README.md"
+Issues = "https://github.com/AFKmoney/AICL/issues"
+
+[project.scripts]
+aicl = "aicl.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.optional-dependencies]
+tui = ["textual>=0.40", "rich>=13.0"]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "hypothesis>=6.100",
+    "ruff>=0.6",
+    "black>=24.0",
+    "mypy>=1.10",
+    "pre-commit>=3.7",
+    "build>=1.2",
+    "twine>=5.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "property: hypothesis-based property tests",
+]
+
+# --- Ruff (lint) -----------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["tests/fixtures", "build", "dist"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "SIM",  # flake8-simplify
+    "C4",   # flake8-comprehensions
+]
+ignore = [
+    "E501",  # line too long (black handles formatting)
+    "B008",  # function call in default argument (used by Click/argparse)
+    "SIM108", # ternary instead of if-else (readability)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]  # assert False is fine in tests
+
+# --- Black (format) --------------------------------------------------------
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+extend-exclude = "/(build|dist|tests/fixtures)/"
+
+# --- Mypy (types) ----------------------------------------------------------
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = false              # too noisy for an untyped codebase
+warn_unused_configs = true
+disallow_untyped_defs = false        # we'll tighten this over time
+check_untyped_defs = true
+ignore_missing_imports = true        # textual, rich, onnxruntime not stubbed
+exclude = "(build|dist|tests/fixtures)"
+files = ["src/aicl"]
+
+# --- Build / packaging -----------------------------------------------------
+[tool.setuptools.package-data]
+aicl = ["py.typed"]
