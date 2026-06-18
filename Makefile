@@ -11,7 +11,7 @@ PYTHON ?= python3
 PIP    ?= pip3
 NODE   ?= bun
 
-.PHONY: help install install-python install-editor install-precommit test test-property lint lint-python lint-editor type-check format dev editor dev-editor build-editor build-python clean clean-all
+.PHONY: help install install-python install-editor install-precommit test test-property lint lint-python lint-editor type-check format dev editor dev-editor build-editor build-python bump-version clean clean-all
 
 help:
 	@echo "AICL — common tasks"
@@ -36,6 +36,7 @@ help:
 	@echo "Build:"
 	@echo "  make build-python         Build Python sdist + wheel (for PyPI)"
 	@echo "  make build-editor         Production build of the web editor"
+	@echo "  make bump-version NEW_VERSION=X.Y.Z   Bump version in pyproject.toml + __init__.py"
 	@echo ""
 	@echo "Cleanup:"
 	@echo "  make clean                Remove build/test artifacts"
@@ -91,6 +92,28 @@ build-python:
 
 build-editor:
 	cd editor && $(NODE) run build
+
+bump-version:
+	@if [ -z "$(NEW_VERSION)" ]; then \
+		echo "Error: NEW_VERSION is required. Usage: make bump-version NEW_VERSION=X.Y.Z"; \
+		exit 1; \
+	fi
+	@echo "Bumping version to $(NEW_VERSION)..."
+	@# Update python/pyproject.toml
+	sed -i.bak 's/^version = ".*"/version = "$(NEW_VERSION)"/' python/pyproject.toml && rm python/pyproject.toml.bak
+	@# Update python/src/aicl/__init__.py
+	sed -i.bak 's/^__version__ = .*/__version__ = "$(NEW_VERSION)"/' python/src/aicl/__init__.py && rm python/src/aicl/__init__.py.bak
+	@echo ""
+	@echo "Version bumped to $(NEW_VERSION) in:"
+	@echo "  - python/pyproject.toml"
+	@echo "  - python/src/aicl/__init__.py"
+	@echo ""
+	@echo "Next steps:"
+	@echo "  1. Update CHANGELOG.md (add a new section for v$(NEW_VERSION))"
+	@echo "  2. make test && make lint"
+	@echo "  3. make build-python"
+	@echo "  4. twine check python/dist/*"
+	@echo "  5. See RELEASING.md for the full release process"
 
 clean:
 	find python -type d -name __pycache__ -prune -exec rm -rf {} +

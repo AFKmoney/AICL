@@ -223,6 +223,28 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every push and PR:
 
 A green CI is required for merge to `main`.
 
+### Releasing
+
+Releases are cut by maintainers only. The full process (version bump →
+build → PyPI upload → GitHub release) is documented in
+[`RELEASING.md`](./RELEASING.md). The quick reference:
+
+```bash
+make bump-version NEW_VERSION=X.Y.Z
+# edit CHANGELOG.md
+make test && make lint
+make build-python
+twine check python/dist/*
+twine upload python/dist/*
+git tag -a vX.Y.Z -m "AICL vX.Y.Z"
+git push origin main && git push origin vX.Y.Z
+```
+
+Users install releases from
+[PyPI](https://pypi.org/project/aicl/) — see
+[`python/docs/upgrading.md`](./python/docs/upgrading.md) for the
+user-facing upgrade guide.
+
 ---
 
 ## Zero Censorship Note

@@ -83,6 +83,15 @@ The result is three properties no conventional language gives you for free:
 
 ## Install
 
+**From PyPI (recommended for users):**
+
+```bash
+pip install aicl              # core package
+pip install "aicl[tui]"       # core + terminal UI (textual + rich)
+```
+
+**From source (recommended for contributors):**
+
 ```bash
 git clone https://github.com/AFKmoney/AICL.git
 cd AICL
@@ -92,7 +101,11 @@ make install-python   # or: cd python && pip install -e ".[tui,dev]"
 Requires Python 3.10+. The optional `tui` extras pull in
 [`textual`](https://textual.textualize.io/) and
 [`rich`](https://rich.readthedocs.io/). The `dev` extras add `ruff`,
-`black`, `mypy`, `pytest`, `hypothesis`, and `pre-commit`.
+`black`, `mypy`, `pytest`, `hypothesis`, `pre-commit`, `build`, and
+`twine`.
+
+See [`python/docs/upgrading.md`](./python/docs/upgrading.md) for how to
+upgrade, downgrade, and migrate between versions.
 
 ## Quick start
 
@@ -272,6 +285,8 @@ docs/              Cross-cutting docs (papers, screenshots, asciinema demo)
 - [Architecture overview](./ARCHITECTURE.md)
 - [Bridge protocol (editor ↔ compiler)](./python/docs/bridge_protocol.md)
 - [CogNet integration plan](./python/docs/cognet_integration_plan.md)
+- [Upgrading AICL (user guide)](./python/docs/upgrading.md)
+- [Releasing AICL (maintainer guide)](./RELEASING.md)
 - [Position paper](./docs/position_paper.md) — why AICL exists
 - [arXiv paper (LaTeX source)](./docs/arxiv_paper.tex) — full academic treatment
 - [arXiv paper (PDF)](./docs/arxiv_paper.pdf)
