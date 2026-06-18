@@ -4,20 +4,27 @@ AICL Helper Script - JSON interface for the AICL Python library.
 Called by Next.js API routes to perform AICL operations.
 
 Usage:
-    python3.13 aicl_helper.py compile --target python < source.aicl
-    python3.13 aicl_helper.py verify < source.aicl
-    python3.13 aicl_helper.py audit < source.aicl
-    python3.13 aicl_helper.py explain < source.aicl
-    python3.13 aicl_helper.py tree < source.aicl
-    python3.13 aicl_helper.py optimize < source.aicl
-    python3.13 aicl_helper.py exercises
+    python3 aicl_helper.py compile --target python < source.aicl
+    python3 aicl_helper.py verify < source.aicl
+    python3 aicl_helper.py audit < source.aicl
+    python3 aicl_helper.py explain < source.aicl
+    python3 aicl_helper.py tree < source.aicl
+    python3 aicl_helper.py optimize < source.aicl
+    python3 aicl_helper.py exercises
+
+Requires the `aicl` package to be installed (`pip install -e .` from the
+repo root, or `pip install aicl` once published).
 """
 
+import os
 import sys
 import json
 import argparse
 
-sys.path.insert(0, '/home/z/my-project/aicl-repo/src')
+# Allow running directly from a source checkout without installing.
+_REPO_SRC = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "src"))
+if os.path.isdir(_REPO_SRC):
+    sys.path.insert(0, _REPO_SRC)
 
 from aicl import (
     Parser, ParseError, Compiler, CompilationResult,

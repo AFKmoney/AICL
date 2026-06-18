@@ -1,12 +1,33 @@
 {
-  "name": "nextjs_tailwind_shadcn_ts",
-  "version": "0.2.0",
+  "name": "aicl-editor",
+  "version": "0.3.0",
   "private": true,
+  "description": "Web editor for AICL — the Architecture Compilation Language.",
+  "license": "MIT",
+  "author": "Philippe-Antoine Robert (https://github.com/AFKmoney)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AFKmoney/AICL.git"
+  },
+  "homepage": "https://github.com/AFKmoney/AICL#readme",
+  "bugs": {
+    "url": "https://github.com/AFKmoney/AICL/issues"
+  },
+  "keywords": [
+    "aicl",
+    "compiler",
+    "architecture",
+    "provenance",
+    "proof-of-origin",
+    "nextjs",
+    "editor"
+  ],
   "scripts": {
-    "dev": "next dev -p 3000 2>&1 | tee dev.log",
-    "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
-    "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
     "lint": "eslint .",
+    "type-check": "tsc --noEmit",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

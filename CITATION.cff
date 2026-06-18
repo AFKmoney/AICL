@@ -1,0 +1,36 @@
+cff-version: 1.2.0
+message: "If you use AICL in your research, please cite it as below."
+title: "AICL — Architecture Compilation Language: Auditable Compilation with Proof of Origin"
+abstract: >-
+  AICL is a specification-first programming language in which risks,
+  recoveries, and validations are mandatory syntactic elements. Every
+  generated artifact carries provenance; every compilation is auditable;
+  every proof of origin is cryptographically verifiable. AICL transforms
+  AI best practices into mandatory structure: what is today prompt
+  engineering becomes language engineering.
+authors:
+  - family-names: "Robert"
+    given-names: "Philippe-Antoine"
+    orcid: "https://orcid.org/0000-0000-0000-0000"
+    alias: AFKmoney
+keywords:
+  - programming-languages
+  - compilers
+  - provenance
+  - proof-of-origin
+  - audit-coverage
+  - self-healing-runtime
+  - ai-code-generation
+  - cognet
+license: "MIT"
+repository-code: "https://github.com/AFKmoney/AICL"
+version: "2.1.0"
+date-released: "2026-06-13"
+preferred-citation:
+  type: software
+  title: "AICL — Architecture Compilation Language"
+  authors:
+    - family-names: "Robert"
+      given-names: "Philippe-Antoine"
+  year: 2026
+  url: "https://github.com/AFKmoney/AICL"

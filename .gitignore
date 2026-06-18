@@ -1,7 +1,32 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# ============================================================================
+# AICL — .gitignore
+# ============================================================================
 
-# dependencies
-node_modules
+# --- Secrets / env ---------------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# --- Python ----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.eggs/
+build/
+dist/
+pip-wheel-metadata/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+htmlcov/
+*.so
+
+# --- Node / Next.js / Bun --------------------------------------------------
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -10,45 +35,37 @@ node_modules
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
-
-# next.js
 /.next/
 /out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-
-# typescript
+/build/
 *.tsbuildinfo
 next-env.d.ts
-local-*
-.claude
-.z-ai-config
+
+# --- Prisma / SQLite -------------------------------------------------------
+/db/*.db
+/db/*.db-journal
+/prisma/migrations/dev/
+
+# --- Build artifacts / runtime logs ----------------------------------------
+output/
 *.log
 dev.log
-dev.out.log
-test
-prompt
-
 server.log
-# Skills directory
+dev.out.log
+*.pid
+
+# --- AI session state (never commit) ---------------------------------------
 /skills/
+.claude
+.z-ai-config
+agent-ctx/
+worklog.md
+.zscripts/
+
+# --- Editor / OS -----------------------------------------------------------
+.DS_Store
+*.pem
+*.swp
+.idea/
+.vscode/
+local-*
