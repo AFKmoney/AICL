@@ -1,6 +1,8 @@
 """
-AICL - Architecture Compilation Language
-Auditable Compilation: if the compiler cannot explain why, it does not generate.
+AICL — Artificial Intelligence-Centered Language
+Specification-first programming with mandatory Risk/Recovery syntax,
+the AX Turing-complete sub-language, and cryptographic Proof of Origin.
+Compiles to Python, Rust, JavaScript, and Go.
 
 Version: 2.1.0
 Author: Philippe-Antoine

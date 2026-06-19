@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "AICL Web Editor",
-  description: "Architecture Compilation Language (AICL) Web Editor - Write, compile, verify, and audit AICL specifications",
-  keywords: ["AICL", "Architecture Compilation Language", "Code Editor", "Compiler", "IDLE"],
+  description: "Artificial Intelligence-Centered Language (AICL) Web Editor — Write, compile, verify, and audit AICL specifications. AX sub-language, 4 compile targets (Python/Rust/JS/Go), Proof of Origin.",
+  keywords: ["AICL", "Artificial Intelligence-Centered Language", "AX", "Code Editor", "Compiler", "Proof of Origin", "CogNet"],
   authors: [{ name: "AICL Team" }],
 };
 

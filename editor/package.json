@@ -2,7 +2,7 @@
   "name": "aicl-editor",
   "version": "0.3.0",
   "private": true,
-  "description": "Web editor for AICL — the Architecture Compilation Language.",
+  "description": "Web editor for AICL — the Artificial Intelligence-Centered Language. AX sub-language, 4 compile targets, Proof of Origin.",
   "license": "MIT",
   "author": "Philippe-Antoine Robert (https://github.com/AFKmoney)",
   "repository": {

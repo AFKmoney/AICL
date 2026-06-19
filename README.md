@@ -289,12 +289,24 @@ make test
 # or: cd python && pytest tests/ -v
 ```
 
-**156 tests** cover parsing, all 10 language levels, every backend, the
+**189 tests** cover parsing, all 10 language levels, every backend, the
 autonomous loop, the spec verifier, the ownership analyser, the optimiser,
-the Proof of Origin chain, and **5 Hypothesis property-based tests** that
+the Proof of Origin chain, the AX sub-language (frontend + 4 emitters), and
+**5 Hypothesis property-based tests** that
 generate randomised valid programs and verify compiler invariants
 (determinism, 100% audit coverage, valid proof chains, idempotent
-verification). All pass on Python 3.10, 3.11, and 3.12.
+verification). All pass on Python 3.10, 3.11, 3.12, and 3.13 (CLI also on 3.14).
+
+## Documentation
+
+| Doc | What it covers |
+|-----|----------------|
+| [Getting Started](./docs/getting-started.md) | Install, first program, compile, verify |
+| [AX Reference](./docs/ax-reference.md) | Full grammar of the AX Turing-complete sub-language |
+| [Compile Targets](./docs/targets.md) | Python, Rust, JavaScript, Go — how AX translates |
+| [Proof of Origin](./docs/proof-of-origin.md) | Cryptographic provenance and verification |
+| [CogNet Integration](./docs/cognet-integration.md) | Corpus generation, fine-tuning CogNet 1B |
+| [Grammar Spec](./python/spec/grammar.md) | Formal AICL grammar (v0.1) |
 
 ## Examples
 

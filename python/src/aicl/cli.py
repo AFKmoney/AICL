@@ -480,8 +480,11 @@ def cmd_proof(args):
 def cmd_version(args):
     """Display the AICL version."""
     print(f"AICL v{__version__}")
-    print("Architecture Compilation Language: Auditable Compilation with Proof of Origin")
-    print(f"Target languages: python, rust, javascript, go")
+    print("Artificial Intelligence-Centered Language")
+    print("  AX sub-language: Turing-complete (if/while/for/recursion)")
+    print("  Targets: Python, Rust, JavaScript, Go")
+    print("  Proof of Origin: cryptographic, sidecar .aicl-proof")
+    print("  CogNet integration: fine-tuning corpus generator ready")
 
 
 def cmd_tui(args):
@@ -735,18 +738,23 @@ def main():
     """Main entry point for the AICL CLI."""
     parser = argparse.ArgumentParser(
         prog='aicl',
-        description='AICL - Architecture Compilation Language: Auditable Compilation with Proof of Origin'
+        description='AICL — Artificial Intelligence-Centered Language.\n'
+                    'Specification-first programming with mandatory Risk/Recovery syntax,\n'
+                    'the AX Turing-complete sub-language for Behavior Actions, and\n'
+                    'cryptographic Proof of Origin. Compiles to Python, Rust, JS, and Go.'
     )
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
     # compile command
-    compile_parser = subparsers.add_parser('compile', help='Compile AICL source code')
+    compile_parser = subparsers.add_parser('compile',
+        help='Compile AICL source to executable code + Proof of Origin')
     compile_parser.add_argument('source', help='AICL source file (.aicl)')
     compile_parser.add_argument('--output-dir', '-o', default='./output',
                                 help='Output directory (default: ./output)')
     compile_parser.add_argument('--target', '-t', default='python',
                                 choices=['python', 'rust', 'javascript', 'js', 'go'],
-                                help='Target language (default: python)')
+                                help='Target language. AX behaviors compile to real, '
+                                     'executable code in all 4 targets (default: python)')
 
     # parse command
     parse_parser = subparsers.add_parser('parse', help='Parse and display AST')

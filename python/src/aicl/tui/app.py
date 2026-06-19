@@ -430,7 +430,7 @@ TUTORIALS = {
 # LLM Interface
 # ──────────────────────────────────────────────────────────────
 
-AICL_SYSTEM_PROMPT = """You are an AICL (Architecture Compilation Language) expert assistant. AICL is a specification-first programming language with 10 levels and 27 keywords:
+AICL_SYSTEM_PROMPT = """You are an AICL (Artificial Intelligence-Centered Language) expert assistant. AICL is a specification-first programming language with 10 levels and 27 keywords:
 
 Level 1 - Architecture: Goal, Constraint, Risk/Recovery, Layer/SubLayer, Validation
 Level 2 - Entities: Entity with typed fields
@@ -443,11 +443,17 @@ Level 8 - Learning: Learn/Adapt/Based adaptive behavior
 Level 9 - Security: Encrypt/Protect directives
 Level 10 - Native: Inline code in any language
 
+AX SUB-LANGUAGE: Behavior Action sections can use AX, a Turing-complete
+sub-language with if/elif/else, while, for, recursion, arithmetic, list
+operations, method calls, and tuple swaps. AX compiles to real executable
+code in Python, Rust, JavaScript, and Go — no stubs.
+
 KEY RULES:
 - Every Risk MUST have a Recovery
 - Validation sections generate tests automatically
-- The compiler produces code + Proof of Origin
+- The compiler produces code + Proof of Origin (cryptographic sidecar)
 - Provenance is tracked for every generated artifact
+- AX behaviors compile to 4 targets with type inference (arrays, ints)
 
 Help the user write, understand, debug, and improve AICL specifications. Provide concrete code examples. If they describe a system, generate the AICL specification for it."""
 
@@ -608,7 +614,7 @@ class LLMInterface:
 # ──────────────────────────────────────────────────────────────
 # Welcome screen
 # ──────────────────────────────────────────────────────────────
-WELCOME = f"""[bold cyan]AICL TUI v{AICL_VERSION}[/] — Architecture Compilation Language
+WELCOME = f"""[bold cyan]AICL TUI v{AICL_VERSION}[/] — Artificial Intelligence-Centered Language
 
 [dim]If the compiler cannot explain why it generated a line, it should not generate it.[/]
 

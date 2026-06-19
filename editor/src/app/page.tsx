@@ -110,8 +110,8 @@ function escapeHtml(str: string): string {
 // ============================================================
 // Default file content
 // ============================================================
-const DEFAULT_FILE = `# AICL - Architecture Compilation Language
-# Start writing your AICL specification here
+const DEFAULT_FILE = `# AICL - Artificial Intelligence-Centered Language
+# Specification-first programming with AX sub-language and Proof of Origin.
 
 Goal:
 Build an amazing application
