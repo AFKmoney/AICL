@@ -2224,8 +2224,15 @@ class Compiler:
     # =========================================================================
 
     def _make_class_name(self, name: str) -> str:
-        """Convert a description to a valid Python class name."""
-        words = name.replace('-', ' ').replace('_', ' ').split()
+        """Convert a description to a valid Python class name.
+
+        Strips anything that isn't alphanumeric (apostrophes like in
+        "Euclid's Algorithm", punctuation) so the result is a valid identifier.
+        """
+        # Keep only alphanumerics and separators, then split on whitespace.
+        import re
+        cleaned = re.sub(r'[^A-Za-z0-9 _-]', '', name)
+        words = cleaned.replace('-', ' ').replace('_', ' ').split()
         if not words:
             return "AiclApplication"
 
