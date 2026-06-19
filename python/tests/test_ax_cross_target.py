@@ -142,20 +142,64 @@ class TestAXPresentInAllTargets:
             os.unlink(path)
 
     @pytest.mark.skipif(RUSTC is None, reason="rustc not installed")
-    def test_rust_ax_body_present(self, compiled_targets):
-        """The AX algorithm body must be present in the Rust output.
+    def test_rust_partition_compiles_and_runs(self, compiled_targets):
+        """Extract the partition fn from Rust output, wrap in a real program,
+        compile with rustc, and run quicksort to verify correctness.
 
-        Note: the Rust TARGET GENERATOR's scaffolding currently types all
-        behavior params as i64, which is wrong for array params (should be
-        &mut [i64]). The AX EMITTER itself is correct (see test_ax_rust.py,
-        which passes when given proper signatures). The scaffolding fix is
-        tracked as a follow-up; this test only asserts the AX body survived
-        into the Rust output — which is the Phase B deliverable.
+        This isolates the AX-generated code from the target generator's
+        scaffolding (AppError enum, struct constructors) which still has
+        pre-existing issues unrelated to AX.
         """
         src = compiled_targets["rust"].source_code
-        # The partition loop and pivot assignment must be in the Rust output.
-        assert "for j in (low)..(high)" in src
-        assert "let mut pivot" in src
+        # Extract the partition fn body from the generated output.
+        # Use brace-matching to capture the complete function (it has nested
+        # for/if blocks, so we can't stop at the first '}' line).
+        lines = src.splitlines()
+        capture = False
+        depth = 0
+        fn_body = []
+        for ln in lines:
+            if "fn partition" in ln:
+                capture = True
+            if capture:
+                fn_body.append(ln)
+                depth += ln.count("{") - ln.count("}")
+                if depth <= 0 and len(fn_body) > 1:
+                    break  # function closed
+        assert fn_body, "partition function not found in Rust output"
+        # Strip 'pub fn' and '&mut self,' to make it a free fn with proper sig.
+        partition_fn = "\n".join(fn_body).replace("    pub fn partition(&mut self, ",
+                                                   "fn partition(")
+
+        program = f"""#![allow(unused_parens, unused_mut, dead_code)]
+{partition_fn}
+
+fn quicksort(array: &mut [i64], low: i64, high: i64) {{
+    if low < high {{
+        let p = partition(array, low, high);
+        quicksort(array, low, p - 1);
+        quicksort(array, p + 1, high);
+    }}
+}}
+
+fn main() {{
+    let mut arr = vec![3i64, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5];
+    let n = arr.len() as i64;
+    quicksort(&mut arr, 0, n - 1);
+    let expected = vec![1i64, 1, 2, 3, 3, 4, 5, 5, 5, 6, 9];
+    if arr == expected {{ println!("CORRECT"); }} else {{ println!("WRONG"); }}
+}}
+"""
+        with tempfile.TemporaryDirectory() as d:
+            rs = os.path.join(d, "main.rs")
+            with open(rs, "w", encoding="utf-8") as f:
+                f.write(program)
+            exe = os.path.join(d, "main.exe" if os.name == "nt" else "main")
+            proc = subprocess.run([RUSTC, "-O", "-o", exe, rs],
+                                  capture_output=True, text=True, timeout=60)
+            assert proc.returncode == 0, f"rustc failed:\n{proc.stderr[:800]}"
+            run = subprocess.run([exe], capture_output=True, text=True, timeout=15)
+            assert "CORRECT" in run.stdout, f"runtime: {run.stdout} {run.stderr[:300]}"
 
     @pytest.mark.skipif(GO is None, reason="go not installed")
     def test_go_builds(self, compiled_targets):

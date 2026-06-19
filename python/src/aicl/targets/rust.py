@@ -227,11 +227,16 @@ class RustGenerator(TargetGenerator):
                 if record.source_type.value in ("pattern_match", "sub_language"):
                     behavior_name = record.source_location.split()[-1] if record.source_location else ""
                     method_name = self._to_snake_case(behavior_name)
-                    ax_body, params = self._emit_ax_body_rust(result, behavior_name)
+                    ax_body, params, ptypes = self._emit_ax_body_rust(result, behavior_name)
                     lines.append("")
                     if ax_body:
                         # AX behavior: emit a real fn with the algorithm body.
-                        param_sig = ", ".join(f"{p}: i64" for p in params)
+                        # Type params via AX type inference: arrays → &mut [i64].
+                        sig_parts = []
+                        for p in params:
+                            rust_type = "&mut [i64]" if ptypes.get(p) == "ARRAY" else "i64"
+                            sig_parts.append(f"{p}: {rust_type}")
+                        param_sig = ", ".join(sig_parts)
                         lines.append(f"    pub fn {method_name}(&mut self, {param_sig}) -> i64 {{")
                         for ax_line in ax_body.split('\n'):
                             lines.append(f"    {ax_line}")
@@ -277,13 +282,14 @@ class RustGenerator(TargetGenerator):
             """)
 
     def _emit_ax_body_rust(self, result, behavior_name: str):
-        """If the behavior was written in AX, return (rust_body, param_names).
+        """If the behavior was written in AX, return (rust_body, param_names, ptypes).
 
-        Returns ("", []) if the behavior has no AX source.
+        ptypes is the AX-inferred type map {name: "ARRAY"|"INT"|"ANY"}.
+        Returns ("", [], {}) if the behavior has no AX source.
         """
         raw = getattr(result, 'ax_sources', {}).get(behavior_name)
         if not raw:
-            return "", []
+            return "", [], {}
         if isinstance(raw, tuple):
             ax_src, params = raw
         else:
@@ -291,6 +297,9 @@ class RustGenerator(TargetGenerator):
         try:
             from ..ax import parse as ax_parse
             from ..ax.emitter_rust import emit_rust
-            return emit_rust(ax_parse(ax_src), indent=1), params
+            from ..ax.types import infer_param_types
+            stmts = ax_parse(ax_src)
+            ptypes = infer_param_types(stmts, params)
+            return emit_rust(stmts, indent=1), params, ptypes
         except Exception:
-            return "", params
+            return "", params, {}

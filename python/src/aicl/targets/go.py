@@ -186,11 +186,15 @@ class GoGenerator(TargetGenerator):
                 if record.source_type.value in ("pattern_match", "sub_language"):
                     behavior_name = record.source_location.split()[-1] if record.source_location else ""
                     method_name = self._to_pascal_case(behavior_name)
-                    ax_body, params = self._emit_ax_body_go(result, behavior_name)
+                    ax_body, params, ptypes = self._emit_ax_body_go(result, behavior_name)
                     lines.append("")
                     lines.append(f"// {method_name} implements {record.source_text[:50]}")
                     if ax_body:
-                        param_sig = ", ".join(f"{p} int" for p in params)
+                        sig_parts = []
+                        for p in params:
+                            go_type = "[]int" if ptypes.get(p) == "ARRAY" else "int"
+                            sig_parts.append(f"{p} {go_type}")
+                        param_sig = ", ".join(sig_parts)
                         lines.append(f"func (a *Application) {method_name}({param_sig}) int {{")
                         for ax_line in ax_body.split('\n'):
                             lines.append(f"\t{ax_line}")
@@ -228,13 +232,14 @@ class GoGenerator(TargetGenerator):
             go 1.21""")
 
     def _emit_ax_body_go(self, result, behavior_name: str):
-        """If the behavior was written in AX, return (go_body, param_names).
+        """If the behavior was written in AX, return (go_body, param_names, ptypes).
 
-        Returns ("", []) if the behavior has no AX source.
+        ptypes is the AX-inferred type map {name: "ARRAY"|"INT"|"ANY"}.
+        Returns ("", [], {}) if the behavior has no AX source.
         """
         raw = getattr(result, 'ax_sources', {}).get(behavior_name)
         if not raw:
-            return "", []
+            return "", [], {}
         if isinstance(raw, tuple):
             ax_src, params = raw
         else:
@@ -242,6 +247,9 @@ class GoGenerator(TargetGenerator):
         try:
             from ..ax import parse as ax_parse
             from ..ax.emitter_go import emit_go
-            return emit_go(ax_parse(ax_src), indent=1), params
+            from ..ax.types import infer_param_types
+            stmts = ax_parse(ax_src)
+            ptypes = infer_param_types(stmts, params)
+            return emit_go(stmts, indent=1), params, ptypes
         except Exception:
-            return "", params
+            return "", params, {}
