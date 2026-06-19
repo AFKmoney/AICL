@@ -128,7 +128,9 @@ class RustGenerator(TargetGenerator):
                     if not any(error_name in line for line in lines):
                         lines.append(f"    {error_name}(String),")
 
-        if not any("String)" in line for line in lines):
+        # General(String) is always referenced by the Display impl below, so it
+        # must always be present in the enum (it's the fallback variant).
+        if not any(line.strip().startswith("General(") for line in lines):
             lines.append('    General(String),')
 
         lines.append("    Io(io::Error),")
@@ -260,7 +262,7 @@ class RustGenerator(TargetGenerator):
         """Generate the Rust main function."""
         return textwrap.dedent("""\
             fn main() -> AppResult<()> {
-                let mut app = Application::new()?;
+                let mut app = Application::new();
                 app.run()
             }""")
 

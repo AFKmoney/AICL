@@ -142,18 +142,35 @@ class TestAXPresentInAllTargets:
             os.unlink(path)
 
     @pytest.mark.skipif(RUSTC is None, reason="rustc not installed")
-    def test_rust_partition_compiles_and_runs(self, compiled_targets):
-        """Extract the partition fn from Rust output, wrap in a real program,
-        compile with rustc, and run quicksort to verify correctness.
+    def test_rust_full_program_compiles(self, compiled_targets):
+        """The FULL generated Rust program (scaffolding + AX behaviors) must
+        compile cleanly with rustc. This validates that the scaffolding
+        (AppError enum, Application struct, main()) is consistent with the
+        AX-generated behavior methods."""
+        with tempfile.TemporaryDirectory() as d:
+            rs = os.path.join(d, "main.rs")
+            # suppress style lints inherent to mechanical codegen
+            src = "#![allow(unused_parens, unused_mut, dead_code, unused_imports)]\n" \
+                  + compiled_targets["rust"].source_code
+            with open(rs, "w", encoding="utf-8") as f:
+                f.write(src)
+            exe = os.path.join(d, "main.exe" if os.name == "nt" else "main")
+            proc = subprocess.run([RUSTC, "-O", "-o", exe, rs],
+                                  capture_output=True, text=True, timeout=60)
+            assert proc.returncode == 0, (
+                f"rustc failed to compile the full program:\n{proc.stderr[:1000]}"
+            )
+            # And the binary should run without panicking.
+            run = subprocess.run([exe], capture_output=True, text=True, timeout=15)
+            assert run.returncode == 0, f"runtime panic:\n{run.stderr[:300]}"
 
-        This isolates the AX-generated code from the target generator's
-        scaffolding (AppError enum, struct constructors) which still has
-        pre-existing issues unrelated to AX.
-        """
+    @pytest.mark.skipif(RUSTC is None, reason="rustc not installed")
+    def test_rust_partition_compiles_and_runs(self, compiled_targets):
+        """Extract the partition fn, wrap it with a real quicksort driver,
+        and verify it sorts correctly. This proves the AX-generated algorithm
+        is executable and correct in Rust."""
         src = compiled_targets["rust"].source_code
-        # Extract the partition fn body from the generated output.
-        # Use brace-matching to capture the complete function (it has nested
-        # for/if blocks, so we can't stop at the first '}' line).
+        # Extract the partition fn body using brace-matching.
         lines = src.splitlines()
         capture = False
         depth = 0
@@ -165,9 +182,8 @@ class TestAXPresentInAllTargets:
                 fn_body.append(ln)
                 depth += ln.count("{") - ln.count("}")
                 if depth <= 0 and len(fn_body) > 1:
-                    break  # function closed
+                    break
         assert fn_body, "partition function not found in Rust output"
-        # Strip 'pub fn' and '&mut self,' to make it a free fn with proper sig.
         partition_fn = "\n".join(fn_body).replace("    pub fn partition(&mut self, ",
                                                    "fn partition(")
 
