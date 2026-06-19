@@ -247,7 +247,7 @@ class GoGenerator(TargetGenerator):
         try:
             from ..ax import parse as ax_parse
             from ..ax.emitter_go import emit_go
-            from ..ax.types import infer_param_types
+            from ..ax.typeinfer import infer_param_types
             stmts = ax_parse(ax_src)
             ptypes = infer_param_types(stmts, params)
             return emit_go(stmts, indent=1), params, ptypes

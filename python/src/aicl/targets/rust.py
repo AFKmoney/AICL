@@ -299,7 +299,7 @@ class RustGenerator(TargetGenerator):
         try:
             from ..ax import parse as ax_parse
             from ..ax.emitter_rust import emit_rust
-            from ..ax.types import infer_param_types
+            from ..ax.typeinfer import infer_param_types
             stmts = ax_parse(ax_src)
             ptypes = infer_param_types(stmts, params)
             return emit_rust(stmts, indent=1), params, ptypes
