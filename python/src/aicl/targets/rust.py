@@ -25,6 +25,11 @@ from .base import TargetGenerator, TargetCodeResult
 from ..compiler import CompilationResult
 
 
+def _one_line(text: str, n: int = 60) -> str:
+    """First line of text, truncated, safe for single-line comments."""
+    return text.split("\n", 1)[0][:n]
+
+
 class RustGenerator(TargetGenerator):
     """Generates Rust code from AICL compilation results."""
 
@@ -88,7 +93,7 @@ class RustGenerator(TargetGenerator):
                     )
                     parts.append(f"    #[test]")
                     parts.append(f"    fn {test_name}() {{")
-                    parts.append(f"        // {record.source_text[:60]}")
+                    parts.append(f"        // {_one_line(record.source_text, 60)}")
                     parts.append(f"        // TODO: Implement test from validation")
                     parts.append(f"        assert!(true);")
                     parts.append(f"    }}")
@@ -245,7 +250,7 @@ class RustGenerator(TargetGenerator):
                         lines.append(f"    }}")
                     else:
                         lines.append(f"    pub fn {method_name}(&mut self) -> AppResult<()> {{")
-                        lines.append(f"        // {record.source_text[:60]}")
+                        lines.append(f"        // {_one_line(record.source_text, 60)}")
                         lines.append(f"        Ok(())")
                         lines.append(f"    }}")
 

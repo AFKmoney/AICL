@@ -25,6 +25,11 @@ from .base import TargetGenerator, TargetCodeResult
 from ..compiler import CompilationResult
 
 
+def _one_line(text: str, n: int = 60) -> str:
+    """First line of text, truncated, safe for single-line comments."""
+    return text.split("\n", 1)[0][:n]
+
+
 class JavaScriptGenerator(TargetGenerator):
     """Generates JavaScript/TypeScript code from AICL compilation results."""
 
@@ -85,8 +90,8 @@ class JavaScriptGenerator(TargetGenerator):
                     test_name = self._to_camel_case(
                         f"test {record.source_location}"
                     ).replace(" ", "")
-                    parts.append(f"  test('{record.source_text[:50]}', () => {{")
-                    parts.append(f"    // {record.source_text[:60]}")
+                    parts.append(f"  test('{_one_line(record.source_text, 50)}', () => {{")
+                    parts.append(f"    // {_one_line(record.source_text, 60)}")
                     parts.append(f"    expect(true).toBe(true);")
                     parts.append(f"  }});")
 
@@ -177,7 +182,7 @@ class JavaScriptGenerator(TargetGenerator):
         if result.provenance:
             for record in result.provenance.records:
                 if record.source_type.value == "event_synthesis":
-                    lines.append(f"    // {record.source_text[:60]}")
+                    lines.append(f"    // {_one_line(record.source_text, 60)}")
                     lines.append(f"    // this.on('event', this._handle{self._to_pascal_case(record.source_location.split()[-1])}.bind(this));")
 
         lines.append("  }")
@@ -191,7 +196,7 @@ class JavaScriptGenerator(TargetGenerator):
                     method_name = self._to_camel_case(behavior_name)
                     lines.append("")
                     lines.append(f"  /**")
-                    lines.append(f"   * {record.source_text[:60]}")
+                    lines.append(f"   * {_one_line(record.source_text, 60)}")
                     lines.append(f"   * Provenance: {record.resolution_path[-1] if record.resolution_path else 'N/A'}")
                     lines.append(f"   */")
                     ax_body, params = self._emit_ax_body_js(result, behavior_name)

@@ -26,6 +26,11 @@ from .base import TargetGenerator, TargetCodeResult
 from ..compiler import CompilationResult
 
 
+def _one_line(text: str, n: int = 60) -> str:
+    """First line of text, truncated, safe for single-line comments."""
+    return text.split("\n", 1)[0][:n]
+
+
 class GoGenerator(TargetGenerator):
     """Generates Go code from AICL compilation results."""
 
@@ -90,7 +95,7 @@ class GoGenerator(TargetGenerator):
                         f"Test{record.source_location.replace(' ', '')}"
                     )
                     parts.append(f"func {test_name}(t *testing.T) {{")
-                    parts.append(f"\t// {record.source_text[:60]}")
+                    parts.append(f"\t// {_one_line(record.source_text, 60)}")
                     parts.append("}")
                     parts.append("")
                     test_count += 1
@@ -188,7 +193,7 @@ class GoGenerator(TargetGenerator):
                     method_name = self._to_pascal_case(behavior_name)
                     ax_body, params, ptypes = self._emit_ax_body_go(result, behavior_name)
                     lines.append("")
-                    lines.append(f"// {method_name} implements {record.source_text[:50]}")
+                    lines.append(f"// {method_name} implements {_one_line(record.source_text, 50)}")
                     if ax_body:
                         sig_parts = []
                         for p in params:

@@ -96,7 +96,8 @@ def _run_go(ax_source: str, program: str) -> str:
         run = subprocess.run([exe], capture_output=True, text=True, timeout=15)
         if run.returncode != 0:
             pytest.fail(f"go runtime panic:\n{run.stderr[:500]}")
-        return run.stdout.strip()
+        # Go's builtin println writes to stderr, not stdout. Check both.
+        return (run.stdout + run.stderr).strip()
 
 
 @pytestmark_runtime
