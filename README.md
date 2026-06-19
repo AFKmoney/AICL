@@ -18,10 +18,10 @@
 </div>
 
 <p align="center">
-  <a href="./assets/aicl_pitch.mp4">
+  <a href="https://github.com/AFKmoney/AICL/releases/download/v2.1.0-pitch/aicl_pitch.mp4">
     <img src="https://img.shields.io/badge/▶_Watch-4_min_pitch_video-FF0000?logo=youtube&logoColor=white" alt="Watch the 4-minute pitch video" />
   </a><br/>
-  <sub>A 4-minute narrated intro to AICL — what it is, why it exists, and how the Proof of Origin works. <code>assets/aicl_pitch.mp4</code> (~10 MB, MP4 / 1280×720).</sub>
+  <sub>A 4-minute narrated intro to AICL — what it is, why it exists, and how the Proof of Origin works. <a href="https://github.com/AFKmoney/AICL/releases/tag/v2.1.0-pitch">Download the MP4</a> (~10 MB, 1280×720).</sub>
 </p>
 
 ---
