@@ -484,12 +484,29 @@ class Parser:
                         behavior.output = BehaviorOutput(name=val, output_type=val)
 
             elif kw == 'Action':
+                # Action may be a single line (prose or one-liner) or a
+                # multi-line indented block (the AX sub-language). Collect
+                # the inline value plus any following __value__ lines, then
+                # normalize indentation: subtract the minimum column so the
+                # resulting block starts at column 0 with its internal
+                # structure intact (needed for AX's if/while/for bodies).
+                #
+                # The inline value sits on the 'Action:' keyword line but is
+                # logically part of the body, so when a multi-line block
+                # follows we treat it as indented one level under the keyword.
+                action_raw = []  # (indent, text)
+                has_block = i + 1 < len(block) and block[i + 1][0] == '__value__'
                 if val:
-                    behavior.action = val
-                elif i + 1 < len(block) and block[i + 1][0] == '__value__':
-                    # Action value is on the next line
+                    inline_indent = (kw_indent + 4) if has_block else kw_indent
+                    action_raw.append((inline_indent, val.strip()))
+                while i + 1 < len(block) and block[i + 1][0] == '__value__':
                     i += 1
-                    behavior.action = block[i][1].strip()
+                    action_raw.append((block[i][2], block[i][1].strip()))
+                if action_raw:
+                    base = min(ind for ind, _ in action_raw)
+                    behavior.action = '\n'.join(
+                        ' ' * (ind - base) + txt for ind, txt in action_raw
+                    )
 
             i += 1
 

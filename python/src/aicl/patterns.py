@@ -1196,7 +1196,26 @@ class BehaviorCompiler:
 
         context = context or {}
 
-        # 1. Try sub-language first
+        # 0. Try AX (the Turing-complete sub-language) first.
+        # AX is a strict, compilable grammar (if/while/for/recursion/expr).
+        # If the action text parses as AX, emit real Python from it. This is
+        # the path that produces executable algorithm code, not skeletons.
+        try:
+            from aicl.ax import is_ax, parse as ax_parse, emit_python
+        except ImportError:
+            is_ax = None  # AX not available; fall through to legacy paths
+        if is_ax is not None and is_ax(action_description):
+            try:
+                ax_stmts = ax_parse(action_description)
+                code = emit_python(ax_stmts, indent=0)
+                if self._is_valid_python(code):
+                    return code, True
+            except Exception:
+                # AX parse failed despite is_ax() — fall through to legacy paths.
+                # (is_ax is a heuristic; it can false-positive on edge cases.)
+                pass
+
+        # 1. Try legacy sub-language (assign/clamp/check/send/return/call/log/raise)
         if self.sub_lang_parser.is_sub_language(action_description):
             stmts = self.sub_lang_parser.parse(action_description)
             if stmts:
