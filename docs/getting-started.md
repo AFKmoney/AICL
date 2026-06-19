@@ -88,6 +88,23 @@ aicl verify hello.aicl       # Check spec completeness (Goal/Risk/Recovery/Valid
 aicl compile hello.aicl      # Compile + generate Proof of Origin
 aicl audit hello.aicl        # Verify every artifact has provenance
 aicl explain hello.aicl      # Show why each line was generated
+aicl check hello.aicl        # Check errors, warnings, and AX syntax (--target aware)
+```
+
+## Scaffold a new project
+
+```bash
+aicl init my-app             # Creates my-app/my-app.aicl + README
+aicl new sort --inputs array # Generates a Behavior template with AX skeleton
+aicl targets                 # List 4 compile targets + AX capabilities
+aicl doctor                  # Diagnose your environment (Python, node, rustc, go)
+```
+
+## Machine-readable output (CI/CD)
+
+```bash
+aicl --json compile hello.aicl --target rust   # JSON output for pipelines
+aicl --json audit hello.aicl                    # JSON audit report
 ```
 
 ## Interactive TUI
@@ -96,8 +113,16 @@ aicl explain hello.aicl      # Show why each line was generated
 aicl tui
 ```
 
-A full terminal IDE with syntax highlighting, live compilation, an AI
-assistant, and interactive tutorials. Requires `pip install textual rich`.
+A full terminal IDE with a real code editor (TextArea), AX syntax
+highlighting, 4-target compilation (`:compile all`), and an AI assistant.
+
+Key TUI commands:
+- `:compile all` — compile to Python + Rust + JS + Go simultaneously
+- `:save <file>` — save editor content to disk (Ctrl+S works too)
+- `:tutorial` — guided AICL tutorials
+- `:chat` — chat with a local LLM assistant
+
+Requires `pip install textual` (rich is now a core dependency).
 
 ## Web editor
 
@@ -106,6 +131,10 @@ cd editor
 bun install
 bun dev
 ```
+
+A Next.js web IDE with AX syntax highlighting, localStorage persistence
+(no data loss on refresh), 4-target compilation, AI chat, and autonomous
+evolution. The editor auto-saves your files between sessions.
 
 A Next.js web IDE with file tabs, live compilation, architecture tree
 visualization, and an AI assistant. See `editor/README.md`.

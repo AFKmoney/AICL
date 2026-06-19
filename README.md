@@ -127,8 +127,8 @@ The result is three properties no conventional language gives you for free:
 **From PyPI (recommended for users):**
 
 ```bash
-pip install aicl              # core package
-pip install "aicl[tui]"       # core + terminal UI (textual + rich)
+pip install aicl              # core package (includes rich for colored CLI output)
+pip install "aicl[tui]"       # core + terminal UI (adds textual for the TUI)
 ```
 
 **From source (recommended for contributors):**
@@ -139,7 +139,9 @@ cd AICL
 make install-python   # or: cd python && pip install -e ".[tui,dev]"
 ```
 
-Requires Python 3.10+. The optional `tui` extras pull in
+Requires Python 3.10+. The `rich` library is a core dependency (colored CLI
+output, tables, progress bars). The optional `tui` extra adds `textual` for
+the interactive terminal editor.
 [`textual`](https://textual.textualize.io/) and
 [`rich`](https://rich.readthedocs.io/). The `dev` extras add `ruff`,
 `black`, `mypy`, `pytest`, `hypothesis`, `pre-commit`, `build`, and
@@ -154,23 +156,30 @@ upgrade, downgrade, and migrate between versions.
 # Compile a program
 aicl compile python/examples/showcase/01_blue_square.aicl
 
-# Inspect the architecture tree
-aicl tree python/examples/showcase/01_blue_square.aicl
+# Compile to a different target (AX behaviors compile to real executable code)
+aicl compile python/examples/showcase/01_blue_square.aicl --target rust
 
 # Verify spec completeness
 aicl verify python/examples/showcase/01_blue_square.aicl
 
-# Audit a compilation
-aicl audit output/main.py --proof output/main.aicl-proof
+# Check for errors + AX syntax (target-aware)
+aicl check python/examples/showcase/01_blue_square.aicl --target rust
 
 # Explain why each line was generated
 aicl explain python/examples/showcase/01_blue_square.aicl
+
+# Scaffold a new project
+aicl init my-app
+
+# Diagnose your environment
+aicl doctor
 
 # Launch the interactive terminal UI
 aicl tui
 ```
 
-`aicl --help` lists all 13 subcommands.
+`aicl --help` lists all 18 subcommands. The CLI uses rich-colored output
+by default; pass `--json` for machine-readable output in CI/CD pipelines.
 
 ## The language in one minute
 
@@ -265,8 +274,9 @@ python cloud_train.py --steps 5000
 ## Web editor (optional)
 
 The repo ships a Next.js 16 web editor that exposes the compiler through a
-browser UI: live compilation, architecture-tree visualisation, proof
-inspection, AI-assisted spec authoring, and interactive exercises.
+browser UI: AX syntax highlighting, live compilation to 4 targets,
+architecture-tree visualisation, proof inspection, AI-assisted spec
+authoring, interactive exercises, and localStorage persistence.
 
 ```bash
 cp .env.example .env
