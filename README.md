@@ -18,6 +18,16 @@
 
 </div>
 
+<p align="center">
+  <a href="https://github.com/AFKmoney/AICL/releases/download/v2.1.0-pitch-v2/aicl_pitch_v2.mp4">
+    <img src="https://img.shields.io/badge/▶_Watch-4_min_pitch_(2026)-FF0000?logo=youtube&logoColor=white" alt="Watch the 4-minute pitch video" />
+  </a>
+  <a href="https://github.com/AFKmoney/AICL/releases/download/v2.1.0-pitch/aicl_pitch.mp4">
+    <img src="https://img.shields.io/badge/▶_Original_pitch-original-555.svg" alt="Original pitch video" />
+  </a><br/>
+  <sub>Updated pitch: AX sub-language, 4-target compilation, CogNet 1B. <a href="https://github.com/AFKmoney/AICL/releases/tag/v2.1.0-pitch-v2">Download MP4</a> (~8 MB).</sub>
+</p>
+
 ---
 
 ## What AICL is
