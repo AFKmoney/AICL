@@ -400,6 +400,42 @@ class Parser:
     # Level 3 - Behaviors
     # =========================================================================
 
+    def _parse_input_list(self, val: str) -> list:
+        """Parse an Input: value into one or more BehaviorInput objects.
+
+        Two formats are supported:
+          - "name type"          → single typed input, e.g. Input: player Player
+          - "a, b, c"            → comma-separated untyped inputs, e.g. Input: array, low, high
+          - "name: type"         → single typed input (colon form)
+        Comma-separated items may each optionally carry a type ("a: int, b: int").
+        """
+        from aicl.ast import BehaviorInput
+        val = val.strip()
+        if ',' in val:
+            # comma-separated form
+            inputs = []
+            for chunk in val.split(','):
+                chunk = chunk.strip()
+                if not chunk:
+                    continue
+                if ':' in chunk:
+                    name, _, ptype = chunk.partition(':')
+                    inputs.append(BehaviorInput(name=name.strip(), param_type=ptype.strip() or 'any'))
+                elif ' ' in chunk:
+                    parts = chunk.split(None, 1)
+                    inputs.append(BehaviorInput(name=parts[0], param_type=parts[1]))
+                else:
+                    inputs.append(BehaviorInput(name=chunk, param_type='any'))
+            return inputs
+        # single item
+        if ':' in val:
+            name, _, ptype = val.partition(':')
+            return [BehaviorInput(name=name.strip(), param_type=ptype.strip() or 'any')]
+        parts = val.split()
+        if len(parts) >= 2:
+            return [BehaviorInput(name=parts[0], param_type=parts[1])]
+        return [BehaviorInput(name=parts[0] if parts else val, param_type='any')]
+
     def _parse_behavior(self, name: str, indent: int, program: AICLProgram) -> None:
         """Parse a Behavior section.
 
@@ -424,27 +460,20 @@ class Parser:
             kw, val, kw_indent = block[i]
 
             if kw == 'Input':
-                # Parse input parameters
+                # Parse input parameters.
+                # Supports two formats:
+                #   Input: name type              (single, typed)
+                #   Input: name1, name2, name3    (comma-separated, type 'any')
                 if val:
-                    parts = val.strip().split()
-                    for j in range(0, len(parts) - 1, 2):
-                        behavior.inputs.append(BehaviorInput(
-                            name=parts[j], param_type=parts[j + 1] if j + 1 < len(parts) else 'any'
-                        ))
-                    if len(parts) == 1:
-                        behavior.inputs.append(BehaviorInput(name=parts[0], param_type='any'))
+                    for inp in self._parse_input_list(val):
+                        behavior.inputs.append(inp)
                 # Check if next line(s) are plain values (multi-line input)
                 while i + 1 < len(block) and block[i + 1][0] == '__value__':
                     i += 1
                     extra_val = block[i][1].strip()
                     if extra_val:
-                        parts = extra_val.split()
-                        for j in range(0, len(parts) - 1, 2):
-                            behavior.inputs.append(BehaviorInput(
-                                name=parts[j], param_type=parts[j + 1] if j + 1 < len(parts) else 'any'
-                            ))
-                        if len(parts) == 1:
-                            behavior.inputs.append(BehaviorInput(name=parts[0], param_type='any'))
+                        for inp in self._parse_input_list(extra_val):
+                            behavior.inputs.append(inp)
 
             elif kw == 'Output':
                 if val:
