@@ -184,13 +184,22 @@ class GoGenerator(TargetGenerator):
         if result.provenance:
             for record in result.provenance.records:
                 if record.source_type.value in ("pattern_match", "sub_language"):
-                    method_name = self._to_pascal_case(record.source_location.split()[-1])
+                    behavior_name = record.source_location.split()[-1] if record.source_location else ""
+                    method_name = self._to_pascal_case(behavior_name)
+                    ax_body, params = self._emit_ax_body_go(result, behavior_name)
                     lines.append("")
                     lines.append(f"// {method_name} implements {record.source_text[:50]}")
-                    lines.append(f"func (a *Application) {method_name}() error {{")
-                    lines.append(f"\t// {record.generated_code[:50]}")
-                    lines.append(f"\treturn nil")
-                    lines.append(f"}}")
+                    if ax_body:
+                        param_sig = ", ".join(f"{p} int" for p in params)
+                        lines.append(f"func (a *Application) {method_name}({param_sig}) int {{")
+                        for ax_line in ax_body.split('\n'):
+                            lines.append(f"\t{ax_line}")
+                        lines.append(f"}}")
+                    else:
+                        lines.append(f"func (a *Application) {method_name}() error {{")
+                        lines.append(f"\t// {record.generated_code[:50]}")
+                        lines.append(f"\treturn nil")
+                        lines.append(f"}}")
 
         # Run method
         lines.append("")
@@ -217,3 +226,22 @@ class GoGenerator(TargetGenerator):
             module aicl-generated
 
             go 1.21""")
+
+    def _emit_ax_body_go(self, result, behavior_name: str):
+        """If the behavior was written in AX, return (go_body, param_names).
+
+        Returns ("", []) if the behavior has no AX source.
+        """
+        raw = getattr(result, 'ax_sources', {}).get(behavior_name)
+        if not raw:
+            return "", []
+        if isinstance(raw, tuple):
+            ax_src, params = raw
+        else:
+            ax_src, params = raw, []
+        try:
+            from ..ax import parse as ax_parse
+            from ..ax.emitter_go import emit_go
+            return emit_go(ax_parse(ax_src), indent=1), params
+        except Exception:
+            return "", params

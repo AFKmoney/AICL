@@ -225,12 +225,22 @@ class RustGenerator(TargetGenerator):
         if result.provenance:
             for record in result.provenance.records:
                 if record.source_type.value in ("pattern_match", "sub_language"):
-                    method_name = self._to_snake_case(record.source_location.split()[-1])
+                    behavior_name = record.source_location.split()[-1] if record.source_location else ""
+                    method_name = self._to_snake_case(behavior_name)
+                    ax_body, params = self._emit_ax_body_rust(result, behavior_name)
                     lines.append("")
-                    lines.append(f"    pub fn {method_name}(&mut self) -> AppResult<()> {{")
-                    lines.append(f"        // {record.source_text[:60]}")
-                    lines.append(f"        Ok(())")
-                    lines.append(f"    }}")
+                    if ax_body:
+                        # AX behavior: emit a real fn with the algorithm body.
+                        param_sig = ", ".join(f"{p}: i64" for p in params)
+                        lines.append(f"    pub fn {method_name}(&mut self, {param_sig}) -> i64 {{")
+                        for ax_line in ax_body.split('\n'):
+                            lines.append(f"    {ax_line}")
+                        lines.append(f"    }}")
+                    else:
+                        lines.append(f"    pub fn {method_name}(&mut self) -> AppResult<()> {{")
+                        lines.append(f"        // {record.source_text[:60]}")
+                        lines.append(f"        Ok(())")
+                        lines.append(f"    }}")
 
         # Run method
         lines.append("")
@@ -265,3 +275,22 @@ class RustGenerator(TargetGenerator):
             [dev-dependencies]
             assert_matches = "1.5"
             """)
+
+    def _emit_ax_body_rust(self, result, behavior_name: str):
+        """If the behavior was written in AX, return (rust_body, param_names).
+
+        Returns ("", []) if the behavior has no AX source.
+        """
+        raw = getattr(result, 'ax_sources', {}).get(behavior_name)
+        if not raw:
+            return "", []
+        if isinstance(raw, tuple):
+            ax_src, params = raw
+        else:
+            ax_src, params = raw, []
+        try:
+            from ..ax import parse as ax_parse
+            from ..ax.emitter_rust import emit_rust
+            return emit_rust(ax_parse(ax_src), indent=1), params
+        except Exception:
+            return "", params

@@ -1171,14 +1171,20 @@ class BehaviorCompiler:
        (NOT a bare TODO — a commented implementation outline)
     """
 
-    def __init__(self):
+    def __init__(self, target_language: str = "python"):
         self.pattern_library = BehaviorPatternLibrary()
         self.sub_lang_parser = SubLanguageParser()
+        self.target_language = target_language.lower()
+        # Map of behavior name -> raw AX source, populated whenever an Action:
+        # is written in AX. Target generators read this to re-emit the AX in
+        # their language (the Python pass already emits Python from it).
+        self.ax_sources: dict = {}
 
     def compile_action(
         self,
         action_description: str,
         context: Optional[Dict] = None,
+        behavior_name: str = "",
     ) -> Tuple[str, bool]:
         """
         Compile an action description into Python code.
@@ -1186,6 +1192,9 @@ class BehaviorCompiler:
         Args:
             action_description: The Action: text from an AICL Behavior
             context: Optional context (entity names, field names, etc.)
+            behavior_name: If provided and the action is AX, the raw AX source
+                is stashed in self.ax_sources[behavior_name] so target
+                generators can re-emit it in JS/Rust/Go.
 
         Returns:
             Tuple of (generated_code, is_fully_compiled)
@@ -1209,6 +1218,10 @@ class BehaviorCompiler:
                 ax_stmts = ax_parse(action_description)
                 code = emit_python(ax_stmts, indent=0)
                 if self._is_valid_python(code):
+                    # Stash the raw AX source so target generators can re-emit
+                    # it in their language instead of losing it.
+                    if behavior_name:
+                        self.ax_sources[behavior_name] = action_description
                     return code, True
             except Exception:
                 # AX parse failed despite is_ax() — fall through to legacy paths.

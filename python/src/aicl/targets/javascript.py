@@ -186,18 +186,22 @@ class JavaScriptGenerator(TargetGenerator):
         if result.provenance:
             for record in result.provenance.records:
                 if record.source_type.value in ("pattern_match", "sub_language"):
-                    method_name = self._to_camel_case(record.source_location.split()[-1])
+                    # Behavior name is the last token of "Behavior <Name>"
+                    behavior_name = record.source_location.split()[-1] if record.source_location else ""
+                    method_name = self._to_camel_case(behavior_name)
                     lines.append("")
                     lines.append(f"  /**")
                     lines.append(f"   * {record.source_text[:60]}")
                     lines.append(f"   * Provenance: {record.resolution_path[-1] if record.resolution_path else 'N/A'}")
                     lines.append(f"   */")
-                    lines.append(f"  async {method_name}() {{")
-                    lines.append(f"    try {{")
-                    lines.append(f"      // {record.generated_code[:50]}")
-                    lines.append(f"    }} catch (error) {{")
-                    lines.append(f"      throw new AppError(error.message);")
-                    lines.append(f"    }}")
+                    ax_body, params = self._emit_ax_body_js(result, behavior_name)
+                    param_list = ", ".join(params)
+                    lines.append(f"  {method_name}({param_list}) {{")
+                    if ax_body:
+                        for ax_line in ax_body.split('\n'):
+                            lines.append(f"    {ax_line}")
+                    else:
+                        lines.append(f"    // {record.generated_code[:60]}")
                     lines.append(f"  }}")
 
         # Run method
@@ -244,3 +248,25 @@ class JavaScriptGenerator(TargetGenerator):
               },
               "include": ["*.js"]
             }''')
+
+    def _emit_ax_body_js(self, result, behavior_name: str):
+        """If the behavior was written in AX, return (js_body, param_names).
+
+        Returns ("", []) if the behavior has no AX source.
+        """
+        raw = getattr(result, 'ax_sources', {}).get(behavior_name)
+        if not raw:
+            return "", []
+        # ax_sources entries are either a bare source string (legacy) or a
+        # (source, [param_names]) tuple.
+        if isinstance(raw, tuple):
+            ax_src, params = raw
+        else:
+            ax_src, params = raw, []
+        try:
+            from ..ax import parse as ax_parse
+            from ..ax.emitter_javascript import emit_javascript
+            return emit_javascript(ax_parse(ax_src), indent=1), params
+        except Exception:
+            return "", params
+
