@@ -335,6 +335,532 @@ TEMPLATES: List[AlgoTemplate] = [
                         curr = next
                     return curr
         """)),
+
+    # ── Batch 2: data structures & string algorithms ──────────────────────
+
+    AlgoTemplate(
+        name="insertion_sort",
+        features=["while inside for", "shift", "indexing"],
+        spec=textwrap.dedent("""\
+            Goal:
+            Sort an array of integers using insertion sort
+
+            Layer:
+            Sorting
+
+            Validation:
+            Output array is sorted in non-decreasing order
+
+            Behavior Sort
+                Input: array
+                Output: array
+                Action:
+                    for i in range(1, len(array)):
+                        key = array[i]
+                        j = i - 1
+                        while j >= 0 and array[j] > key:
+                            array[j + 1] = array[j]
+                            j = j - 1
+                        array[j + 1] = key
+                    return array
+        """)),
+
+    AlgoTemplate(
+        name="selection_sort",
+        features=["for", "min tracking", "swap"],
+        spec=textwrap.dedent("""\
+            Goal:
+            Sort an array of integers using selection sort
+
+            Layer:
+            Sorting
+
+            Validation:
+            Output array is sorted in non-decreasing order
+
+            Behavior Sort
+                Input: array
+                Output: array
+                Action:
+                    n = len(array)
+                    for i in range(0, n):
+                        min_idx = i
+                        for j in range(i + 1, n):
+                            if array[j] < array[min_idx]:
+                                min_idx = j
+                        array[i], array[min_idx] = array[min_idx], array[i]
+                    return array
+        """)),
+
+    AlgoTemplate(
+        name="string_length",
+        features=["for-in", "accumulator"],
+        spec=textwrap.dedent("""\
+            Goal:
+            Count the number of characters in a string
+
+            Layer:
+            Text
+
+            Validation:
+            Result equals the number of characters
+
+            Behavior Count
+                Input: text
+                Output: count
+                Action:
+                    count = 0
+                    for ch in text:
+                        count = count + 1
+                    return count
+        """)),
+
+    AlgoTemplate(
+        name="palindrome_check",
+        features=["while", "two-pointer", "boolean return"],
+        spec=textwrap.dedent("""\
+            Goal:
+            Determine whether a string is a palindrome
+
+            Layer:
+            Text
+
+            Validation:
+            Returns true for palindromes, false otherwise
+
+            Behavior Check
+                Input: text
+                Output: result
+                Action:
+                    left = 0
+                    right = len(text) - 1
+                    while left < right:
+                        if text[left] != text[right]:
+                            return false
+                        left = left + 1
+                        right = right - 1
+                    return true
+        """)),
+
+    AlgoTemplate(
+        name="count_occurrences",
+        features=["for", "if", "accumulator"],
+        spec=textwrap.dedent("""\
+            Goal:
+            Count how many times a value appears in an array
+
+            Layer:
+            Reduction
+
+            Validation:
+            Result is the number of occurrences of the value
+
+            Behavior Count
+                Input: array, value
+                Output: count
+                Action:
+                    count = 0
+                    for i in range(0, len(array)):
+                        if array[i] == value:
+                            count = count + 1
+                    return count
+        """)),
+
+    AlgoTemplate(
+        name="find_min_max",
+        features=["for", "if", "multiple returns"],
+        spec=textwrap.dedent("""\
+            Goal:
+            Find both the minimum and maximum of an array and return the sum of both
+
+            Layer:
+            Reduction
+
+            Validation:
+            Result is min plus max
+
+            Behavior Analyze
+                Input: array
+                Output: result
+                Action:
+                    minimum = array[0]
+                    maximum = array[0]
+                    for i in range(1, len(array)):
+                        if array[i] < minimum:
+                            minimum = array[i]
+                        if array[i] > maximum:
+                            maximum = array[i]
+                    return minimum + maximum
+        """)),
+
+    AlgoTemplate(
+        name="clamp_value",
+        features=["if/elif/else", "comparison"],
+        spec=textwrap.dedent("""\
+            Goal:
+            Clamp a value between a lower and upper bound
+
+            Layer:
+            Utility
+
+            Validation:
+            Result is within bounds inclusive
+
+            Behavior Clamp
+                Input: value, low, high
+                Output: result
+                Action:
+                    if value < low:
+                        return low
+                    elif value > high:
+                        return high
+                    else:
+                        return value
+        """)),
+
+    AlgoTemplate(
+        name="absolute_value",
+        features=["if", "unary minus"],
+        spec=textwrap.dedent("""\
+            Goal:
+            Compute the absolute value of an integer
+
+            Layer:
+            Arithmetic
+
+            Validation:
+            Result is non-negative
+
+            Behavior Abs
+                Input: n
+                Output: result
+                Action:
+                    if n < 0:
+                        return -n
+                    else:
+                        return n
+        """)),
+
+    AlgoTemplate(
+        name="sum_array",
+        features=["for", "accumulator", "indexing"],
+        spec=textwrap.dedent("""\
+            Goal:
+            Compute the sum of all elements in an array
+
+            Risk:
+            Empty array
+
+            Recovery:
+            Return 0
+
+            Layer:
+            Reduction
+
+            Validation:
+            Result is the sum of all elements
+
+            Behavior Sum
+                Input: array
+                Output: total
+                Action:
+                    total = 0
+                    for i in range(0, len(array)):
+                        total = total + array[i]
+                    return total
+        """)),
+
+    AlgoTemplate(
+        name="copy_filtered",
+        features=["for", "if", "method call append"],
+        spec=textwrap.dedent("""\
+            Goal:
+            Build a new array containing only elements greater than a threshold
+
+            Layer:
+            Transformation
+
+            Validation:
+            Every element in the result exceeds the threshold
+
+            Behavior Filter
+                Input: array, threshold
+                Output: result
+                Action:
+                    result = []
+                    for i in range(0, len(array)):
+                        if array[i] > threshold:
+                            result.append(array[i])
+                    return result
+        """)),
+
+    AlgoTemplate(
+        name="digit_sum",
+        features=["while", "modulo", "division"],
+        spec=textwrap.dedent("""\
+            Goal:
+            Compute the sum of digits of a non-negative integer
+
+            Layer:
+            Arithmetic
+
+            Validation:
+            Result is the sum of decimal digits
+
+            Behavior Sum
+                Input: n
+                Output: total
+                Action:
+                    total = 0
+                    while n > 0:
+                        total = total + (n % 10)
+                        n = n // 10
+                    return total
+        """)),
+
+    AlgoTemplate(
+        name="collatz_steps",
+        features=["while", "if/else", "modulo", "division"],
+        spec=textwrap.dedent("""\
+            Goal:
+            Count the number of Collatz steps to reach 1
+
+            Layer:
+            Sequence
+
+            Validation:
+            Result is the count of steps to reach 1
+
+            Behavior Steps
+                Input: n
+                Output: count
+                Action:
+                    count = 0
+                    while n != 1:
+                        if n % 2 == 0:
+                            n = n // 2
+                        else:
+                            n = 3 * n + 1
+                        count = count + 1
+                    return count
+        """)),
+
+    AlgoTemplate(
+        name="is_prime",
+        features=["while", "if", "modulo", "boolean"],
+        spec=textwrap.dedent("""\
+            Goal:
+            Determine whether an integer greater than 1 is prime
+
+            Layer:
+            Arithmetic
+
+            Validation:
+            Returns true for primes, false otherwise
+
+            Behavior Check
+                Input: n
+                Output: result
+                Action:
+                    if n < 2:
+                        return false
+                    i = 2
+                    while i * i <= n:
+                        if n % i == 0:
+                            return false
+                        i = i + 1
+                    return true
+        """)),
+
+    AlgoTemplate(
+        name="power_of_two",
+        features=["while", "multiplication", "boolean"],
+        spec=textwrap.dedent("""\
+            Goal:
+            Determine whether an integer is a power of two
+
+            Layer:
+            Arithmetic
+
+            Validation:
+            Returns true for powers of two, false otherwise
+
+            Behavior Check
+                Input: n
+                Output: result
+                Action:
+                    if n <= 0:
+                        return false
+                    while n % 2 == 0:
+                        n = n // 2
+                    return n == 1
+        """)),
+
+    AlgoTemplate(
+        name="array_equal",
+        features=["for", "if", "boolean", "length check"],
+        spec=textwrap.dedent("""\
+            Goal:
+            Determine whether two arrays are equal element-wise
+
+            Layer:
+            Comparison
+
+            Validation:
+            Returns true if arrays have same length and elements
+
+            Behavior Compare
+                Input: a, b
+                Output: result
+                Action:
+                    if len(a) != len(b):
+                        return false
+                    for i in range(0, len(a)):
+                        if a[i] != b[i]:
+                            return false
+                    return true
+        """)),
+
+    AlgoTemplate(
+        name="multiply_table",
+        features=["nested for", "method call append", "arithmetic"],
+        spec=textwrap.dedent("""\
+            Goal:
+            Build an n by n multiplication table as a flat array
+
+            Layer:
+            Generation
+
+            Validation:
+            Result has n times n elements
+
+            Behavior Build
+                Input: n
+                Output: table
+                Action:
+                    table = []
+                    for i in range(1, n + 1):
+                        for j in range(1, n + 1):
+                            table.append(i * j)
+                    return table
+        """)),
+
+    AlgoTemplate(
+        name="count_down",
+        features=["while", "method call append", "decrement"],
+        spec=textwrap.dedent("""\
+            Goal:
+            Build an array counting down from n to 1 inclusive
+
+            Layer:
+            Generation
+
+            Validation:
+            Result is n, n-1, ..., 1
+
+            Behavior Build
+                Input: n
+                Output: result
+                Action:
+                    result = []
+                    while n > 0:
+                        result.append(n)
+                        n = n - 1
+                    return result
+        """)),
+
+    AlgoTemplate(
+        name="second_largest",
+        features=["for", "if", "tracking two values"],
+        spec=textwrap.dedent("""\
+            Goal:
+            Find the second largest element in an array of distinct integers
+
+            Risk:
+            Fewer than two elements
+
+            Recovery:
+            Return 0
+
+            Layer:
+            Reduction
+
+            Validation:
+            Result is the second largest distinct value
+
+            Behavior Find
+                Input: array
+                Output: result
+                Action:
+                    largest = array[0]
+                    second = array[0]
+                    for i in range(1, len(array)):
+                        if array[i] > largest:
+                            second = largest
+                            largest = array[i]
+                        elif array[i] > second:
+                            second = array[i]
+                    return second
+        """)),
+
+    AlgoTemplate(
+        name="median_of_three",
+        features=["if/elif/else", "comparison", "sorting three values"],
+        spec=textwrap.dedent("""\
+            Goal:
+            Return the median of three integers
+
+            Layer:
+            Selection
+
+            Validation:
+            Result is the middle value of the three inputs
+
+            Behavior Median
+                Input: a, b, c
+                Output: result
+                Action:
+                    if a > b:
+                        if a < c:
+                            return a
+                        elif b > c:
+                            return b
+                        else:
+                            return c
+                    else:
+                        if a > c:
+                            return a
+                        elif b < c:
+                            return b
+                        else:
+                            return c
+        """)),
+
+    AlgoTemplate(
+        name="factorial_iterative",
+        features=["for", "accumulator", "multiplication"],
+        spec=textwrap.dedent("""\
+            Goal:
+            Compute the factorial of a non-negative integer iteratively
+
+            Constraint:
+            Factorial of 0 is 1
+
+            Layer:
+            Arithmetic
+
+            Validation:
+            Result equals 1 times 2 times ... times n
+
+            Behavior Compute
+                Input: n
+                Output: result
+                Action:
+                    result = 1
+                    for i in range(1, n + 1):
+                        result = result * i
+                    return result
+        """)),
 ]
 
 
