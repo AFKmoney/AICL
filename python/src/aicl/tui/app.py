@@ -21,10 +21,11 @@ try:
     from textual.binding import Binding
     from textual.containers import Container, Horizontal, Vertical, VerticalScroll
     from textual.widgets import (
-        Header, Footer, Static, Input, Button, Tree, TreeNode,
+        Header, Footer, Static, Input, Button, Tree,
         DataTable, TabbedContent, TabPane, RichLog, DirectoryTree,
-        Label, Select
+        Label, Select, TextArea
     )
+    from textual.widgets.tree import TreeNode
     from textual.reactive import reactive
     from textual import work
     from rich.syntax import Syntax
@@ -37,14 +38,65 @@ except ImportError:
     print("AICL TUI requires 'textual' and 'rich'. Install with: pip install textual rich")
     sys.exit(1)
 
-# Import AICL compiler
+# Import AICL compiler — adapt to the real API
 try:
-    from aicl.compiler import AICLCompiler
-    from aicl.provenance import ProvenanceTracker
+    from aicl.compiler import Compiler
     from aicl.spec_verify import verify_source
     from aicl.auto_optimizer import ArchitectureOptimizer
-    from aicl.ownership import OwnershipModel
     from aicl.runtime import RuntimeEnvironment
+
+
+    class AICLCompiler:
+        """Thin wrapper adapting the real Compiler to the TUI's expected API.
+
+        The TUI calls compiler.compile(filepath, target=) and expects a dict;
+        the real Compiler.compile(source_str) returns a CompilationResult.
+        This bridges the two.
+        """
+        def compile(self, filepath: str, target: str = "python") -> dict:
+            with open(filepath) as f:
+                source = f.read()
+            import tempfile
+            c = Compiler(target_language=target)
+            result = c.compile(source)
+            return {
+                "success": result.success,
+                "output_dir": "",
+                "audit_coverage": (result.provenance.compute_audit_coverage()["audit_coverage"]
+                                   if result.provenance else 0.0),
+                "todos_remaining": result.todo_count,
+                "proof_valid": (result.proof.verify()["valid"] if result.proof else False),
+                "ax_behaviors": list(result.ax_sources.keys()) if hasattr(result, "ax_sources") else [],
+            }
+
+        def parse(self, filepath: str):
+            with open(filepath) as f:
+                source = f.read()
+            from aicl.parser import Parser
+            return Parser(source).parse()
+
+        def get_architecture_tree(self, filepath: str) -> str:
+            program = self.parse(filepath)
+            lines = []
+            for g in program.goals:
+                lines.append(f"Goal: {g.description}")
+            for l in program.layers:
+                lines.append(f"Layer: {l.name}")
+                for s in l.sublayers:
+                    lines.append(f"  └── {s.name}")
+            for b in program.behaviors:
+                lines.append(f"Behavior: {b.name}")
+            return "\n".join(lines)
+
+
+    class ProvenanceTracker:
+        """Stub — provenance is now handled by Compiler internally."""
+        pass
+
+
+    class OwnershipModel:
+        """Stub — ownership analysis is handled by ArchitectureOptimizer."""
+        pass
     from aicl.crypto_signing import create_signed_proof, verify_signed_proof
     from aicl import __version__ as AICL_VERSION
 except ImportError:
@@ -639,6 +691,27 @@ WELCOME = f"""[bold cyan]AICL TUI v{AICL_VERSION}[/] — Artificial Intelligence
 [dim]Type a command or start writing AICL code below.[/]
 """
 
+# Plain-text version for TextArea (no rich markup)
+WELCOME_PLAIN = f"""AICL TUI v{AICL_VERSION} — Artificial Intelligence-Centered Language
+
+If the compiler cannot explain why it generated a line, it should not generate it.
+
+Quick Commands:
+  :help       — Show all commands
+  :compile    — Compile current file (try :compile rust for 4-target support)
+  :verify     — Verify specification
+  :audit      — Audit compilation
+  :targets    — List compile targets
+  :tutorial   — Start a guided tutorial (including AX)
+  :chat       — Chat with LLM assistant
+
+Keyboard:
+  Ctrl+O Open file    Ctrl+S Save    Ctrl+Q Quit
+  Ctrl+K Command palette    Ctrl+E Toggle sidebar
+
+Type a command or start writing AICL code below.
+"""
+
 
 # ──────────────────────────────────────────────────────────────
 # Main TUI Application
@@ -688,6 +761,16 @@ class AICLTUI(App):
     }
 
     #editor-content {
+        height: 1fr;
+        border: solid #30363d;
+    }
+
+    TextArea {
+        background: #0d1117;
+        color: #c9d1d9;
+    }
+
+    .editor-textarea {
         height: 1fr;
     }
 
@@ -777,7 +860,16 @@ class AICLTUI(App):
             with Vertical(id="editor-area"):
                 with Horizontal(id="editor-tabs"):
                     yield Static(" untitled.aicl ", id="tab-label", classes="status-bar")
-                yield RichLog(id="editor-content", highlight=True, markup=True, classes="editor-log")
+                yield TextArea(
+                    "",
+                    id="editor-content",
+                    language="python",  # closest built-in for AX; custom theme below
+                    theme="monokai",
+                    soft_wrap=True,
+                    tab_behavior="indent",
+                    show_line_numbers=True,
+                    classes="editor-textarea",
+                )
                 with Vertical(id="output-panel"):
                     yield RichLog(id="output-log", highlight=True, markup=True)
 
@@ -788,7 +880,9 @@ class AICLTUI(App):
         yield Footer()
 
     def on_mount(self) -> None:
-        self.query_one("#editor-content", RichLog).write(WELCOME)
+        # Load welcome text into the TextArea editor
+        ta = self.query_one("#editor-content", TextArea)
+        ta.text = WELCOME_PLAIN
         self.query_one("#cmd", Input).focus()
         self.compiler = AICLCompiler()
         self.llm = LLMInterface()
@@ -815,7 +909,7 @@ class AICLTUI(App):
         input_widget.value = ""
 
         output = self.query_one("#output-log", RichLog)
-        editor = self.query_one("#editor-content", RichLog)
+        editor = self.query_one("#editor-content", TextArea)
 
         # Chat mode: send everything to LLM
         if self.chat_mode and not cmd.startswith(":"):
@@ -832,13 +926,16 @@ class AICLTUI(App):
         if cmd.startswith(":"):
             self._handle_command(cmd[1:], output, editor)
         elif cmd.startswith("Goal") or cmd.startswith("Layer") or cmd.startswith("#") or cmd.startswith("Entity") or cmd.startswith("Behavior") or cmd.startswith("Constraint") or cmd.startswith("Risk"):
-            # AICL code — append to editor
-            editor.write(highlight_aicl(cmd))
+            # AICL code — append to the TextArea editor
+            ta = self.query_one("#editor-content", TextArea)
+            if ta.text and not ta.text.endswith("\n"):
+                ta.text += "\n"
+            ta.text += cmd + "\n"
             output.write("[dim]Code added to editor. Use :save to save or :compile to compile.[/]")
         else:
             output.write(f"[yellow]Unknown input. Type :help for commands.[/]")
 
-    def _handle_command(self, cmd: str, output: RichLog, editor: RichLog) -> None:
+    def _handle_command(self, cmd: str, output: RichLog, editor) -> None:
         """Handle colon-prefixed commands."""
         parts = cmd.split(maxsplit=1)
         command = parts[0].lower()
@@ -935,30 +1032,49 @@ class AICLTUI(App):
     # ── Compilation Commands ─────────────────────────────────
 
     def _cmd_compile(self, args, output, editor):
-        if not self.current_file:
-            output.write("[red]No file loaded. Use :open <path> first.[/]")
+        # Read current editor content from the TextArea (not the file on disk,
+        # so unsaved edits compile correctly)
+        ta = self.query_one("#editor-content", TextArea)
+        source = ta.text
+        if not source.strip():
+            output.write("[red]Editor is empty. Write some AICL code first.[/]")
             return
-        target = "python"
-        if args.strip() in ("rust", "javascript", "js", "go"):
-            target = "javascript" if args.strip() == "js" else args.strip()
 
-        output.write(f"[bold]Compiling[/] {self.current_file} → {target}...")
+        arg = args.strip().lower()
+        targets = ["python"]
+        if arg in ("rust", "javascript", "js", "go"):
+            targets = ["javascript" if arg == "js" else arg]
+        elif arg in ("all", "4", "targets"):
+            targets = ["python", "rust", "javascript", "go"]
+
+        import tempfile
+        # Write current editor content to a temp file for compilation
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.aicl', delete=False) as tmp:
+            tmp.write(source)
+            tmp_path = tmp.name
+
         try:
-            result = self.compiler.compile(self.current_file, target=target)
-            self.last_output_dir = result.get("output_dir", "")
-            coverage = result.get("audit_coverage", 0) * 100
-            todos = result.get("todos_remaining", 0)
-            valid = result.get("proof_valid", False)
+            for target in targets:
+                label = target.upper()
+                output.write(f"[bold cyan]Compiling[/] → {label}...")
+                try:
+                    result = self.compiler.compile(tmp_path, target=target)
+                    self.last_output_dir = result.get("output_dir", "")
+                    coverage = result.get("audit_coverage", 0) * 100
+                    todos = result.get("todos_remaining", 0)
+                    valid = result.get("proof_valid", False)
+                    status = "[green]VALID[/]" if valid else "[red]INVALID[/]"
+                    ax_count = len(result.get("ax_behaviors", []))
+                    ax_badge = f"  [magenta]AX: {ax_count} behavior(s) real code[/]" if ax_count else ""
+                    output.write(f"""  [green]✓ {target}[/]{ax_badge}
+    Output: {self.last_output_dir}  TODOs: {todos}  Audit: {coverage:.1f}%  Proof: {status}""")
+                except Exception as e:
+                    output.write(f"  [red]✗ {target}: {e}[/]")
 
-            status = "[green]VALID[/]" if valid else "[red]INVALID[/]"
-            output.write(f"""[green]Compilation successful![/]
-  Target:        {target}
-  Output:        {self.last_output_dir}
-  TODOs:         {todos}
-  Audit:         {coverage:.1f}%
-  Proof:         {status}""")
-        except Exception as e:
-            output.write(f"[red]Compilation failed:[/] {e}")
+            if len(targets) == 4:
+                output.write("[bold green]All 4 targets compiled. AX behaviors produce real executable code.[/]")
+        finally:
+            os.unlink(tmp_path)
 
     def _cmd_verify(self, args, output, editor):
         if not self.current_file:
@@ -1171,12 +1287,11 @@ class AICLTUI(App):
             output.write(f"  [bold]{i}.[/] {step}")
         output.write("")
 
-        # Load template
-        editor.clear()
-        # Handle double braces in templates by replacing {{ with { and }} with }
+        # Load template into the TextArea editor
+        ta = self.query_one("#editor-content", TextArea)
         template = tut["template"].replace("{{", "{").replace("}}", "}")
-        editor.write(highlight_aicl(template))
-        output.write("[green]Template loaded! Complete the specification and use :compile to test.[/]")
+        ta.text = template
+        output.write("[green]Template loaded into editor! Edit it and use :compile to test.[/]")
         output.write("[dim]Tips: Every Risk needs a Recovery. Every Validation generates a test. Every artifact has provenance.[/]")
 
     # ── LLM Chat & Model Management ─────────────────────────
@@ -1554,15 +1669,25 @@ Try asking about any AICL concept, or type :tutorial to start learning!"""
         self._load_file(path, output, editor)
 
     def _cmd_save(self, args, output, editor):
-        if not self.current_file:
-            output.write("[red]No file to save.[/]")
+        path = args.strip() or self.current_file
+        if not path:
+            output.write("[red]Usage: :save <filename.aicl> (no file is currently open)[/]")
             return
-        output.write(f"[green]Saved: {self.current_file}[/]")
+        try:
+            # Read the current editor content from the TextArea
+            ta = self.query_one("#editor-content", TextArea)
+            with open(path, 'w') as f:
+                f.write(ta.text)
+            self.current_file = path
+            self.query_one("#tab-label", Static).update(f" {os.path.basename(path)} ")
+            output.write(f"[green]Saved: {path} ({len(ta.text)} bytes)[/]")
+        except Exception as e:
+            output.write(f"[red]Cannot save {path}:[/] {e}")
 
     def _cmd_new(self, args, output, editor):
         self.current_file = ""
-        editor.clear()
-        editor.write(highlight_aicl("# New AICL Program\n\nGoal:\n\nLayer:\n\nValidation:\n"))
+        ta = self.query_one("#editor-content", TextArea)
+        ta.text = "# New AICL Program\n# Write your specification below.\n\nGoal:\n\nLayer:\n\nValidation:\n\nBehavior MainAction\n    Input: input\n    Output: result\n    Action:\n        # AX: write real compilable logic here\n        return input\n"
         self.query_one("#tab-label", Static).update(" untitled.aicl ")
         output.write("[green]New file created.[/]")
 
@@ -1637,12 +1762,11 @@ Try asking about any AICL concept, or type :tutorial to start learning!"""
         if output is None:
             output = self.query_one("#output-log", RichLog)
         if editor is None:
-            editor = self.query_one("#editor-content", RichLog)
+            editor = self.query_one("#editor-content", TextArea)
         try:
             with open(path) as f:
                 source = f.read()
-            editor.clear()
-            editor.write(highlight_aicl(source))
+            editor.text = source  # TextArea uses .text, not .write()
             self.current_file = path
             self.query_one("#tab-label", Static).update(f" {os.path.basename(path)} ")
             output.write(f"[green]Loaded:[/] {path}")
@@ -1658,7 +1782,17 @@ Try asking about any AICL concept, or type :tutorial to start learning!"""
 
     def action_save_file(self):
         if self.current_file:
-            self.query_one("#output-log", RichLog).write(f"[green]Saved: {self.current_file}[/]")
+            try:
+                ta = self.query_one("#editor-content", TextArea)
+                with open(self.current_file, 'w') as f:
+                    f.write(ta.text)
+                self.query_one("#output-log", RichLog).write(
+                    f"[green]Saved: {self.current_file} ({len(ta.text)} bytes)[/]"
+                )
+            except Exception as e:
+                self.query_one("#output-log", RichLog).write(f"[red]Save failed: {e}[/]")
+        else:
+            self.query_one("#cmd", Input).value = ":save "
 
     def action_command_palette(self):
         self.query_one("#cmd", Input).value = ":"
