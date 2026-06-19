@@ -778,7 +778,7 @@ def main():
     audit_parser.add_argument('source',
         help='AICL source file (.aicl) or Proof of Origin (.aicl-proof)')
     audit_parser.add_argument('--strict', '-s', action='store_true',
-                              help='Fail if audit coverage < 100% (exit code 1)')
+                              help='Fail if audit coverage < 100%% (exit code 1)')
     audit_parser.add_argument('--proof', '-p', action='store_true',
                               help='Read from Proof of Origin file (no compilation needed)')
 

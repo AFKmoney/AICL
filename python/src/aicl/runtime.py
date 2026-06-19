@@ -69,7 +69,9 @@ class RuntimeProvenanceEvent:
 
     def __post_init__(self):
         if not self.timestamp:
-            self.timestamp = time.strftime("%Y-%m-%dT%H:%M:%S.%fZ", time.gmtime())
+            # time.strftime does not support %f (microseconds); use datetime which does.
+            from datetime import datetime, timezone
+            self.timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to a dictionary."""

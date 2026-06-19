@@ -236,6 +236,9 @@ class Compiler:
         contains ALL information needed to reconstruct explain() and audit()
         without the compiler. It is the central artifact of auditable compilation.
         """
+        # Normalize the output path to avoid mixed separators (e.g. "/tmp\main.py")
+        # which break open() on Windows when a Unix-style output_dir is passed.
+        output_dir = os.path.normpath(output_dir)
         result = self.compile(source)
 
         if result.success:

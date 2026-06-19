@@ -1196,12 +1196,36 @@ class BehaviorCompiler:
 
         context = context or {}
 
-        # 1. Try sub-language first
+        # 0. Try AX (the Turing-complete sub-language) first.
+        # AX is a strict, compilable grammar (if/while/for/recursion/expr).
+        # If the action text parses as AX, emit real Python from it. This is
+        # the path that produces executable algorithm code, not skeletons.
+        try:
+            from aicl.ax import is_ax, parse as ax_parse, emit_python
+        except ImportError:
+            is_ax = None  # AX not available; fall through to legacy paths
+        if is_ax is not None and is_ax(action_description):
+            try:
+                ax_stmts = ax_parse(action_description)
+                code = emit_python(ax_stmts, indent=0)
+                if self._is_valid_python(code):
+                    return code, True
+            except Exception:
+                # AX parse failed despite is_ax() — fall through to legacy paths.
+                # (is_ax is a heuristic; it can false-positive on edge cases.)
+                pass
+
+        # 1. Try legacy sub-language (assign/clamp/check/send/return/call/log/raise)
         if self.sub_lang_parser.is_sub_language(action_description):
             stmts = self.sub_lang_parser.parse(action_description)
             if stmts:
                 code = self._compile_sub_language(stmts, context)
-                return code, True
+                # Validate: sub-language patterns can false-positive on prose
+                # (e.g. "Return an empty array immediately" matches the `return`
+                # keyword but the rest isn't a valid expression). Reject anything
+                # that isn't parseable Python and fall through to the fallback.
+                if self._is_valid_python(code):
+                    return code, True
 
         # 2. Try pattern matching
         match = self.pattern_library.match(action_description)
@@ -1215,16 +1239,33 @@ class BehaviorCompiler:
 
             try:
                 code = match.code_template.format(**params)
+                if self._is_valid_python(code):
+                    return code, True
             except (KeyError, IndexError):
                 # Template references parameters not available in context;
                 # fall back to structured skeleton with semantic guidance
-                code = self._compile_fallback(action_description, context)
-                return code, False
-            return code, True
+                pass
 
         # 3. Fallback: structured skeleton with semantic guidance
         code = self._compile_fallback(action_description, context)
         return code, False
+
+    @staticmethod
+    def _is_valid_python(code: str) -> bool:
+        """Return True if the generated code parses as valid Python.
+
+        Generated code is embedded inside a method body (indented), so we wrap
+        it in a dummy function before parsing to get a representative check.
+        This guard prevents prose that slipped past keyword detection from being
+        emitted as syntactically invalid Python (e.g. ``return an empty array``).
+        """
+        import ast
+        probe = "def _probe(self):\n    " + code.replace("\n", "\n    ")
+        try:
+            ast.parse(probe)
+            return True
+        except SyntaxError:
+            return False
 
     def _compile_sub_language(
         self, stmts: List[SubLangStatement], context: Dict

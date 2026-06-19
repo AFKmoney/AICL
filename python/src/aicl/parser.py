@@ -400,6 +400,42 @@ class Parser:
     # Level 3 - Behaviors
     # =========================================================================
 
+    def _parse_input_list(self, val: str) -> list:
+        """Parse an Input: value into one or more BehaviorInput objects.
+
+        Two formats are supported:
+          - "name type"          → single typed input, e.g. Input: player Player
+          - "a, b, c"            → comma-separated untyped inputs, e.g. Input: array, low, high
+          - "name: type"         → single typed input (colon form)
+        Comma-separated items may each optionally carry a type ("a: int, b: int").
+        """
+        from aicl.ast import BehaviorInput
+        val = val.strip()
+        if ',' in val:
+            # comma-separated form
+            inputs = []
+            for chunk in val.split(','):
+                chunk = chunk.strip()
+                if not chunk:
+                    continue
+                if ':' in chunk:
+                    name, _, ptype = chunk.partition(':')
+                    inputs.append(BehaviorInput(name=name.strip(), param_type=ptype.strip() or 'any'))
+                elif ' ' in chunk:
+                    parts = chunk.split(None, 1)
+                    inputs.append(BehaviorInput(name=parts[0], param_type=parts[1]))
+                else:
+                    inputs.append(BehaviorInput(name=chunk, param_type='any'))
+            return inputs
+        # single item
+        if ':' in val:
+            name, _, ptype = val.partition(':')
+            return [BehaviorInput(name=name.strip(), param_type=ptype.strip() or 'any')]
+        parts = val.split()
+        if len(parts) >= 2:
+            return [BehaviorInput(name=parts[0], param_type=parts[1])]
+        return [BehaviorInput(name=parts[0] if parts else val, param_type='any')]
+
     def _parse_behavior(self, name: str, indent: int, program: AICLProgram) -> None:
         """Parse a Behavior section.
 
@@ -424,27 +460,20 @@ class Parser:
             kw, val, kw_indent = block[i]
 
             if kw == 'Input':
-                # Parse input parameters
+                # Parse input parameters.
+                # Supports two formats:
+                #   Input: name type              (single, typed)
+                #   Input: name1, name2, name3    (comma-separated, type 'any')
                 if val:
-                    parts = val.strip().split()
-                    for j in range(0, len(parts) - 1, 2):
-                        behavior.inputs.append(BehaviorInput(
-                            name=parts[j], param_type=parts[j + 1] if j + 1 < len(parts) else 'any'
-                        ))
-                    if len(parts) == 1:
-                        behavior.inputs.append(BehaviorInput(name=parts[0], param_type='any'))
+                    for inp in self._parse_input_list(val):
+                        behavior.inputs.append(inp)
                 # Check if next line(s) are plain values (multi-line input)
                 while i + 1 < len(block) and block[i + 1][0] == '__value__':
                     i += 1
                     extra_val = block[i][1].strip()
                     if extra_val:
-                        parts = extra_val.split()
-                        for j in range(0, len(parts) - 1, 2):
-                            behavior.inputs.append(BehaviorInput(
-                                name=parts[j], param_type=parts[j + 1] if j + 1 < len(parts) else 'any'
-                            ))
-                        if len(parts) == 1:
-                            behavior.inputs.append(BehaviorInput(name=parts[0], param_type='any'))
+                        for inp in self._parse_input_list(extra_val):
+                            behavior.inputs.append(inp)
 
             elif kw == 'Output':
                 if val:
@@ -455,12 +484,29 @@ class Parser:
                         behavior.output = BehaviorOutput(name=val, output_type=val)
 
             elif kw == 'Action':
+                # Action may be a single line (prose or one-liner) or a
+                # multi-line indented block (the AX sub-language). Collect
+                # the inline value plus any following __value__ lines, then
+                # normalize indentation: subtract the minimum column so the
+                # resulting block starts at column 0 with its internal
+                # structure intact (needed for AX's if/while/for bodies).
+                #
+                # The inline value sits on the 'Action:' keyword line but is
+                # logically part of the body, so when a multi-line block
+                # follows we treat it as indented one level under the keyword.
+                action_raw = []  # (indent, text)
+                has_block = i + 1 < len(block) and block[i + 1][0] == '__value__'
                 if val:
-                    behavior.action = val
-                elif i + 1 < len(block) and block[i + 1][0] == '__value__':
-                    # Action value is on the next line
+                    inline_indent = (kw_indent + 4) if has_block else kw_indent
+                    action_raw.append((inline_indent, val.strip()))
+                while i + 1 < len(block) and block[i + 1][0] == '__value__':
                     i += 1
-                    behavior.action = block[i][1].strip()
+                    action_raw.append((block[i][2], block[i][1].strip()))
+                if action_raw:
+                    base = min(ind for ind, _ in action_raw)
+                    behavior.action = '\n'.join(
+                        ' ' * (ind - base) + txt for ind, txt in action_raw
+                    )
 
             i += 1
 
