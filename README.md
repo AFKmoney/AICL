@@ -9,9 +9,10 @@
 
 [![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](https://github.com/AFKmoney/AICL)
 [![Python](https://img.shields.io/badge/python-3.10+-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-156%20passing-brightgreen.svg)](#tests)
+[![Tests](https://img.shields.io/badge/tests-189%20passing-brightgreen.svg)](#tests)
 [![Audit](https://img.shields.io/badge/audit%20coverage-100%25-brightgreen.svg)](#proof-of-origin)
 [![Targets](https://img.shields.io/badge/targets-Python%20%7C%20Rust%20%7C%20JS%20%7C%20Go-blue.svg)](#targets)
+[![AX](https://img.shields.io/badge/AX-Turing--complete%20sub--language-ff69b4.svg)](#ax-sub-language)
 [![License](https://img.shields.io/badge/license-MIT-purple.svg)](./LICENSE)
 [![CI](https://github.com/AFKmoney/AICL/actions/workflows/ci.yml/badge.svg)](https://github.com/AFKmoney/AICL/actions/workflows/ci.yml)
 
@@ -58,6 +59,36 @@ Behavior RenderFrame
 Compiles to verified Python / Rust / JavaScript / Go, with a sidecar
 `*.aicl-proof` file that cryptographically ties each generated line back to
 the spec.
+
+## AX sub-language
+
+AX (AICL-Action) is a **Turing-complete sub-language** for `Action:` sections.
+Instead of free-form English prose that the compiler can only skeleton, AX
+gives Behaviors a strict, compilable grammar: `if`/`elif`/`else`, `while`,
+`for`, recursion via calls, arithmetic, comparisons, list literals, indexing,
+method calls, and tuple swaps. The compiler translates any valid AX program
+to **executable code in all four targets** — no stubs, no `pass`-empty bodies.
+
+```aicl
+Behavior Quicksort
+    Input: array, low, high
+    Output: pivot_index
+    Action:
+        pivot = array[high]
+        i = low - 1
+        for j in range(low, high):
+            if array[j] < pivot:
+                i = i + 1
+                array[i], array[j] = array[j], array[i]
+        array[i + 1], array[high] = array[high], array[i + 1]
+        return i + 1
+```
+
+This compiles to **real, runnable code** that sorts correctly — in Python,
+JavaScript (Node), Rust (rustc), and Go. The AX module lives in
+[`python/src/aicl/ax/`](./python/src/aicl/ax/) (lexer, parser, AST, four
+emitters, type inference). Grammar and design:
+[`docs/superpowers/specs/2026-06-18-aicl-turing-complete-design.md`](./docs/superpowers/specs/2026-06-18-aicl-turing-complete-design.md).
 
 ## Why
 
@@ -196,17 +227,30 @@ hits 100%. Patterns learned across runs are persisted to a pattern library
 and reused on subsequent invocations. See `python/src/aicl/autonomous.py` and
 `python/src/aicl/ai_generator.py`.
 
-## CogNet integration (planned)
+## CogNet integration
 
-AICL is designed as the cognitive representation layer for the
+AICL is the cognitive representation layer for the
 [CogNet](https://github.com/AFKmoney/CogNet) non-transformer language model.
-The integration is specced end-to-end in
-[`python/examples/showcase/cognet/`](./python/examples/showcase/cognet/)
-(six AICL programs) and the rollout plan is in
-[`python/docs/cognet_integration_plan.md`](./python/docs/cognet_integration_plan.md).
+CogNet is fine-tuned on a corpus of **AICL spec → generated code** pairs so
+it learns to write AICL/Python/Rust code from a specification.
 
-A placeholder `python/src/aicl/cognet/` subpackage is in place so the import
-path is stable when the bridge lands.
+**Corpus generator**: [`python/tools/corpus_generator.py`](./python/tools/corpus_generator.py)
+produces the training data — 30 algorithm templates (sorts, searches, math,
+string ops, primes, collatz, etc.) written in AX, each compiled to real code.
+Output: `corpus/aicl_corpus.raw` (Python, 258k chars) or
+`corpus/aicl_corpus_multitarget.raw` (Python + Rust, 305k chars).
+
+**Training**: see the [CogNet repo](https://github.com/AFKmoney/CogNet) for
+`cloud_train.py` (one-shot GPU training script) and `CLOUD_TRAINING.md`
+(GPU recommendations, timing, checkpoint usage).
+
+```bash
+# Generate the corpus
+python tools/corpus_generator.py --out corpus/aicl_corpus.raw --targets python
+
+# Fine-tune CogNet (on a GPU instance)
+python cloud_train.py --steps 5000
+```
 
 ## Web editor (optional)
 
