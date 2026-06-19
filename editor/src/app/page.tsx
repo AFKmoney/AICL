@@ -62,6 +62,14 @@ const AICL_KEYWORDS = [
   'Protect', 'Native', 'Import'
 ];
 
+// AX sub-language keywords (Turing-complete): if/elif/else, while, for, etc.
+const AX_KEYWORDS = [
+  'if', 'elif', 'else', 'while', 'for', 'in', 'range', 'return',
+  'break', 'continue', 'pass', 'and', 'or', 'not', 'true', 'false', 'none'
+];
+
+const AX_BUILTINS = ['len', 'abs', 'max', 'min', 'append', 'pop', 'extend'];
+
 const AICL_TYPES = [
   'string', 'integer', 'float', 'boolean', 'datetime',
   'list', 'dict', 'set', 'any', 'void', 'bytes'
@@ -84,11 +92,32 @@ function highlightAICL(code: string): string {
 function highlightLine(line: string): string {
   let result = escapeHtml(line);
 
-  // Keywords at start of line or after whitespace (word boundary)
+  // AICL keywords at start of line or after whitespace
   for (const kw of AICL_KEYWORDS) {
     const regex = new RegExp(`(^|\\s)(${kw})(?=[:\\s]|$)`, 'g');
     result = result.replace(regex, `$1<span class="aicl-keyword">${kw}</span>`);
   }
+
+  // AX keywords (control flow, boolean, etc.)
+  for (const kw of AX_KEYWORDS) {
+    const regex = new RegExp(`(^|\\s)(${kw})(?=\\s|\\(|:|$)`, 'gi');
+    result = result.replace(regex, `$1<span class="ax-keyword">${kw}</span>`);
+  }
+
+  // AX builtins (len, abs, append, etc.)
+  for (const bi of AX_BUILTINS) {
+    const regex = new RegExp(`(\\.)(${bi})(?=\\()`, 'g');
+    result = result.replace(regex, `$1<span class="ax-builtin">${bi}</span>`);
+    // also standalone function calls
+    const regex2 = new RegExp(`(^|\\s)(${bi})(?=\\()`, 'g');
+    result = result.replace(regex2, `$1<span class="ax-builtin">${bi}</span>`);
+  }
+
+  // Numbers
+  result = result.replace(/\b(\d+)\b/g, '<span class="ax-number">$1</span>');
+
+  // Strings (double or single quoted)
+  result = result.replace(/&quot;([^&]*?)&quot;/g, '<span class="ax-string">&quot;$1&quot;</span>');
 
   // Types
   for (const t of AICL_TYPES) {
@@ -128,12 +157,31 @@ Application works correctly
 // ============================================================
 export default function AICLEditor() {
   // --- State ---
-  const [files, setFiles] = useState<FileTab[]>([
-    { id: 'untitled-1', name: 'untitled-1.aicl', content: DEFAULT_FILE, modified: false }
-  ]);
-  const [activeFileId, setActiveFileId] = useState('untitled-1');
+  // Restore files from localStorage on mount (prevents data loss on refresh)
+  const [files, setFiles] = useState<FileTab[]>(() => {
+    try {
+      const saved = localStorage.getItem('aicl-files');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [{ id: 'untitled-1', name: 'untitled-1.aicl', content: DEFAULT_FILE, modified: false }];
+  });
+  const [activeFileId, setActiveFileId] = useState(() => {
+    try { return localStorage.getItem('aicl-active-file') || 'untitled-1'; }
+    catch { return 'untitled-1'; }
+  });
+
+  // Auto-save files to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('aicl-files', JSON.stringify(files));
+      localStorage.setItem('aicl-active-file', activeFileId);
+    } catch {}
+  }, [files, activeFileId]);
   const [output, setOutput] = useState<OutputEntry[]>([
-    { type: 'system', message: 'AICL Web Editor v5.0 — Cognitive Architecture Ready (SpecEvolver + Autonomous Loop)', timestamp: 0 }
+    { type: 'system', message: 'AICL Web Editor v2.1 — AX sub-language + 4 compile targets + Proof of Origin', timestamp: 0 }
   ]);
   const [replHistory, setReplHistory] = useState<OutputEntry[]>([
     { type: 'system', message: 'AICL Interactive Shell v5.0 — Type AICL statements or commands', timestamp: 0 }
@@ -1728,7 +1776,7 @@ export default function AICLEditor() {
                       {compiledCode ? (
                         <div>
                           <div className="flex items-center gap-2 mb-2">
-                            <Badge variant="outline" className="text-[10px] text-[#4ec9b0] border-[#4ec9b0]">main.py</Badge>
+                            <Badge variant="outline" className="text-[10px] text-[#4ec9b0] border-[#4ec9b0]">main.{targetLang === 'python' ? 'py' : targetLang === 'rust' ? 'rs' : targetLang === 'javascript' ? 'mjs' : targetLang === 'go' ? 'go' : 'py'}</Badge>
                             <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px] hover:bg-[#2d2d3d] transition-colors" onClick={() => { navigator.clipboard.writeText(compiledCode); toast({ title: 'Copied!', description: 'Compiled code copied to clipboard' }); }}>
                               <Copy className="h-3 w-3 mr-1" />Copy
                             </Button>

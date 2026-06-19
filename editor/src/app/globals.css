@@ -236,6 +236,21 @@
 .aicl-string {
   color: #f0a070;
 }
+
+/* AX sub-language tokens (Turing-complete actions) */
+.ax-keyword {
+  color: #c586c0;
+  font-weight: 600;
+}
+.ax-builtin {
+  color: #dcdcaa;
+}
+.ax-number {
+  color: #b5cea8;
+}
+.ax-string {
+  color: #ce9178;
+}
 .aicl-colon {
   color: #d4d4d4;
   font-weight: bold;
