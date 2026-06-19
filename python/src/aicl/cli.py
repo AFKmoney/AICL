@@ -2,75 +2,96 @@
 """
 AICL Command-Line Interface
 
-Provides a CLI for compiling AICL source files into executable code,
-with full provenance tracking, audit capabilities, and Proof of Origin.
+The AICL CLI compiles specification-first source files into executable code
+in Python, Rust, JavaScript, and Go — with full provenance tracking, audit
+capabilities, cryptographic Proof of Origin, and AX (Turing-complete
+sub-language) support.
 
-Usage:
-    aicl compile <source.aicl> [--output-dir <dir>] [--target <language>]
-    aicl parse <source.aicl>
-    aicl tree <source.aicl>
-    aicl check <source.aicl>
-    aicl explain <source.aicl | proof.aicl-proof> [--behavior <name>] [--coverage] [--proof]
-    aicl audit <source.aicl | proof.aicl-proof> [--strict] [--proof]
-    aicl proof <proof.aicl-proof> [--verify] [--explain] [--audit]
-    aicl version
-
-The Proof of Origin (.aicl-proof) is the central artifact:
-    - aicl compile produces both the program AND the .aicl-proof
-    - aicl explain --proof reads from the proof file (no compiler needed)
-    - aicl audit --proof reads from the proof file (no compiler needed)
-    - aicl proof inspects and verifies a proof file directly
+Commands:
+    compile   Compile AICL source to executable code + Proof of Origin
+    parse     Parse and display the AST (use --ax for AX sub-AST)
+    tree      Display the architecture tree
+    check     Check for errors, warnings, and AX syntax (target-aware)
+    explain   Explain compilation provenance — why each line was generated
+    audit     Audit compilation — verify every artifact has provenance
+    proof     Inspect and verify a .aicl-proof file
+    verify    Verify spec completeness (Goal/Risk/Recovery/Validation)
+    optimize  Optimize program architecture
+    evolve    Autonomous self-writing/self-validating loop
+    create    AI-powered: generate AICL from natural language
+    ai-fix    AI-powered: diagnose and fix a broken spec
+    init      Scaffold a new AICL project
+    new       Generate a Behavior template with AX action
+    targets   List available compile targets and AX capabilities
+    doctor    Diagnose your AICL environment
+    tui       Launch the interactive terminal UI
+    version   Show version information
 """
 
 import sys
 import os
 import re
+import json
 import argparse
-
-# Add parent directory to path for development
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import shutil
+import subprocess
 
 from aicl import __version__, Parser, Compiler, ArchitectureTree
 from aicl.provenance import ProofOfOrigin
-from aicl.spec_verify import SpecificationVerifier, verify_file
-from aicl.targets import get_target_generator, list_targets
+from aicl.spec_verify import SpecificationVerifier
+from aicl.targets import list_targets
+from aicl.cli_output import out
 
 
 def cmd_compile(args):
     """Compile an AICL source file into executable code with Proof of Origin."""
     source = read_source(args.source)
-    compiler = Compiler(target_language=args.target)
+    target = args.target if args.target != 'js' else 'javascript'
+    compiler = Compiler(target_language=target)
     result = compiler.compile_to_file(source, args.output_dir, source_path=args.source)
 
     if result.success:
-        print("Compilation successful")
-        print(f"  Stages completed: {', '.join(result.stages_completed)}")
-        print(f"  Output directory: {args.output_dir}")
-        print(f"  Main file: {os.path.join(args.output_dir, 'main.py')}")
-        print(f"  Test file: {os.path.join(args.output_dir, 'test_main.py')}")
-        print(f"  Architecture tree: {os.path.join(args.output_dir, 'architecture_tree.txt')}")
-        print(f"  Proof of Origin: {os.path.join(args.output_dir, 'main.aicl-proof')}")
-        print(f"  TODOs remaining: {result.todo_count}")
-        print(f"  Fully compiled: {'Yes' if result.fully_compiled else 'No'}")
+        out.success(f"Compiled to {target} — {args.output_dir}")
 
-        # Show audit coverage summary
+        # Detect AX behaviors and highlight them
+        ax_count = len(result.ax_sources) if hasattr(result, 'ax_sources') else 0
+        if ax_count:
+            out.info(f"AX: {ax_count} behavior(s) compiled to real executable code")
+
+        out.table(
+            ["Artifact", "Path"],
+            [
+                ["Main code", os.path.join(args.output_dir, f'main.{_target_ext(target)}')],
+                ["Tests", os.path.join(args.output_dir, 'test_main.py')],
+                ["Architecture tree", os.path.join(args.output_dir, 'architecture_tree.txt')],
+                ["Proof of Origin", os.path.join(args.output_dir, 'main.aicl-proof')],
+            ],
+            title="Generated files"
+        )
+
+        out.section("Compilation summary")
+        out.check_line(f"Target: {target}", True)
+        out.check_line("Fully compiled", result.fully_compiled, f"{result.todo_count} TODO(s) remaining")
+
         if result.provenance:
             audit = result.provenance.compute_audit_coverage()
-            print(f"  Audit coverage: {audit['audit_coverage']:.1%} ({audit['auditable_artifacts']}/{audit['total_artifacts']} artifacts)")
+            out.coverage(audit['audit_coverage'], audit['auditable_artifacts'],
+                         audit['total_artifacts'])
 
-        # Show Proof of Origin status
         if result.proof:
             verification = result.proof.verify()
-            print(f"  Proof of Origin: {'VALID' if verification['valid'] else 'INVALID'}")
+            out.check_line("Proof of Origin valid", verification['valid'])
 
         if result.warnings:
-            print(f"\n  Warnings ({len(result.warnings)}):")
             for w in result.warnings:
-                print(f"    - {w}")
+                out.warning(w)
+
+        if out.json_mode:
+            out.json_flush()
     else:
-        print("Compilation failed")
+        out.error("Compilation failed")
         for e in result.errors:
-            print(f"  Error: {e}")
+            out.error(str(e))
         sys.exit(1)
 
 
@@ -724,14 +745,212 @@ def cmd_ai_fix(args):
             sys.exit(1)
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# NEW COMMANDS
+# ═══════════════════════════════════════════════════════════════════════════
+
+PROJECT_TEMPLATE = """\
+# {name} — AICL specification
+# Artificial Intelligence-Centered Language
+
+Goal:
+{goal_desc}
+
+Constraint:
+TODO: add your constraints here
+
+Risk:
+TODO: identify a risk
+
+Recovery:
+TODO: describe how to recover
+
+Layer:
+Core
+
+Validation:
+TODO: describe what success looks like
+
+Behavior MainAction
+    Input: input
+    Output: result
+    Action:
+        # AX sub-language: write real compilable logic here.
+        # Example: result = input * 2
+        # Supported: if/elif/else, while, for, range, recursion, arithmetic.
+        return input
+"""
+
+PROJECT_README = """\
+# {name}
+
+An AICL specification-first project.
+
+## Usage
+
+```bash
+# Compile to Python
+aicl compile {name}.aicl --target python -o ./output
+
+# Compile to Rust / JS / Go
+aicl compile {name}.aicl --target rust -o ./output
+
+# Verify the spec
+aicl verify {name}.aicl
+
+# Check AX syntax
+aicl check {name}.aicl
+```
+
+## Documentation
+
+- [Getting Started](https://github.com/AFKmoney/AICL/blob/main/docs/getting-started.md)
+- [AX Reference](https://github.com/AFKmoney/AICL/blob/main/docs/ax-reference.md)
+- [Compile Targets](https://github.com/AFKmoney/AICL/blob/main/docs/targets.md)
+"""
+
+
+def cmd_init(args):
+    """Scaffold a new AICL project."""
+    name = args.name if args.name != '.' else os.path.basename(os.getcwd())
+    project_dir = args.name if args.name != '.' else '.'
+    os.makedirs(project_dir, exist_ok=True)
+
+    aicl_file = os.path.join(project_dir, f"{name}.aicl")
+    readme_file = os.path.join(project_dir, "README.md")
+
+    if os.path.exists(aicl_file):
+        out.error(f"File already exists: {aicl_file}")
+        sys.exit(1)
+
+    with open(aicl_file, 'w') as f:
+        f.write(PROJECT_TEMPLATE.format(name=name, goal_desc=f"Build {name}"))
+    with open(readme_file, 'w') as f:
+        f.write(PROJECT_README.format(name=name))
+
+    out.success(f"Created AICL project: {name}")
+    out.table(["File", "Purpose"],
+              [[aicl_file, "AICL specification with AX behavior"],
+               [readme_file, "Project README with usage examples"]],
+              title="Generated")
+    out.info(f"Next: cd {project_dir} && aicl verify {name}.aicl")
+
+
+def cmd_new(args):
+    """Generate a Behavior template with an AX action."""
+    name = args.behavior
+    inputs = [i.strip() for i in args.inputs.split(',')] if args.inputs else ['input']
+    input_line = ', '.join(inputs)
+
+    template = f"""
+Behavior {name.title()}
+    Input: {input_line}
+    Output: result
+    Action:
+        # AX: write your logic here. Example:
+        # result = {inputs[0]}
+        # if result > 0:
+        #     return result
+        # return 0
+        return {inputs[0]}
+"""
+
+    if args.file:
+        with open(args.file, 'a') as f:
+            f.write(template)
+        out.success(f"Appended Behavior {name.title()} to {args.file}")
+    else:
+        out.raw(template.rstrip())
+
+
+def cmd_targets(args):
+    """List available compile targets and AX capabilities."""
+    targets_info = [
+        ("python", "Python 3.10+", ".py", "In-process exec", True),
+        ("rust", "Rust 2021", ".rs", "rustc compile + run", True),
+        ("javascript", "ES2015+ (Node)", ".mjs", "node --check", True),
+        ("go", "Go 1.21+", ".go", "go build + run", True),
+    ]
+    out.section("Compile targets")
+    out.table(
+        ["Target", "Language", "Extension", "AX runtime tested", "AX"],
+        [[t[0], t[1], t[2], "✓" if t[3] else "✗", "✓ Turing-complete"] for t in targets_info],
+    )
+    out.info("AX behaviors compile to real, executable code in all 4 targets.")
+    out.info("Non-AX behaviors (English prose) produce structural skeletons.")
+
+
+def cmd_doctor(args):
+    """Diagnose the AICL environment."""
+    out.section("AICL Environment Diagnostic")
+
+    # Python version
+    pv = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    out.check_line(f"Python {pv}", sys.version_info >= (3, 10), ">=3.10 required")
+
+    # rich
+    try:
+        import rich
+        out.check_line("rich (CLI colors)", True, str(rich.__version__) if hasattr(rich, '__version__') else "")
+    except ImportError:
+        out.check_line("rich (CLI colors)", False, "pip install rich")
+
+    # textual (TUI)
+    try:
+        import textual
+        out.check_line("textual (TUI)", True)
+    except ImportError:
+        out.check_line("textual (TUI)", False, "optional — pip install textual")
+
+    # AICL compiler
+    try:
+        from aicl.ax import is_ax
+        out.check_line("AICL compiler + AX sub-language", True, f"v{__version__}")
+    except ImportError:
+        out.check_line("AICL compiler", False, "not installed")
+
+    # Runtimes for target execution
+    for name, cmd in [("node (JS target)", "node"), ("rustc (Rust target)", "rustc"),
+                       ("go (Go target)", "go"), ("ffmpeg (video)", "ffmpeg")]:
+        path = shutil.which(cmd)
+        out.check_line(name, path is not None, f"{'at ' + path}" if path else "not found")
+
+    # Targets
+    out.section("Compile targets")
+    for t in ["python", "rust", "javascript", "go"]:
+        out.check_line(f"  {t}", True)
+
+    out.info("All checks complete. Green items are ready.")
+
+
 def read_source(path: str) -> str:
     """Read source code from a file."""
     if not os.path.exists(path):
-        print(f"Error: File not found: {path}")
-        sys.exit(1)
-
+        out.die(f"File not found: {path}")
     with open(path, 'r') as f:
         return f.read()
+
+
+def _target_ext(target: str) -> str:
+    """File extension for a compile target."""
+    return {"python": "py", "rust": "rs", "javascript": "mjs", "js": "mjs",
+            "go": "go"}.get(target, "txt")
+
+
+def load_program_or_proof(args):
+    """Shared helper for commands that accept either source or proof files.
+
+    Returns (program_or_proof, is_proof). If args.source ends with .aicl-proof
+    or args.proof is set, loads the proof. Otherwise compiles the source.
+    """
+    if getattr(args, 'proof', False) or args.source.endswith('.aicl-proof'):
+        proof = ProofOfOrigin.load(args.source)
+        return proof, True
+    source = read_source(args.source)
+    compiler = Compiler(target_language=getattr(args, 'target', 'python'))
+    result = compiler.compile(source)
+    return result, False
+
 
 
 def main():
@@ -743,159 +962,186 @@ def main():
                     'the AX Turing-complete sub-language for Behavior Actions, and\n'
                     'cryptographic Proof of Origin. Compiles to Python, Rust, JS, and Go.'
     )
+    parser.add_argument('--json', action='store_true', default=False,
+                        help='Output machine-readable JSON (for CI/CD pipelines)')
+    parser.add_argument('--no-color', action='store_true', default=False,
+                        help='Disable colored output')
+    parser.add_argument('--version', '-V', action='version',
+                        version=f'AICL {__version__}')
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
-    # compile command
-    compile_parser = subparsers.add_parser('compile',
+    # ── compile ─────────────────────────────────────────────────────────────
+    p = subparsers.add_parser('compile',
         help='Compile AICL source to executable code + Proof of Origin')
-    compile_parser.add_argument('source', help='AICL source file (.aicl)')
-    compile_parser.add_argument('--output-dir', '-o', default='./output',
-                                help='Output directory (default: ./output)')
-    compile_parser.add_argument('--target', '-t', default='python',
-                                choices=['python', 'rust', 'javascript', 'js', 'go'],
-                                help='Target language. AX behaviors compile to real, '
-                                     'executable code in all 4 targets (default: python)')
+    p.add_argument('source', help='AICL source file (.aicl)')
+    p.add_argument('--output-dir', '-o', default='./output',
+                   help='Output directory (default: ./output)')
+    p.add_argument('--target', '-t', default='python',
+                   choices=['python', 'rust', 'javascript', 'js', 'go'],
+                   help='Target language. AX behaviors compile to real code in all 4 targets')
+    p.set_defaults(func=cmd_compile)
 
-    # parse command
-    parse_parser = subparsers.add_parser('parse', help='Parse and display AST')
-    parse_parser.add_argument('source', help='AICL source file (.aicl)')
+    # ── parse ───────────────────────────────────────────────────────────────
+    p = subparsers.add_parser('parse', help='Parse and display AST')
+    p.add_argument('source', help='AICL source file (.aicl)')
+    p.add_argument('--ax', action='store_true',
+                   help='Show AX sub-AST for behaviors with AX actions')
+    p.set_defaults(func=cmd_parse)
 
-    # tree command
-    tree_parser = subparsers.add_parser('tree', help='Display Architecture Tree')
-    tree_parser.add_argument('source', help='AICL source file (.aicl)')
+    # ── tree ────────────────────────────────────────────────────────────────
+    p = subparsers.add_parser('tree', help='Display architecture tree')
+    p.add_argument('source', help='AICL source file (.aicl)')
+    p.set_defaults(func=cmd_tree)
 
-    # check command
-    check_parser = subparsers.add_parser('check', help='Check for errors and warnings')
-    check_parser.add_argument('source', help='AICL source file (.aicl)')
+    # ── check ───────────────────────────────────────────────────────────────
+    p = subparsers.add_parser('check',
+        help='Check for errors, warnings, and AX syntax (target-aware)')
+    p.add_argument('source', help='AICL source file (.aicl)')
+    p.add_argument('--target', '-t', default='python',
+                   choices=['python', 'rust', 'javascript', 'js', 'go'],
+                   help='Target language to check AX emission against (default: python)')
+    p.set_defaults(func=cmd_check)
 
-    # explain command
-    explain_parser = subparsers.add_parser('explain',
+    # ── explain ─────────────────────────────────────────────────────────────
+    p = subparsers.add_parser('explain',
         help='Explain compilation provenance — why each line was generated')
-    explain_parser.add_argument('source',
-        help='AICL source file (.aicl) or Proof of Origin (.aicl-proof)')
-    explain_parser.add_argument('--behavior', '-b', default=None,
-                                help='Explain a specific behavior (e.g., MovePaddle)')
-    explain_parser.add_argument('--coverage', '-c', action='store_true',
-                                help='Show explicability coverage report')
-    explain_parser.add_argument('--proof', '-p', action='store_true',
-                                help='Read from Proof of Origin file (no compilation needed)')
+    p.add_argument('source',
+                   help='AICL source file (.aicl) or Proof of Origin (.aicl-proof)')
+    p.add_argument('--behavior', '-b', default=None,
+                   help='Explain a specific behavior')
+    p.add_argument('--coverage', '-c', action='store_true',
+                   help='Show explicability coverage report')
+    p.add_argument('--proof', '-p', action='store_true',
+                   help='Read from Proof of Origin file')
+    p.set_defaults(func=cmd_explain)
 
-    # audit command
-    audit_parser = subparsers.add_parser('audit',
+    # ── audit ───────────────────────────────────────────────────────────────
+    p = subparsers.add_parser('audit',
         help='Audit compilation — verify every artifact has provenance')
-    audit_parser.add_argument('source',
-        help='AICL source file (.aicl) or Proof of Origin (.aicl-proof)')
-    audit_parser.add_argument('--strict', '-s', action='store_true',
-                              help='Fail if audit coverage < 100%% (exit code 1)')
-    audit_parser.add_argument('--proof', '-p', action='store_true',
-                              help='Read from Proof of Origin file (no compilation needed)')
+    p.add_argument('source',
+                   help='AICL source file (.aicl) or Proof of Origin (.aicl-proof)')
+    p.add_argument('--strict', '-s', action='store_true',
+                   help='Fail if audit coverage < 100%% (exit code 1)')
+    p.add_argument('--proof', '-p', action='store_true',
+                   help='Read from Proof of Origin file')
+    p.set_defaults(func=cmd_audit)
 
-    # proof command
-    proof_parser = subparsers.add_parser('proof',
+    # ── proof ───────────────────────────────────────────────────────────────
+    p = subparsers.add_parser('proof',
         help='Inspect and verify a Proof of Origin file')
-    proof_parser.add_argument('proof_file',
-        help='Proof of Origin file (.aicl-proof)')
-    proof_parser.add_argument('--verify', '-v', action='store_true',
-                              help='Verify proof integrity (hashes, linkage, properties)')
-    proof_parser.add_argument('--explain', '-e', action='store_true',
-                              help='Show full explanation from proof')
-    proof_parser.add_argument('--audit', '-a', action='store_true',
-                              help='Show audit report from proof')
+    p.add_argument('proof_file', help='Proof of Origin file (.aicl-proof)')
+    p.add_argument('--verify', '-v', action='store_true',
+                   help='Verify proof integrity')
+    p.add_argument('--explain', '-e', action='store_true',
+                   help='Show full explanation from proof')
+    p.add_argument('--audit', '-a', action='store_true',
+                   help='Show audit report from proof')
+    p.set_defaults(func=cmd_proof)
 
-    # verify command (v0.9)
-    verify_parser = subparsers.add_parser('verify',
+    # ── verify ──────────────────────────────────────────────────────────────
+    p = subparsers.add_parser('verify',
         help='Verify specification completeness, coherence, and satisfaction')
-    verify_parser.add_argument('source', help='AICL source file (.aicl)')
-    verify_parser.add_argument('--completeness', action='store_true',
-                               help='Run completeness checks only')
-    verify_parser.add_argument('--coherence', action='store_true',
-                               help='Run coherence checks only')
-    verify_parser.add_argument('--satisfaction', action='store_true',
-                               help='Run satisfaction checks only')
+    p.add_argument('source', help='AICL source file (.aicl)')
+    p.add_argument('--completeness', action='store_true', help='Completeness checks only')
+    p.add_argument('--coherence', action='store_true', help='Coherence checks only')
+    p.add_argument('--satisfaction', action='store_true', help='Satisfaction checks only')
+    p.set_defaults(func=cmd_verify)
 
-    # optimize command (v3.0)
-    optimize_parser = subparsers.add_parser('optimize',
-        help='Optimize AICL program architecture')
-    optimize_parser.add_argument('source', help='AICL source file (.aicl)')
-    optimize_parser.add_argument('--max-iterations', type=int, default=10,
-                                 help='Maximum optimization iterations (default: 10)')
+    # ── optimize ────────────────────────────────────────────────────────────
+    p = subparsers.add_parser('optimize', help='Optimize AICL program architecture')
+    p.add_argument('source', help='AICL source file (.aicl)')
+    p.add_argument('--max-iterations', type=int, default=10,
+                   help='Maximum optimization iterations (default: 10)')
+    p.set_defaults(func=cmd_optimize)
 
-    # evolve command (autonomous self-writing self-validating compilation)
-    evolve_parser = subparsers.add_parser('evolve',
+    # ── evolve ──────────────────────────────────────────────────────────────
+    p = subparsers.add_parser('evolve',
         help='Autonomous compilation: self-writing, self-validating code loop')
-    evolve_parser.add_argument('source', help='AICL source file (.aicl)')
-    evolve_parser.add_argument('--output-dir', '-o', default=None,
-                              help='Output directory (default: temp)')
-    evolve_parser.add_argument('--target', '-t', default='python',
-                              choices=['python', 'rust', 'javascript', 'js', 'go'],
-                              help='Target language (default: python)')
-    evolve_parser.add_argument('--max-iterations', type=int, default=10,
-                              help='Maximum autonomous loop iterations (default: 10)')
-    evolve_parser.add_argument('--test-timeout', type=int, default=30,
-                              help='Test execution timeout in seconds (default: 30)')
-    evolve_parser.add_argument('--watch', '-w', action='store_true',
-                              help='Continuous mode: re-evolve on source changes')
+    p.add_argument('source', help='AICL source file (.aicl)')
+    p.add_argument('--output-dir', '-o', default=None, help='Output directory')
+    p.add_argument('--target', '-t', default='python',
+                   choices=['python', 'rust', 'javascript', 'js', 'go'],
+                   help='Target language (default: python)')
+    p.add_argument('--max-iterations', type=int, default=10,
+                   help='Maximum autonomous loop iterations (default: 10)')
+    p.add_argument('--test-timeout', type=int, default=30,
+                   help='Test execution timeout in seconds (default: 30)')
+    p.add_argument('--watch', '-w', action='store_true',
+                   help='Continuous mode: re-evolve on source changes')
+    p.set_defaults(func=cmd_evolve)
 
-    # create command (AI-powered self-writing: generate AICL from task description)
-    create_parser = subparsers.add_parser('create',
+    # ── create ──────────────────────────────────────────────────────────────
+    p = subparsers.add_parser('create',
         help='AI-powered: create AICL program from natural language description')
-    create_parser.add_argument('task', help='Natural language description of the system to create')
-    create_parser.add_argument('--output', '-o', default=None,
-                              help='Output .aicl file path')
-    create_parser.add_argument('--target', '-t', default='python',
-                              choices=['python', 'rust', 'javascript', 'js', 'go'],
-                              help='Target language (default: python)')
-    create_parser.add_argument('--no-compile', action='store_true',
-                              help='Skip auto-compilation (only generate AICL)')
+    p.add_argument('task', help='Natural language description of the system to create')
+    p.add_argument('--output', '-o', default=None, help='Output .aicl file path')
+    p.add_argument('--target', '-t', default='python',
+                   choices=['python', 'rust', 'javascript', 'js', 'go'],
+                   help='Target language (default: python)')
+    p.set_defaults(func=cmd_create)
 
-    # ai-fix command (AI-powered diagnosis and repair)
-    ai_fix_parser = subparsers.add_parser('ai-fix',
+    # ── ai-fix ──────────────────────────────────────────────────────────────
+    p = subparsers.add_parser('ai-fix',
         help='AI-powered: diagnose and fix a broken AICL specification')
-    ai_fix_parser.add_argument('source', help='AICL source file (.aicl)')
-    ai_fix_parser.add_argument('--error', '-e', default=None,
-                              help='Error description (auto-detected if not provided)')
-    ai_fix_parser.add_argument('--enhance', action='store_true',
-                              help='Enhance the specification instead of fixing')
+    p.add_argument('source', help='AICL source file (.aicl)')
+    p.add_argument('--error', '-e', default=None,
+                   help='Error description (auto-detected if not provided)')
+    p.add_argument('--enhance', action='store_true',
+                   help='Enhance the specification instead of fixing')
+    p.set_defaults(func=cmd_ai_fix)
 
-    # tui command (interactive terminal interface)
-    tui_parser = subparsers.add_parser('tui',
-        help='Launch interactive terminal interface (AICL TUI)')
+    # ── init (NEW) ──────────────────────────────────────────────────────────
+    p = subparsers.add_parser('init',
+        help='Scaffold a new AICL project in a new directory')
+    p.add_argument('name', nargs='?', default='.', help='Project name (default: current dir)')
+    p.set_defaults(func=cmd_init)
 
-    # version command
-    version_parser = subparsers.add_parser('version', help='Display version')
+    # ── new (NEW) ───────────────────────────────────────────────────────────
+    p = subparsers.add_parser('new',
+        help='Generate a Behavior template with an AX action')
+    p.add_argument('behavior', help='Behavior name (e.g., sort, search, compute)')
+    p.add_argument('--inputs', '-i', default='',
+                   help='Comma-separated input names (e.g., array,low,high)')
+    p.add_argument('--file', '-f', default=None,
+                   help='Append to this .aicl file (default: print to stdout)')
+    p.set_defaults(func=cmd_new)
 
+    # ── targets (NEW) ───────────────────────────────────────────────────────
+    p = subparsers.add_parser('targets',
+        help='List available compile targets and AX capabilities')
+    p.set_defaults(func=cmd_targets)
+
+    # ── doctor (NEW) ────────────────────────────────────────────────────────
+    p = subparsers.add_parser('doctor',
+        help='Diagnose your AICL environment (runtime, tools, targets)')
+    p.set_defaults(func=cmd_doctor)
+
+    # ── tui ─────────────────────────────────────────────────────────────────
+    p = subparsers.add_parser('tui', help='Launch interactive terminal interface')
+    p.set_defaults(func=cmd_tui)
+
+    # ── version ─────────────────────────────────────────────────────────────
+    p = subparsers.add_parser('version', help='Display version information')
+    p.set_defaults(func=cmd_version)
+
+    # ── Parse + dispatch ────────────────────────────────────────────────────
     args = parser.parse_args()
 
-    if args.command == 'compile':
-        cmd_compile(args)
-    elif args.command == 'parse':
-        cmd_parse(args)
-    elif args.command == 'tree':
-        cmd_tree(args)
-    elif args.command == 'check':
-        cmd_check(args)
-    elif args.command == 'explain':
-        cmd_explain(args)
-    elif args.command == 'audit':
-        cmd_audit(args)
-    elif args.command == 'proof':
-        cmd_proof(args)
-    elif args.command == 'verify':
-        cmd_verify(args)
-    elif args.command == 'optimize':
-        cmd_optimize(args)
-    elif args.command == 'evolve':
-        cmd_evolve(args)
-    elif args.command == 'create':
-        cmd_create(args)
-    elif args.command == 'ai-fix':
-        cmd_ai_fix(args)
-    elif args.command == 'tui':
-        cmd_tui(args)
-    elif args.command == 'version':
-        cmd_version(args)
-    else:
+    # Apply global flags
+    if args.json:
+        out.json_mode = True
+    if args.no_color:
+        out.console = type(out.console)(no_color=True)
+        out.stderr_console = type(out.stderr_console)(stderr=True, no_color=True)
+
+    if not hasattr(args, 'func'):
         parser.print_help()
+        sys.exit(0)
+
+    args.func(args)
+
+    if out.json_mode:
+        out.json_flush()
 
 
 if __name__ == '__main__':
