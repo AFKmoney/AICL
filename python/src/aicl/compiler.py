@@ -85,6 +85,10 @@ class CompilationResult:
     proof: Any = None  # ProofOfOrigin (first-class artifact)
     project_files: Dict[str, str] = field(default_factory=dict)  # Extra files (Cargo.toml, go.mod, etc.)
     build_instructions: str = ""  # How to build the generated code
+    # AX source per behavior name, populated when the behavior's Action: is
+    # written in the AX sub-language. Target generators (JS/Rust/Go) re-emit
+    # this in their language so AX algorithms survive the Python→target pass.
+    ax_sources: Dict[str, str] = field(default_factory=dict)
 
 
 class CompilerError(Exception):
@@ -117,7 +121,7 @@ class Compiler:
         self.errors: List[str] = []
         self.stages_completed: List[str] = []
         self._used_names: Set[str] = set()
-        self._behavior_compiler = BehaviorCompiler()
+        self._behavior_compiler = BehaviorCompiler(target_language=self.target_language)
         self._todo_count = 0
         self._provenance = CompilationProvenance()
 
@@ -201,6 +205,9 @@ class Compiler:
         # ---- Multi-language target code generation ----
         # If target is not python, use the target-specific generator
         # to produce idiomatic code in the requested language.
+        # Hand the AX sources over so the generator can re-emit any AX-written
+        # behaviors in its language (otherwise they'd be lost as Python fragments).
+        result.ax_sources = dict(self._behavior_compiler.ax_sources)
         if self.target_language.lower() != "python":
             try:
                 from .targets import get_target_generator
@@ -1019,8 +1026,15 @@ class Compiler:
                 entity_context["entity"] = inp.param_type.lower()
 
         action_code, fully_compiled = self._behavior_compiler.compile_action(
-            behavior.action, context=entity_context
+            behavior.action, context=entity_context, behavior_name=behavior.name
         )
+        # If this behavior is AX, also record its input parameter names so the
+        # target generators can build a correct method signature.
+        if behavior.name in self._behavior_compiler.ax_sources:
+            self._behavior_compiler.ax_sources[behavior.name] = (
+                self._behavior_compiler.ax_sources[behavior.name],  # source
+                [inp.name for inp in behavior.inputs],               # param names
+            )
 
         if not fully_compiled:
             self._todo_count += 1
