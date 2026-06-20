@@ -1,0 +1,18 @@
+# AICL Example: Count Consonants
+# AX sub-language — compiles to real code.
+
+Goal:
+Non-vowel letters
+
+Layer:
+Core
+
+Behavior Count
+    Input: text
+    Output: count
+    Action:
+        count = 0
+        for ch in text:
+            if ch != "a" and ch != "e" and ch != "i" and ch != "o" and ch != "u":
+                count = count + 1
+        return count

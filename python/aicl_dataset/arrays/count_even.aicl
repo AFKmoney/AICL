@@ -1,0 +1,18 @@
+# AICL Example: Count Even
+# AX sub-language — compiles to real code.
+
+Goal:
+Even count
+
+Layer:
+Core
+
+Behavior Count
+    Input: array
+    Output: count
+    Action:
+        count = 0
+        for i in range(0, len(array)):
+            if array[i] % 2 == 0:
+                count = count + 1
+        return count

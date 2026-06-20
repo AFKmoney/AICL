@@ -1,0 +1,14 @@
+# AICL Example: Dice Roll
+# AX sub-language — compiles to real code.
+
+Goal:
+Seeded
+
+Layer:
+Core
+
+Behavior Roll
+    Input: seed
+    Output: value
+    Action:
+        return (seed % 6) + 1

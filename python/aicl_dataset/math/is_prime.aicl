@@ -1,0 +1,21 @@
+# AICL Example: Prime Check
+# AX sub-language — compiles to real code.
+
+Goal:
+Is prime
+
+Layer:
+Core
+
+Behavior Check
+    Input: n
+    Output: result
+    Action:
+        if n < 2:
+            return false
+        i = 2
+        while i * i <= n:
+            if n % i == 0:
+                return false
+            i = i + 1
+        return true

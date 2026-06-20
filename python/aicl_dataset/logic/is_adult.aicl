@@ -1,0 +1,16 @@
+# AICL Example: Is Adult
+# AX sub-language — compiles to real code.
+
+Goal:
+age >= 18
+
+Layer:
+Core
+
+Behavior Check
+    Input: age
+    Output: result
+    Action:
+        if age >= 18:
+            return true
+        return false

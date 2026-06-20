@@ -1,0 +1,18 @@
+# AICL Example: Validate Minute
+# AX sub-language — compiles to real code.
+
+Goal:
+0-59
+
+Layer:
+Core
+
+Behavior Validate
+    Input: minute
+    Output: result
+    Action:
+        if minute < 0:
+            return false
+        if minute > 59:
+            return false
+        return true

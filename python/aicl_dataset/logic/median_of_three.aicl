@@ -1,0 +1,25 @@
+# AICL Example: Median of Three
+# AX sub-language — compiles to real code.
+
+Goal:
+Median
+
+Layer:
+Core
+
+Behavior Median
+    Input: a, b, c
+    Output: result
+    Action:
+        if a > b:
+            if a < c:
+                return a
+            elif b > c:
+                return b
+            return c
+        else:
+            if a > c:
+                return a
+            elif b < c:
+                return b
+            return c

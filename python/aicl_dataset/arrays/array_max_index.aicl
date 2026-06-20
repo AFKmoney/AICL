@@ -1,0 +1,18 @@
+# AICL Example: Max Index
+# AX sub-language — compiles to real code.
+
+Goal:
+Index of max
+
+Layer:
+Core
+
+Behavior FindMaxIdx
+    Input: array
+    Output: index
+    Action:
+        index = 0
+        for i in range(1, len(array)):
+            if array[i] > array[index]:
+                index = i
+        return index

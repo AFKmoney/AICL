@@ -1,0 +1,17 @@
+# AICL Example: Array Product
+# AX sub-language — compiles to real code.
+
+Goal:
+Product of elements
+
+Layer:
+Core
+
+Behavior Product
+    Input: array
+    Output: product
+    Action:
+        product = 1
+        for i in range(0, len(array)):
+            product = product * array[i]
+        return product

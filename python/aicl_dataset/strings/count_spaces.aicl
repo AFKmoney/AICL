@@ -1,0 +1,18 @@
+# AICL Example: Count Spaces
+# AX sub-language — compiles to real code.
+
+Goal:
+Space count
+
+Layer:
+Core
+
+Behavior Count
+    Input: text
+    Output: count
+    Action:
+        count = 0
+        for ch in text:
+            if ch == " ":
+                count = count + 1
+        return count

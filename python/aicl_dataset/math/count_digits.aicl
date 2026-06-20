@@ -1,0 +1,20 @@
+# AICL Example: Count Digits
+# AX sub-language — compiles to real code.
+
+Goal:
+Number of digits
+
+Layer:
+Core
+
+Behavior Count
+    Input: n
+    Output: count
+    Action:
+        if n == 0:
+            return 1
+        count = 0
+        while n > 0:
+            count = count + 1
+            n = n // 10
+        return count

@@ -1,0 +1,18 @@
+# AICL Example: Is Weekend
+# AX sub-language — compiles to real code.
+
+Goal:
+Day 6 or 7
+
+Layer:
+Core
+
+Behavior Check
+    Input: day
+    Output: result
+    Action:
+        if day == 6:
+            return true
+        if day == 7:
+            return true
+        return false

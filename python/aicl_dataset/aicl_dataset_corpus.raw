@@ -1,0 +1,3169 @@
+### AICL DATASET: sorting/bubble_sort.aicl
+=== SPEC ===
+# AICL Example: Bubble Sort
+# AX sub-language — compiles to real code.
+
+Goal:
+Sort an array using bubble sort
+
+Risk:
+Empty array
+Recovery:
+Return empty array
+
+Layer:
+Core
+
+Behavior Sort
+    Input: array
+    Output: array
+    Action:
+        n = len(array)
+        for i in range(0, n):
+            for j in range(0, n - i - 1):
+                if array[j] > array[j + 1]:
+                    array[j], array[j + 1] = array[j + 1], array[j]
+        return array
+
+### AICL DATASET: sorting/insertion_sort.aicl
+=== SPEC ===
+# AICL Example: Insertion Sort
+# AX sub-language — compiles to real code.
+
+Goal:
+Sort using insertion sort
+
+Layer:
+Core
+
+Behavior Sort
+    Input: array
+    Output: array
+    Action:
+        for i in range(1, len(array)):
+            key = array[i]
+            j = i - 1
+            while j >= 0 and array[j] > key:
+                array[j + 1] = array[j]
+                j = j - 1
+            array[j + 1] = key
+        return array
+
+### AICL DATASET: sorting/selection_sort.aicl
+=== SPEC ===
+# AICL Example: Selection Sort
+# AX sub-language — compiles to real code.
+
+Goal:
+Sort using selection sort
+
+Layer:
+Core
+
+Behavior Sort
+    Input: array
+    Output: array
+    Action:
+        n = len(array)
+        for i in range(0, n):
+            min_idx = i
+            for j in range(i + 1, n):
+                if array[j] < array[min_idx]:
+                    min_idx = j
+            array[i], array[min_idx] = array[min_idx], array[i]
+        return array
+
+### AICL DATASET: sorting/quicksort_partition.aicl
+=== SPEC ===
+# AICL Example: Quicksort Partition
+# AX sub-language — compiles to real code.
+
+Goal:
+Lomuto partition
+
+Layer:
+Core
+
+Behavior Partition
+    Input: array, low, high
+    Output: pivot_index
+    Action:
+        pivot = array[high]
+        i = low - 1
+        for j in range(low, high):
+            if array[j] < pivot:
+                i = i + 1
+                array[i], array[j] = array[j], array[i]
+        array[i + 1], array[high] = array[high], array[i + 1]
+        return i + 1
+
+### AICL DATASET: sorting/merge_arrays.aicl
+=== SPEC ===
+# AICL Example: Merge Sorted Arrays
+# AX sub-language — compiles to real code.
+
+Goal:
+Merge two sorted arrays
+
+Layer:
+Core
+
+Behavior Merge
+    Input: a, b
+    Output: result
+    Action:
+        result = []
+        i = 0
+        j = 0
+        while i < len(a) and j < len(b):
+            if a[i] <= b[j]:
+                result.append(a[i])
+                i = i + 1
+            else:
+                result.append(b[j])
+                j = j + 1
+        while i < len(a):
+            result.append(a[i])
+            i = i + 1
+        while j < len(b):
+            result.append(b[j])
+            j = j + 1
+        return result
+
+### AICL DATASET: sorting/counting_sort.aicl
+=== SPEC ===
+# AICL Example: Counting Sort
+# AX sub-language — compiles to real code.
+
+Goal:
+Sort with counting
+
+Layer:
+Core
+
+Behavior Sort
+    Input: array, max_val
+    Output: result
+    Action:
+        count = []
+        for i in range(0, max_val + 1):
+            count.append(0)
+        for i in range(0, len(array)):
+            count[array[i]] = count[array[i]] + 1
+        result = []
+        for i in range(0, max_val + 1):
+            for j in range(0, count[i]):
+                result.append(i)
+        return result
+
+### AICL DATASET: searching/linear_search.aicl
+=== SPEC ===
+# AICL Example: Linear Search
+# AX sub-language — compiles to real code.
+
+Goal:
+Find target
+
+Risk:
+Not found
+Recovery:
+Return -1
+
+Layer:
+Core
+
+Behavior Search
+    Input: array, target
+    Output: index
+    Action:
+        i = 0
+        while i < len(array):
+            if array[i] == target:
+                return i
+            i = i + 1
+        return -1
+
+### AICL DATASET: searching/binary_search.aicl
+=== SPEC ===
+# AICL Example: Binary Search
+# AX sub-language — compiles to real code.
+
+Goal:
+Search sorted array
+
+Constraint:
+Array must be sorted
+
+Layer:
+Core
+
+Behavior Search
+    Input: array, target
+    Output: index
+    Action:
+        low = 0
+        high = len(array) - 1
+        while low <= high:
+            mid = (low + high) // 2
+            if array[mid] == target:
+                return mid
+            elif array[mid] < target:
+                low = mid + 1
+            else:
+                high = mid - 1
+        return -1
+
+### AICL DATASET: searching/find_max.aicl
+=== SPEC ===
+# AICL Example: Find Maximum
+# AX sub-language — compiles to real code.
+
+Goal:
+Max value
+
+Layer:
+Core
+
+Behavior FindMax
+    Input: array
+    Output: maximum
+    Action:
+        maximum = array[0]
+        for i in range(1, len(array)):
+            if array[i] > maximum:
+                maximum = array[i]
+        return maximum
+
+### AICL DATASET: searching/find_min.aicl
+=== SPEC ===
+# AICL Example: Find Minimum
+# AX sub-language — compiles to real code.
+
+Goal:
+Min value
+
+Layer:
+Core
+
+Behavior FindMin
+    Input: array
+    Output: minimum
+    Action:
+        minimum = array[0]
+        for i in range(1, len(array)):
+            if array[i] < minimum:
+                minimum = array[i]
+        return minimum
+
+### AICL DATASET: searching/find_second_largest.aicl
+=== SPEC ===
+# AICL Example: Second Largest
+# AX sub-language — compiles to real code.
+
+Goal:
+2nd largest
+
+Layer:
+Core
+
+Behavior FindSecond
+    Input: array
+    Output: second
+    Action:
+        largest = array[0]
+        second = array[0]
+        for i in range(1, len(array)):
+            if array[i] > largest:
+                second = largest
+                largest = array[i]
+            elif array[i] > second:
+                second = array[i]
+        return second
+
+### AICL DATASET: math/factorial_iterative.aicl
+=== SPEC ===
+# AICL Example: Factorial Iterative
+# AX sub-language — compiles to real code.
+
+Goal:
+Compute factorial
+
+Layer:
+Core
+
+Behavior Compute
+    Input: n
+    Output: result
+    Action:
+        result = 1
+        for i in range(1, n + 1):
+            result = result * i
+        return result
+
+### AICL DATASET: math/factorial_recursive.aicl
+=== SPEC ===
+# AICL Example: Factorial Recursive
+# AX sub-language — compiles to real code.
+
+Goal:
+Recursive
+
+Layer:
+Core
+
+Behavior Compute
+    Input: n
+    Output: result
+    Action:
+        if n <= 1:
+            return 1
+        return n * compute(n - 1)
+
+### AICL DATASET: math/fibonacci_iterative.aicl
+=== SPEC ===
+# AICL Example: Fibonacci Iterative
+# AX sub-language — compiles to real code.
+
+Goal:
+nth Fibonacci
+
+Layer:
+Core
+
+Behavior Compute
+    Input: n
+    Output: result
+    Action:
+        if n <= 1:
+            return n
+        prev = 0
+        curr = 1
+        for i in range(2, n):
+            next = prev + curr
+            prev = curr
+            curr = next
+        return curr
+
+### AICL DATASET: math/gcd_euclid.aicl
+=== SPEC ===
+# AICL Example: GCD Euclid
+# AX sub-language — compiles to real code.
+
+Goal:
+GCD
+
+Layer:
+Core
+
+Behavior Compute
+    Input: a, b
+    Output: result
+    Action:
+        while b != 0:
+            temp = b
+            b = a % b
+            a = temp
+        return a
+
+### AICL DATASET: math/is_prime.aicl
+=== SPEC ===
+# AICL Example: Prime Check
+# AX sub-language — compiles to real code.
+
+Goal:
+Is prime
+
+Layer:
+Core
+
+Behavior Check
+    Input: n
+    Output: result
+    Action:
+        if n < 2:
+            return false
+        i = 2
+        while i * i <= n:
+            if n % i == 0:
+                return false
+            i = i + 1
+        return true
+
+### AICL DATASET: math/power_iterative.aicl
+=== SPEC ===
+# AICL Example: Power Iterative
+# AX sub-language — compiles to real code.
+
+Goal:
+base^exp
+
+Layer:
+Core
+
+Behavior Compute
+    Input: base, exponent
+    Output: result
+    Action:
+        result = 1
+        while exponent > 0:
+            result = result * base
+            exponent = exponent - 1
+        return result
+
+### AICL DATASET: math/digit_sum.aicl
+=== SPEC ===
+# AICL Example: Digit Sum
+# AX sub-language — compiles to real code.
+
+Goal:
+Sum digits
+
+Layer:
+Core
+
+Behavior Compute
+    Input: n
+    Output: total
+    Action:
+        total = 0
+        while n > 0:
+            total = total + (n % 10)
+            n = n // 10
+        return total
+
+### AICL DATASET: math/collatz_steps.aicl
+=== SPEC ===
+# AICL Example: Collatz Steps
+# AX sub-language — compiles to real code.
+
+Goal:
+Steps to 1
+
+Layer:
+Core
+
+Behavior Steps
+    Input: n
+    Output: count
+    Action:
+        count = 0
+        while n != 1:
+            if n % 2 == 0:
+                n = n // 2
+            else:
+                n = 3 * n + 1
+            count = count + 1
+        return count
+
+### AICL DATASET: math/is_power_of_two.aicl
+=== SPEC ===
+# AICL Example: Power of Two
+# AX sub-language — compiles to real code.
+
+Goal:
+Is 2^k
+
+Layer:
+Core
+
+Behavior Check
+    Input: n
+    Output: result
+    Action:
+        if n <= 0:
+            return false
+        while n % 2 == 0:
+            n = n // 2
+        return n == 1
+
+### AICL DATASET: math/sum_range.aicl
+=== SPEC ===
+# AICL Example: Sum Range
+# AX sub-language — compiles to real code.
+
+Goal:
+0+1+...+(n-1)
+
+Layer:
+Core
+
+Behavior Sum
+    Input: n
+    Output: total
+    Action:
+        total = 0
+        for i in range(0, n):
+            total = total + i
+        return total
+
+### AICL DATASET: math/multiply_table.aicl
+=== SPEC ===
+# AICL Example: Multiplication Table
+# AX sub-language — compiles to real code.
+
+Goal:
+n*n
+
+Layer:
+Core
+
+Behavior Build
+    Input: n
+    Output: table
+    Action:
+        table = []
+        for i in range(1, n + 1):
+            for j in range(1, n + 1):
+                table.append(i * j)
+        return table
+
+### AICL DATASET: math/count_down.aicl
+=== SPEC ===
+# AICL Example: Count Down
+# AX sub-language — compiles to real code.
+
+Goal:
+n to 1
+
+Layer:
+Core
+
+Behavior Build
+    Input: n
+    Output: result
+    Action:
+        result = []
+        while n > 0:
+            result.append(n)
+            n = n - 1
+        return result
+
+### AICL DATASET: math/absolute_value.aicl
+=== SPEC ===
+# AICL Example: Absolute Value
+# AX sub-language — compiles to real code.
+
+Goal:
+abs(n)
+
+Layer:
+Core
+
+Behavior Abs
+    Input: n
+    Output: result
+    Action:
+        if n < 0:
+            return -n
+        return n
+
+### AICL DATASET: math/clamp.aicl
+=== SPEC ===
+# AICL Example: Clamp
+# AX sub-language — compiles to real code.
+
+Goal:
+Clamp value
+
+Layer:
+Core
+
+Behavior Clamp
+    Input: value, low, high
+    Output: result
+    Action:
+        if value < low:
+            return low
+        elif value > high:
+            return high
+        return value
+
+### AICL DATASET: strings/string_length.aicl
+=== SPEC ===
+# AICL Example: String Length
+# AX sub-language — compiles to real code.
+
+Goal:
+Count chars
+
+Layer:
+Core
+
+Behavior Count
+    Input: text
+    Output: count
+    Action:
+        count = 0
+        for ch in text:
+            count = count + 1
+        return count
+
+### AICL DATASET: strings/count_vowels.aicl
+=== SPEC ===
+# AICL Example: Count Vowels
+# AX sub-language — compiles to real code.
+
+Goal:
+Vowel count
+
+Layer:
+Core
+
+Behavior Count
+    Input: text
+    Output: count
+    Action:
+        count = 0
+        for ch in text:
+            if ch == "a":
+                count = count + 1
+            elif ch == "e":
+                count = count + 1
+            elif ch == "i":
+                count = count + 1
+            elif ch == "o":
+                count = count + 1
+            elif ch == "u":
+                count = count + 1
+        return count
+
+### AICL DATASET: strings/palindrome_check.aicl
+=== SPEC ===
+# AICL Example: Palindrome
+# AX sub-language — compiles to real code.
+
+Goal:
+Is palindrome
+
+Layer:
+Core
+
+Behavior Check
+    Input: text
+    Output: result
+    Action:
+        left = 0
+        right = len(text) - 1
+        while left < right:
+            if text[left] != text[right]:
+                return false
+            left = left + 1
+            right = right - 1
+        return true
+
+### AICL DATASET: strings/reverse_string.aicl
+=== SPEC ===
+# AICL Example: Reverse String
+# AX sub-language — compiles to real code.
+
+Goal:
+Reverse
+
+Layer:
+Core
+
+Behavior Reverse
+    Input: text
+    Output: result
+    Action:
+        result = ""
+        i = len(text) - 1
+        while i >= 0:
+            result = result + text[i]
+            i = i - 1
+        return result
+
+### AICL DATASET: arrays/sum_array.aicl
+=== SPEC ===
+# AICL Example: Sum Array
+# AX sub-language — compiles to real code.
+
+Goal:
+Sum elements
+
+Layer:
+Core
+
+Behavior Sum
+    Input: array
+    Output: total
+    Action:
+        total = 0
+        for i in range(0, len(array)):
+            total = total + array[i]
+        return total
+
+### AICL DATASET: arrays/reverse_array.aicl
+=== SPEC ===
+# AICL Example: Reverse Array
+# AX sub-language — compiles to real code.
+
+Goal:
+Reverse in place
+
+Layer:
+Core
+
+Behavior Reverse
+    Input: array
+    Output: array
+    Action:
+        left = 0
+        right = len(array) - 1
+        while left < right:
+            array[left], array[right] = array[right], array[left]
+            left = left + 1
+            right = right - 1
+        return array
+
+### AICL DATASET: arrays/count_occurrences.aicl
+=== SPEC ===
+# AICL Example: Count Occurrences
+# AX sub-language — compiles to real code.
+
+Goal:
+Count value
+
+Layer:
+Core
+
+Behavior Count
+    Input: array, value
+    Output: count
+    Action:
+        count = 0
+        for i in range(0, len(array)):
+            if array[i] == value:
+                count = count + 1
+        return count
+
+### AICL DATASET: arrays/filter_greater.aicl
+=== SPEC ===
+# AICL Example: Filter Greater
+# AX sub-language — compiles to real code.
+
+Goal:
+Above threshold
+
+Layer:
+Core
+
+Behavior Filter
+    Input: array, threshold
+    Output: result
+    Action:
+        result = []
+        for i in range(0, len(array)):
+            if array[i] > threshold:
+                result.append(array[i])
+        return result
+
+### AICL DATASET: arrays/array_equal.aicl
+=== SPEC ===
+# AICL Example: Array Equal
+# AX sub-language — compiles to real code.
+
+Goal:
+Compare
+
+Layer:
+Core
+
+Behavior Compare
+    Input: a, b
+    Output: result
+    Action:
+        if len(a) != len(b):
+            return false
+        for i in range(0, len(a)):
+            if a[i] != b[i]:
+                return false
+        return true
+
+### AICL DATASET: arrays/max_subarray_sum.aicl
+=== SPEC ===
+# AICL Example: Max Subarray
+# AX sub-language — compiles to real code.
+
+Goal:
+Kadane
+
+Layer:
+Core
+
+Behavior MaxSub
+    Input: array
+    Output: max_sum
+    Action:
+        max_sum = array[0]
+        curr_sum = array[0]
+        for i in range(1, len(array)):
+            if curr_sum + array[i] > array[i]:
+                curr_sum = curr_sum + array[i]
+            else:
+                curr_sum = array[i]
+            if curr_sum > max_sum:
+                max_sum = curr_sum
+        return max_sum
+
+### AICL DATASET: arrays/rotate_array.aicl
+=== SPEC ===
+# AICL Example: Rotate Array
+# AX sub-language — compiles to real code.
+
+Goal:
+Right by k
+
+Layer:
+Core
+
+Behavior Rotate
+    Input: array, k
+    Output: result
+    Action:
+        n = len(array)
+        result = []
+        for i in range(0, n):
+            src = (i + n - k) % n
+            result.append(array[src])
+        return result
+
+### AICL DATASET: bitops/count_set_bits.aicl
+=== SPEC ===
+# AICL Example: Count Set Bits
+# AX sub-language — compiles to real code.
+
+Goal:
+Popcount
+
+Layer:
+Core
+
+Behavior Count
+    Input: n
+    Output: count
+    Action:
+        count = 0
+        while n > 0:
+            count = count + (n % 2)
+            n = n // 2
+        return count
+
+### AICL DATASET: bitops/is_odd.aicl
+=== SPEC ===
+# AICL Example: Is Odd
+# AX sub-language — compiles to real code.
+
+Goal:
+n odd
+
+Layer:
+Core
+
+Behavior Check
+    Input: n
+    Output: result
+    Action:
+        if n % 2 == 0:
+            return false
+        return true
+
+### AICL DATASET: bitops/is_even.aicl
+=== SPEC ===
+# AICL Example: Is Even
+# AX sub-language — compiles to real code.
+
+Goal:
+n even
+
+Layer:
+Core
+
+Behavior Check
+    Input: n
+    Output: result
+    Action:
+        if n % 2 == 0:
+            return true
+        return false
+
+### AICL DATASET: recursion/fibonacci_recursive.aicl
+=== SPEC ===
+# AICL Example: Fibonacci Recursive
+# AX sub-language — compiles to real code.
+
+Goal:
+Recursive
+
+Layer:
+Core
+
+Behavior Fib
+    Input: n
+    Output: result
+    Action:
+        if n <= 1:
+            return n
+        return fib(n - 1) + fib(n - 2)
+
+### AICL DATASET: recursion/sum_digits_recursive.aicl
+=== SPEC ===
+# AICL Example: Sum Digits Recursive
+# AX sub-language — compiles to real code.
+
+Goal:
+Recursive
+
+Layer:
+Core
+
+Behavior Sum
+    Input: n
+    Output: total
+    Action:
+        if n == 0:
+            return 0
+        return (n % 10) + sum(n // 10)
+
+### AICL DATASET: recursion/power_recursive.aicl
+=== SPEC ===
+# AICL Example: Power Recursive
+# AX sub-language — compiles to real code.
+
+Goal:
+Recursive
+
+Layer:
+Core
+
+Behavior Power
+    Input: base, exp
+    Output: result
+    Action:
+        if exp == 0:
+            return 1
+        return base * power(base, exp - 1)
+
+### AICL DATASET: logic/median_of_three.aicl
+=== SPEC ===
+# AICL Example: Median of Three
+# AX sub-language — compiles to real code.
+
+Goal:
+Median
+
+Layer:
+Core
+
+Behavior Median
+    Input: a, b, c
+    Output: result
+    Action:
+        if a > b:
+            if a < c:
+                return a
+            elif b > c:
+                return b
+            return c
+        else:
+            if a > c:
+                return a
+            elif b < c:
+                return b
+            return c
+
+### AICL DATASET: logic/max_of_three.aicl
+=== SPEC ===
+# AICL Example: Max of Three
+# AX sub-language — compiles to real code.
+
+Goal:
+Maximum
+
+Layer:
+Core
+
+Behavior Max
+    Input: a, b, c
+    Output: result
+    Action:
+        maximum = a
+        if b > maximum:
+            maximum = b
+        if c > maximum:
+            maximum = c
+        return maximum
+
+### AICL DATASET: logic/grade_letter.aicl
+=== SPEC ===
+# AICL Example: Grade Letter
+# AX sub-language — compiles to real code.
+
+Goal:
+Score to grade
+
+Layer:
+Core
+
+Behavior Grade
+    Input: score
+    Output: grade
+    Action:
+        if score >= 90:
+            return "A"
+        elif score >= 80:
+            return "B"
+        elif score >= 70:
+            return "C"
+        elif score >= 60:
+            return "D"
+        return "F"
+
+### AICL DATASET: logic/leap_year.aicl
+=== SPEC ===
+# AICL Example: Leap Year
+# AX sub-language — compiles to real code.
+
+Goal:
+Is leap
+
+Layer:
+Core
+
+Behavior Check
+    Input: year
+    Output: result
+    Action:
+        if year % 400 == 0:
+            return true
+        if year % 100 == 0:
+            return false
+        if year % 4 == 0:
+            return true
+        return false
+
+### AICL DATASET: logic/sign_function.aicl
+=== SPEC ===
+# AICL Example: Sign Function
+# AX sub-language — compiles to real code.
+
+Goal:
+sign(n)
+
+Layer:
+Core
+
+Behavior Sign
+    Input: n
+    Output: result
+    Action:
+        if n < 0:
+            return -1
+        if n == 0:
+            return 0
+        return 1
+
+### AICL DATASET: logic/traffic_light.aicl
+=== SPEC ===
+# AICL Example: Traffic Light
+# AX sub-language — compiles to real code.
+
+Goal:
+Action
+
+Layer:
+Core
+
+Behavior Action
+    Input: color
+    Output: result
+    Action:
+        if color == "red":
+            return "stop"
+        elif color == "yellow":
+            return "slow"
+        elif color == "green":
+            return "go"
+        return "invalid"
+
+### AICL DATASET: logic/quadrant.aicl
+=== SPEC ===
+# AICL Example: Quadrant
+# AX sub-language — compiles to real code.
+
+Goal:
+Quad of point
+
+Layer:
+Core
+
+Behavior Find
+    Input: x, y
+    Output: quadrant
+    Action:
+        if x == 0 or y == 0:
+            return 0
+        if x > 0:
+            if y > 0:
+                return 1
+            return 4
+        if y > 0:
+            return 2
+        return 3
+
+### AICL DATASET: conversions/celsius_to_fahrenheit.aicl
+=== SPEC ===
+# AICL Example: C to F
+# AX sub-language — compiles to real code.
+
+Goal:
+Convert
+
+Layer:
+Core
+
+Behavior Convert
+    Input: celsius
+    Output: fahrenheit
+    Action:
+        return (celsius * 9) // 5 + 32
+
+### AICL DATASET: conversions/fahrenheit_to_celsius.aicl
+=== SPEC ===
+# AICL Example: F to C
+# AX sub-language — compiles to real code.
+
+Goal:
+Convert
+
+Layer:
+Core
+
+Behavior Convert
+    Input: fahrenheit
+    Output: celsius
+    Action:
+        return (fahrenheit - 32) * 5 // 9
+
+### AICL DATASET: conversions/minutes_to_seconds.aicl
+=== SPEC ===
+# AICL Example: Minutes to Seconds
+# AX sub-language — compiles to real code.
+
+Goal:
+Convert
+
+Layer:
+Core
+
+Behavior Convert
+    Input: minutes
+    Output: seconds
+    Action:
+        return minutes * 60
+
+### AICL DATASET: numbertheory/sum_divisors.aicl
+=== SPEC ===
+# AICL Example: Sum Divisors
+# AX sub-language — compiles to real code.
+
+Goal:
+Proper divisors
+
+Layer:
+Core
+
+Behavior Sum
+    Input: n
+    Output: total
+    Action:
+        total = 0
+        i = 1
+        while i * i <= n:
+            if n % i == 0:
+                total = total + i
+                if i != n // i:
+                    total = total + (n // i)
+            i = i + 1
+        return total - n
+
+### AICL DATASET: numbertheory/lcm.aicl
+=== SPEC ===
+# AICL Example: LCM
+# AX sub-language — compiles to real code.
+
+Goal:
+Least common multiple
+
+Layer:
+Core
+
+Behavior Compute
+    Input: a, b
+    Output: result
+    Action:
+        if a == 0 or b == 0:
+            return 0
+        x = a
+        y = b
+        while y != 0:
+            temp = y
+            y = x % y
+            x = temp
+        return (a // x) * b
+
+### AICL DATASET: geometry/rectangle_area.aicl
+=== SPEC ===
+# AICL Example: Rectangle Area
+# AX sub-language — compiles to real code.
+
+Goal:
+w*h
+
+Layer:
+Core
+
+Behavior Area
+    Input: width, height
+    Output: area
+    Action:
+        return width * height
+
+### AICL DATASET: geometry/triangle_area.aicl
+=== SPEC ===
+# AICL Example: Triangle Area
+# AX sub-language — compiles to real code.
+
+Goal:
+b*h/2
+
+Layer:
+Core
+
+Behavior Area
+    Input: base, height
+    Output: area
+    Action:
+        return (base * height) // 2
+
+### AICL DATASET: geometry/distance_squared.aicl
+=== SPEC ===
+# AICL Example: Distance Squared
+# AX sub-language — compiles to real code.
+
+Goal:
+dx^2+dy^2
+
+Layer:
+Core
+
+Behavior Distance
+    Input: x1, y1, x2, y2
+    Output: result
+    Action:
+        dx = x2 - x1
+        dy = y2 - y1
+        return dx * dx + dy * dy
+
+### AICL DATASET: statistics/average.aicl
+=== SPEC ===
+# AICL Example: Average
+# AX sub-language — compiles to real code.
+
+Goal:
+Mean
+
+Layer:
+Core
+
+Behavior Average
+    Input: array
+    Output: mean
+    Action:
+        if len(array) == 0:
+            return 0
+        total = 0
+        for i in range(0, len(array)):
+            total = total + array[i]
+        return total // len(array)
+
+### AICL DATASET: statistics/range_value.aicl
+=== SPEC ===
+# AICL Example: Range
+# AX sub-language — compiles to real code.
+
+Goal:
+max-min
+
+Layer:
+Core
+
+Behavior Range
+    Input: array
+    Output: range_val
+    Action:
+        minimum = array[0]
+        maximum = array[0]
+        for i in range(1, len(array)):
+            if array[i] < minimum:
+                minimum = array[i]
+            if array[i] > maximum:
+                maximum = array[i]
+        return maximum - minimum
+
+### AICL DATASET: statistics/median_sorted.aicl
+=== SPEC ===
+# AICL Example: Median Sorted
+# AX sub-language — compiles to real code.
+
+Goal:
+Median
+
+Layer:
+Core
+
+Behavior Median
+    Input: array
+    Output: median
+    Action:
+        n = len(array)
+        if n == 0:
+            return 0
+        if n % 2 == 1:
+            return array[n // 2]
+        return (array[n // 2 - 1] + array[n // 2]) // 2
+
+### AICL DATASET: games/rock_paper_scissors.aicl
+=== SPEC ===
+# AICL Example: Rock Paper Scissors
+# AX sub-language — compiles to real code.
+
+Goal:
+Winner
+
+Layer:
+Core
+
+Behavior Winner
+    Input: p1, p2
+    Output: result
+    Action:
+        if p1 == p2:
+            return "draw"
+        if p1 == "rock":
+            if p2 == "scissors":
+                return "p1"
+            return "p2"
+        if p1 == "paper":
+            if p2 == "rock":
+                return "p1"
+            return "p2"
+        if p2 == "paper":
+            return "p1"
+        return "p2"
+
+### AICL DATASET: games/guess_feedback.aicl
+=== SPEC ===
+# AICL Example: Guess Feedback
+# AX sub-language — compiles to real code.
+
+Goal:
+Compare
+
+Layer:
+Core
+
+Behavior Compare
+    Input: guess, target
+    Output: result
+    Action:
+        if guess == target:
+            return "correct"
+        if guess < target:
+            return "too low"
+        return "too high"
+
+### AICL DATASET: games/dice_roll.aicl
+=== SPEC ===
+# AICL Example: Dice Roll
+# AX sub-language — compiles to real code.
+
+Goal:
+Seeded
+
+Layer:
+Core
+
+Behavior Roll
+    Input: seed
+    Output: value
+    Action:
+        return (seed % 6) + 1
+
+### AICL DATASET: validation/is_positive.aicl
+=== SPEC ===
+# AICL Example: Is Positive
+# AX sub-language — compiles to real code.
+
+Goal:
+n > 0
+
+Layer:
+Core
+
+Behavior Check
+    Input: n
+    Output: result
+    Action:
+        if n > 0:
+            return true
+        return false
+
+### AICL DATASET: validation/is_in_range.aicl
+=== SPEC ===
+# AICL Example: Is in Range
+# AX sub-language — compiles to real code.
+
+Goal:
+Within bounds
+
+Layer:
+Core
+
+Behavior Check
+    Input: value, low, high
+    Output: result
+    Action:
+        if value < low:
+            return false
+        if value > high:
+            return false
+        return true
+
+### AICL DATASET: validation/password_strength.aicl
+=== SPEC ===
+# AICL Example: Password Strength
+# AX sub-language — compiles to real code.
+
+Goal:
+Score
+
+Layer:
+Core
+
+Behavior Strength
+    Input: password
+    Output: score
+    Action:
+        length = 0
+        for ch in password:
+            length = length + 1
+        if length < 6:
+            return 0
+        if length < 10:
+            return 1
+        if length < 14:
+            return 2
+        return 3
+
+### AICL DATASET: validation/validate_age.aicl
+=== SPEC ===
+# AICL Example: Validate Age
+# AX sub-language — compiles to real code.
+
+Goal:
+0-150
+
+Layer:
+Core
+
+Behavior Validate
+    Input: age
+    Output: result
+    Action:
+        if age < 0:
+            return false
+        if age > 150:
+            return false
+        return true
+
+### AICL DATASET: math/triangular_number.aicl
+=== SPEC ===
+# AICL Example: Triangular Number
+# AX sub-language — compiles to real code.
+
+Goal:
+n*(n+1)/2
+
+Layer:
+Core
+
+Behavior Compute
+    Input: n
+    Output: result
+    Action:
+        return n * (n + 1) // 2
+
+### AICL DATASET: math/square_number.aicl
+=== SPEC ===
+# AICL Example: Square
+# AX sub-language — compiles to real code.
+
+Goal:
+n squared
+
+Layer:
+Core
+
+Behavior Compute
+    Input: n
+    Output: result
+    Action:
+        return n * n
+
+### AICL DATASET: math/cube_number.aicl
+=== SPEC ===
+# AICL Example: Cube
+# AX sub-language — compiles to real code.
+
+Goal:
+n cubed
+
+Layer:
+Core
+
+Behavior Compute
+    Input: n
+    Output: result
+    Action:
+        return n * n * n
+
+### AICL DATASET: math/double.aicl
+=== SPEC ===
+# AICL Example: Double
+# AX sub-language — compiles to real code.
+
+Goal:
+2*n
+
+Layer:
+Core
+
+Behavior Double
+    Input: n
+    Output: result
+    Action:
+        return n * 2
+
+### AICL DATASET: math/halve_integer.aicl
+=== SPEC ===
+# AICL Example: Halve
+# AX sub-language — compiles to real code.
+
+Goal:
+n//2
+
+Layer:
+Core
+
+Behavior Halve
+    Input: n
+    Output: result
+    Action:
+        return n // 2
+
+### AICL DATASET: math/negate.aicl
+=== SPEC ===
+# AICL Example: Negate
+# AX sub-language — compiles to real code.
+
+Goal:
+-n
+
+Layer:
+Core
+
+Behavior Negate
+    Input: n
+    Output: result
+    Action:
+        return -n
+
+### AICL DATASET: math/increment.aicl
+=== SPEC ===
+# AICL Example: Increment
+# AX sub-language — compiles to real code.
+
+Goal:
+n+1
+
+Layer:
+Core
+
+Behavior Increment
+    Input: n
+    Output: result
+    Action:
+        return n + 1
+
+### AICL DATASET: math/decrement.aicl
+=== SPEC ===
+# AICL Example: Decrement
+# AX sub-language — compiles to real code.
+
+Goal:
+n-1
+
+Layer:
+Core
+
+Behavior Decrement
+    Input: n
+    Output: result
+    Action:
+        return n - 1
+
+### AICL DATASET: math/square_root_floor.aicl
+=== SPEC ===
+# AICL Example: Square Root Floor
+# AX sub-language — compiles to real code.
+
+Goal:
+floor(sqrt(n))
+
+Layer:
+Core
+
+Behavior Compute
+    Input: n
+    Output: result
+    Action:
+        if n < 2:
+            return n
+        r = 0
+        bit = 1
+        while bit <= n:
+            bit = bit * 4
+        while bit > 0:
+            if n >= r + bit:
+                n = n - (r + bit)
+                r = r // 2 + bit
+            else:
+                r = r // 2
+            bit = bit // 4
+        return r
+
+### AICL DATASET: math/cube_root_floor.aicl
+=== SPEC ===
+# AICL Example: Cube Root Floor
+# AX sub-language — compiles to real code.
+
+Goal:
+floor(cbrt(n))
+
+Layer:
+Core
+
+Behavior Compute
+    Input: n
+    Output: result
+    Action:
+        r = 0
+        while (r + 1) * (r + 1) * (r + 1) <= n:
+            r = r + 1
+        return r
+
+### AICL DATASET: math/sum_squares.aicl
+=== SPEC ===
+# AICL Example: Sum of Squares
+# AX sub-language — compiles to real code.
+
+Goal:
+1^2+2^2+...+n^2
+
+Layer:
+Core
+
+Behavior Sum
+    Input: n
+    Output: total
+    Action:
+        total = 0
+        for i in range(1, n + 1):
+            total = total + i * i
+        return total
+
+### AICL DATASET: math/sum_cubes.aicl
+=== SPEC ===
+# AICL Example: Sum of Cubes
+# AX sub-language — compiles to real code.
+
+Goal:
+1^3+...+n^3
+
+Layer:
+Core
+
+Behavior Sum
+    Input: n
+    Output: total
+    Action:
+        total = 0
+        for i in range(1, n + 1):
+            total = total + i * i * i
+        return total
+
+### AICL DATASET: math/modulo.aicl
+=== SPEC ===
+# AICL Example: Modulo
+# AX sub-language — compiles to real code.
+
+Goal:
+a mod b
+
+Layer:
+Core
+
+Behavior Mod
+    Input: a, b
+    Output: result
+    Action:
+        return a % b
+
+### AICL DATASET: math/integer_division.aicl
+=== SPEC ===
+# AICL Example: Integer Division
+# AX sub-language — compiles to real code.
+
+Goal:
+a // b
+
+Layer:
+Core
+
+Behavior Div
+    Input: a, b
+    Output: result
+    Action:
+        return a // b
+
+### AICL DATASET: math/power_of_ten_check.aicl
+=== SPEC ===
+# AICL Example: Power of Ten
+# AX sub-language — compiles to real code.
+
+Goal:
+Is 10^k
+
+Layer:
+Core
+
+Behavior Check
+    Input: n
+    Output: result
+    Action:
+        if n <= 0:
+            return false
+        while n > 1:
+            if n % 10 != 0:
+                return false
+            n = n // 10
+        return true
+
+### AICL DATASET: math/reverse_digits.aicl
+=== SPEC ===
+# AICL Example: Reverse Digits
+# AX sub-language — compiles to real code.
+
+Goal:
+Reverse decimal
+
+Layer:
+Core
+
+Behavior Reverse
+    Input: n
+    Output: result
+    Action:
+        result = 0
+        while n > 0:
+            result = result * 10 + (n % 10)
+            n = n // 10
+        return result
+
+### AICL DATASET: math/count_digits.aicl
+=== SPEC ===
+# AICL Example: Count Digits
+# AX sub-language — compiles to real code.
+
+Goal:
+Number of digits
+
+Layer:
+Core
+
+Behavior Count
+    Input: n
+    Output: count
+    Action:
+        if n == 0:
+            return 1
+        count = 0
+        while n > 0:
+            count = count + 1
+            n = n // 10
+        return count
+
+### AICL DATASET: arrays/array_min_index.aicl
+=== SPEC ===
+# AICL Example: Min Index
+# AX sub-language — compiles to real code.
+
+Goal:
+Index of min
+
+Layer:
+Core
+
+Behavior FindMinIdx
+    Input: array
+    Output: index
+    Action:
+        index = 0
+        for i in range(1, len(array)):
+            if array[i] < array[index]:
+                index = i
+        return index
+
+### AICL DATASET: arrays/array_max_index.aicl
+=== SPEC ===
+# AICL Example: Max Index
+# AX sub-language — compiles to real code.
+
+Goal:
+Index of max
+
+Layer:
+Core
+
+Behavior FindMaxIdx
+    Input: array
+    Output: index
+    Action:
+        index = 0
+        for i in range(1, len(array)):
+            if array[i] > array[index]:
+                index = i
+        return index
+
+### AICL DATASET: arrays/array_product.aicl
+=== SPEC ===
+# AICL Example: Array Product
+# AX sub-language — compiles to real code.
+
+Goal:
+Product of elements
+
+Layer:
+Core
+
+Behavior Product
+    Input: array
+    Output: product
+    Action:
+        product = 1
+        for i in range(0, len(array)):
+            product = product * array[i]
+        return product
+
+### AICL DATASET: arrays/build_range_array.aicl
+=== SPEC ===
+# AICL Example: Build Range
+# AX sub-language — compiles to real code.
+
+Goal:
+0..n-1 as array
+
+Layer:
+Core
+
+Behavior Build
+    Input: n
+    Output: result
+    Action:
+        result = []
+        for i in range(0, n):
+            result.append(i)
+        return result
+
+### AICL DATASET: arrays/build_squares.aicl
+=== SPEC ===
+# AICL Example: Build Squares
+# AX sub-language — compiles to real code.
+
+Goal:
+Squares 0..n-1
+
+Layer:
+Core
+
+Behavior Build
+    Input: n
+    Output: result
+    Action:
+        result = []
+        for i in range(0, n):
+            result.append(i * i)
+        return result
+
+### AICL DATASET: arrays/contains_value.aicl
+=== SPEC ===
+# AICL Example: Contains
+# AX sub-language — compiles to real code.
+
+Goal:
+Has value
+
+Layer:
+Core
+
+Behavior Contains
+    Input: array, value
+    Output: result
+    Action:
+        for i in range(0, len(array)):
+            if array[i] == value:
+                return true
+        return false
+
+### AICL DATASET: arrays/find_first_even.aicl
+=== SPEC ===
+# AICL Example: First Even
+# AX sub-language — compiles to real code.
+
+Goal:
+First even element
+
+Layer:
+Core
+
+Behavior Find
+    Input: array
+    Output: result
+    Action:
+        for i in range(0, len(array)):
+            if array[i] % 2 == 0:
+                return array[i]
+        return -1
+
+### AICL DATASET: arrays/find_first_odd.aicl
+=== SPEC ===
+# AICL Example: First Odd
+# AX sub-language — compiles to real code.
+
+Goal:
+First odd element
+
+Layer:
+Core
+
+Behavior Find
+    Input: array
+    Output: result
+    Action:
+        for i in range(0, len(array)):
+            if array[i] % 2 != 0:
+                return array[i]
+        return -1
+
+### AICL DATASET: arrays/count_even.aicl
+=== SPEC ===
+# AICL Example: Count Even
+# AX sub-language — compiles to real code.
+
+Goal:
+Even count
+
+Layer:
+Core
+
+Behavior Count
+    Input: array
+    Output: count
+    Action:
+        count = 0
+        for i in range(0, len(array)):
+            if array[i] % 2 == 0:
+                count = count + 1
+        return count
+
+### AICL DATASET: arrays/count_odd.aicl
+=== SPEC ===
+# AICL Example: Count Odd
+# AX sub-language — compiles to real code.
+
+Goal:
+Odd count
+
+Layer:
+Core
+
+Behavior Count
+    Input: array
+    Output: count
+    Action:
+        count = 0
+        for i in range(0, len(array)):
+            if array[i] % 2 != 0:
+                count = count + 1
+        return count
+
+### AICL DATASET: arrays/sum_even.aicl
+=== SPEC ===
+# AICL Example: Sum Even
+# AX sub-language — compiles to real code.
+
+Goal:
+Sum of even
+
+Layer:
+Core
+
+Behavior Sum
+    Input: array
+    Output: total
+    Action:
+        total = 0
+        for i in range(0, len(array)):
+            if array[i] % 2 == 0:
+                total = total + array[i]
+        return total
+
+### AICL DATASET: arrays/sum_odd.aicl
+=== SPEC ===
+# AICL Example: Sum Odd
+# AX sub-language — compiles to real code.
+
+Goal:
+Sum of odd
+
+Layer:
+Core
+
+Behavior Sum
+    Input: array
+    Output: total
+    Action:
+        total = 0
+        for i in range(0, len(array)):
+            if array[i] % 2 != 0:
+                total = total + array[i]
+        return total
+
+### AICL DATASET: arrays/scale_array.aicl
+=== SPEC ===
+# AICL Example: Scale Array
+# AX sub-language — compiles to real code.
+
+Goal:
+Multiply each by k
+
+Layer:
+Core
+
+Behavior Scale
+    Input: array, k
+    Output: result
+    Action:
+        result = []
+        for i in range(0, len(array)):
+            result.append(array[i] * k)
+        return result
+
+### AICL DATASET: arrays/shift_array.aicl
+=== SPEC ===
+# AICL Example: Shift Array
+# AX sub-language — compiles to real code.
+
+Goal:
+Add k to each
+
+Layer:
+Core
+
+Behavior Shift
+    Input: array, k
+    Output: result
+    Action:
+        result = []
+        for i in range(0, len(array)):
+            result.append(array[i] + k)
+        return result
+
+### AICL DATASET: arrays/all_positive.aicl
+=== SPEC ===
+# AICL Example: All Positive
+# AX sub-language — compiles to real code.
+
+Goal:
+Every element > 0
+
+Layer:
+Core
+
+Behavior Check
+    Input: array
+    Output: result
+    Action:
+        for i in range(0, len(array)):
+            if array[i] <= 0:
+                return false
+        return true
+
+### AICL DATASET: arrays/any_negative.aicl
+=== SPEC ===
+# AICL Example: Any Negative
+# AX sub-language — compiles to real code.
+
+Goal:
+Has element < 0
+
+Layer:
+Core
+
+Behavior Check
+    Input: array
+    Output: result
+    Action:
+        for i in range(0, len(array)):
+            if array[i] < 0:
+                return true
+        return false
+
+### AICL DATASET: arrays/max_diff.aicl
+=== SPEC ===
+# AICL Example: Max Difference
+# AX sub-language — compiles to real code.
+
+Goal:
+max adjacent diff
+
+Layer:
+Core
+
+Behavior MaxDiff
+    Input: array
+    Output: result
+    Action:
+        result = 0
+        for i in range(1, len(array)):
+            diff = array[i] - array[i - 1]
+            if diff < 0:
+                diff = -diff
+            if diff > result:
+                result = diff
+        return result
+
+### AICL DATASET: strings/count_consonants.aicl
+=== SPEC ===
+# AICL Example: Count Consonants
+# AX sub-language — compiles to real code.
+
+Goal:
+Non-vowel letters
+
+Layer:
+Core
+
+Behavior Count
+    Input: text
+    Output: count
+    Action:
+        count = 0
+        for ch in text:
+            if ch != "a" and ch != "e" and ch != "i" and ch != "o" and ch != "u":
+                count = count + 1
+        return count
+
+### AICL DATASET: strings/count_spaces.aicl
+=== SPEC ===
+# AICL Example: Count Spaces
+# AX sub-language — compiles to real code.
+
+Goal:
+Space count
+
+Layer:
+Core
+
+Behavior Count
+    Input: text
+    Output: count
+    Action:
+        count = 0
+        for ch in text:
+            if ch == " ":
+                count = count + 1
+        return count
+
+### AICL DATASET: strings/first_char.aicl
+=== SPEC ===
+# AICL Example: First Character
+# AX sub-language — compiles to real code.
+
+Goal:
+text[0]
+
+Layer:
+Core
+
+Behavior First
+    Input: text
+    Output: result
+    Action:
+        if len(text) == 0:
+            return ""
+        return text[0]
+
+### AICL DATASET: logic/min_of_three.aicl
+=== SPEC ===
+# AICL Example: Min of Three
+# AX sub-language — compiles to real code.
+
+Goal:
+Minimum
+
+Layer:
+Core
+
+Behavior Min
+    Input: a, b, c
+    Output: result
+    Action:
+        minimum = a
+        if b < minimum:
+            minimum = b
+        if c < minimum:
+            minimum = c
+        return minimum
+
+### AICL DATASET: logic/all_equal.aicl
+=== SPEC ===
+# AICL Example: All Equal
+# AX sub-language — compiles to real code.
+
+Goal:
+a==b==c
+
+Layer:
+Core
+
+Behavior Check
+    Input: a, b, c
+    Output: result
+    Action:
+        if a == b:
+            if b == c:
+                return true
+        return false
+
+### AICL DATASET: logic/any_equal.aicl
+=== SPEC ===
+# AICL Example: Any Equal
+# AX sub-language — compiles to real code.
+
+Goal:
+Any pair equal
+
+Layer:
+Core
+
+Behavior Check
+    Input: a, b, c
+    Output: result
+    Action:
+        if a == b:
+            return true
+        if b == c:
+            return true
+        if a == c:
+            return true
+        return false
+
+### AICL DATASET: logic/between.aicl
+=== SPEC ===
+# AICL Example: Between
+# AX sub-language — compiles to real code.
+
+Goal:
+Is x between a and b
+
+Layer:
+Core
+
+Behavior Check
+    Input: x, a, b
+    Output: result
+    Action:
+        if x >= a:
+            if x <= b:
+                return true
+        return false
+
+### AICL DATASET: logic/strictly_between.aicl
+=== SPEC ===
+# AICL Example: Strictly Between
+# AX sub-language — compiles to real code.
+
+Goal:
+a < x < b
+
+Layer:
+Core
+
+Behavior Check
+    Input: x, a, b
+    Output: result
+    Action:
+        if x > a:
+            if x < b:
+                return true
+        return false
+
+### AICL DATASET: logic/ascending_order.aicl
+=== SPEC ===
+# AICL Example: Ascending
+# AX sub-language — compiles to real code.
+
+Goal:
+a <= b <= c
+
+Layer:
+Core
+
+Behavior Check
+    Input: a, b, c
+    Output: result
+    Action:
+        if a <= b:
+            if b <= c:
+                return true
+        return false
+
+### AICL DATASET: logic/descending_order.aicl
+=== SPEC ===
+# AICL Example: Descending
+# AX sub-language — compiles to real code.
+
+Goal:
+a >= b >= c
+
+Layer:
+Core
+
+Behavior Check
+    Input: a, b, c
+    Output: result
+    Action:
+        if a >= b:
+            if b >= c:
+                return true
+        return false
+
+### AICL DATASET: logic/is_adult.aicl
+=== SPEC ===
+# AICL Example: Is Adult
+# AX sub-language — compiles to real code.
+
+Goal:
+age >= 18
+
+Layer:
+Core
+
+Behavior Check
+    Input: age
+    Output: result
+    Action:
+        if age >= 18:
+            return true
+        return false
+
+### AICL DATASET: logic/is_weekend.aicl
+=== SPEC ===
+# AICL Example: Is Weekend
+# AX sub-language — compiles to real code.
+
+Goal:
+Day 6 or 7
+
+Layer:
+Core
+
+Behavior Check
+    Input: day
+    Output: result
+    Action:
+        if day == 6:
+            return true
+        if day == 7:
+            return true
+        return false
+
+### AICL DATASET: logic/season_from_month.aicl
+=== SPEC ===
+# AICL Example: Season
+# AX sub-language — compiles to real code.
+
+Goal:
+Month to season
+
+Layer:
+Core
+
+Behavior Season
+    Input: month
+    Output: result
+    Action:
+        if month >= 3:
+            if month <= 5:
+                return "spring"
+        if month >= 6:
+            if month <= 8:
+                return "summer"
+        if month >= 9:
+            if month <= 11:
+                return "autumn"
+        return "winter"
+
+### AICL DATASET: conversions/hours_to_minutes.aicl
+=== SPEC ===
+# AICL Example: Hours to Minutes
+# AX sub-language — compiles to real code.
+
+Goal:
+Convert
+
+Layer:
+Core
+
+Behavior Convert
+    Input: hours
+    Output: minutes
+    Action:
+        return hours * 60
+
+### AICL DATASET: conversions/days_to_hours.aicl
+=== SPEC ===
+# AICL Example: Days to Hours
+# AX sub-language — compiles to real code.
+
+Goal:
+Convert
+
+Layer:
+Core
+
+Behavior Convert
+    Input: days
+    Output: hours
+    Action:
+        return days * 24
+
+### AICL DATASET: conversions/weeks_to_days.aicl
+=== SPEC ===
+# AICL Example: Weeks to Days
+# AX sub-language — compiles to real code.
+
+Goal:
+Convert
+
+Layer:
+Core
+
+Behavior Convert
+    Input: weeks
+    Output: days
+    Action:
+        return weeks * 7
+
+### AICL DATASET: conversions/meters_to_cm.aicl
+=== SPEC ===
+# AICL Example: Meters to cm
+# AX sub-language — compiles to real code.
+
+Goal:
+Convert
+
+Layer:
+Core
+
+Behavior Convert
+    Input: meters
+    Output: cm
+    Action:
+        return meters * 100
+
+### AICL DATASET: conversions/kg_to_grams.aicl
+=== SPEC ===
+# AICL Example: Kg to Grams
+# AX sub-language — compiles to real code.
+
+Goal:
+Convert
+
+Layer:
+Core
+
+Behavior Convert
+    Input: kg
+    Output: grams
+    Action:
+        return kg * 1000
+
+### AICL DATASET: games/coin_toss.aicl
+=== SPEC ===
+# AICL Example: Coin Toss
+# AX sub-language — compiles to real code.
+
+Goal:
+Heads or tails
+
+Layer:
+Core
+
+Behavior Toss
+    Input: seed
+    Output: result
+    Action:
+        if seed % 2 == 0:
+            return "heads"
+        return "tails"
+
+### AICL DATASET: games/card_value.aicl
+=== SPEC ===
+# AICL Example: Card Value
+# AX sub-language — compiles to real code.
+
+Goal:
+Face card to value
+
+Layer:
+Core
+
+Behavior Value
+    Input: card
+    Output: result
+    Action:
+        if card == "A":
+            return 1
+        if card == "J":
+            return 11
+        if card == "Q":
+            return 12
+        if card == "K":
+            return 13
+        return card
+
+### AICL DATASET: games/winner_by_score.aicl
+=== SPEC ===
+# AICL Example: Winner by Score
+# AX sub-language — compiles to real code.
+
+Goal:
+Higher score wins
+
+Layer:
+Core
+
+Behavior Winner
+    Input: p1_score, p2_score
+    Output: result
+    Action:
+        if p1_score > p2_score:
+            return "p1"
+        if p2_score > p1_score:
+            return "p2"
+        return "draw"
+
+### AICL DATASET: numbertheory/next_prime.aicl
+=== SPEC ===
+# AICL Example: Next Prime
+# AX sub-language — compiles to real code.
+
+Goal:
+Smallest prime > n
+
+Layer:
+Core
+
+Behavior Find
+    Input: n
+    Output: result
+    Action:
+        candidate = n + 1
+        while true:
+            is_p = true
+        d = 2
+        while d * d <= candidate:
+            if candidate % d == 0:
+                is_p = false
+        d = d + 1
+        if is_p:
+            return candidate
+        candidate = candidate + 1
+
+### AICL DATASET: numbertheory/is_armstrong.aicl
+=== SPEC ===
+# AICL Example: Armstrong Number
+# AX sub-language — compiles to real code.
+
+Goal:
+n == sum of cubes of digits
+
+Layer:
+Core
+
+Behavior Check
+    Input: n
+    Output: result
+    Action:
+        original = n
+        total = 0
+        while n > 0:
+            digit = n % 10
+        total = total + digit * digit * digit
+        n = n // 10
+        return total == original
+
+### AICL DATASET: numbertheory/reverse_number.aicl
+=== SPEC ===
+# AICL Example: Reverse Number
+# AX sub-language — compiles to real code.
+
+Goal:
+Decimal reversal
+
+Layer:
+Core
+
+Behavior Reverse
+    Input: n
+    Output: result
+    Action:
+        result = 0
+        while n > 0:
+            result = result * 10 + (n % 10)
+        n = n // 10
+        return result
+
+### AICL DATASET: geometry/perimeter_rectangle.aicl
+=== SPEC ===
+# AICL Example: Rectangle Perimeter
+# AX sub-language — compiles to real code.
+
+Goal:
+2*(w+h)
+
+Layer:
+Core
+
+Behavior Perimeter
+    Input: width, height
+    Output: perimeter
+    Action:
+        return 2 * (width + height)
+
+### AICL DATASET: geometry/perimeter_square.aicl
+=== SPEC ===
+# AICL Example: Square Perimeter
+# AX sub-language — compiles to real code.
+
+Goal:
+4*side
+
+Layer:
+Core
+
+Behavior Perimeter
+    Input: side
+    Output: perimeter
+    Action:
+        return 4 * side
+
+### AICL DATASET: geometry/cube_volume.aicl
+=== SPEC ===
+# AICL Example: Cube Volume
+# AX sub-language — compiles to real code.
+
+Goal:
+side^3
+
+Layer:
+Core
+
+Behavior Volume
+    Input: side
+    Output: volume
+    Action:
+        return side * side * side
+
+### AICL DATASET: geometry/box_volume.aicl
+=== SPEC ===
+# AICL Example: Box Volume
+# AX sub-language — compiles to real code.
+
+Goal:
+w*h*d
+
+Layer:
+Core
+
+Behavior Volume
+    Input: width, height, depth
+    Output: volume
+    Action:
+        return width * height * depth
+
+### AICL DATASET: geometry/circle_circumference.aicl
+=== SPEC ===
+# AICL Example: Circle Circumference
+# AX sub-language — compiles to real code.
+
+Goal:
+2*pi*r approx
+
+Layer:
+Core
+
+Behavior Circumference
+    Input: radius
+    Output: circumference
+    Action:
+        return 2 * radius * 314 // 100
+
+### AICL DATASET: statistics/sum_squares_array.aicl
+=== SPEC ===
+# AICL Example: Sum of Squares Array
+# AX sub-language — compiles to real code.
+
+Goal:
+Sum of squared elements
+
+Layer:
+Core
+
+Behavior Sum
+    Input: array
+    Output: total
+    Action:
+        total = 0
+        for i in range(0, len(array)):
+            total = total + array[i] * array[i]
+        return total
+
+### AICL DATASET: statistics/product_array.aicl
+=== SPEC ===
+# AICL Example: Array Product
+# AX sub-language — compiles to real code.
+
+Goal:
+Product of elements
+
+Layer:
+Core
+
+Behavior Product
+    Input: array
+    Output: product
+    Action:
+        product = 1
+        for i in range(0, len(array)):
+            product = product * array[i]
+        return product
+
+### AICL DATASET: statistics/count_positive.aicl
+=== SPEC ===
+# AICL Example: Count Positive
+# AX sub-language — compiles to real code.
+
+Goal:
+Positive count
+
+Layer:
+Core
+
+Behavior Count
+    Input: array
+    Output: count
+    Action:
+        count = 0
+        for i in range(0, len(array)):
+            if array[i] > 0:
+                count = count + 1
+        return count
+
+### AICL DATASET: statistics/count_negative.aicl
+=== SPEC ===
+# AICL Example: Count Negative
+# AX sub-language — compiles to real code.
+
+Goal:
+Negative count
+
+Layer:
+Core
+
+Behavior Count
+    Input: array
+    Output: count
+    Action:
+        count = 0
+        for i in range(0, len(array)):
+            if array[i] < 0:
+                count = count + 1
+        return count
+
+### AICL DATASET: statistics/count_zero.aicl
+=== SPEC ===
+# AICL Example: Count Zeros
+# AX sub-language — compiles to real code.
+
+Goal:
+Zero count
+
+Layer:
+Core
+
+Behavior Count
+    Input: array
+    Output: count
+    Action:
+        count = 0
+        for i in range(0, len(array)):
+            if array[i] == 0:
+                count = count + 1
+        return count
+
+### AICL DATASET: validation/is_negative.aicl
+=== SPEC ===
+# AICL Example: Is Negative
+# AX sub-language — compiles to real code.
+
+Goal:
+n < 0
+
+Layer:
+Core
+
+Behavior Check
+    Input: n
+    Output: result
+    Action:
+        if n < 0:
+            return true
+        return false
+
+### AICL DATASET: validation/is_zero.aicl
+=== SPEC ===
+# AICL Example: Is Zero
+# AX sub-language — compiles to real code.
+
+Goal:
+n == 0
+
+Layer:
+Core
+
+Behavior Check
+    Input: n
+    Output: result
+    Action:
+        if n == 0:
+            return true
+        return false
+
+### AICL DATASET: validation/is_nonzero.aicl
+=== SPEC ===
+# AICL Example: Is Nonzero
+# AX sub-language — compiles to real code.
+
+Goal:
+n != 0
+
+Layer:
+Core
+
+Behavior Check
+    Input: n
+    Output: result
+    Action:
+        if n == 0:
+            return false
+        return true
+
+### AICL DATASET: validation/validate_score.aicl
+=== SPEC ===
+# AICL Example: Validate Score
+# AX sub-language — compiles to real code.
+
+Goal:
+0-100
+
+Layer:
+Core
+
+Behavior Validate
+    Input: score
+    Output: result
+    Action:
+        if score < 0:
+            return false
+        if score > 100:
+            return false
+        return true
+
+### AICL DATASET: validation/validate_month.aicl
+=== SPEC ===
+# AICL Example: Validate Month
+# AX sub-language — compiles to real code.
+
+Goal:
+1-12
+
+Layer:
+Core
+
+Behavior Validate
+    Input: month
+    Output: result
+    Action:
+        if month < 1:
+            return false
+        if month > 12:
+            return false
+        return true
+
+### AICL DATASET: validation/validate_day.aicl
+=== SPEC ===
+# AICL Example: Validate Day
+# AX sub-language — compiles to real code.
+
+Goal:
+1-31
+
+Layer:
+Core
+
+Behavior Validate
+    Input: day
+    Output: result
+    Action:
+        if day < 1:
+            return false
+        if day > 31:
+            return false
+        return true
+
+### AICL DATASET: validation/validate_hour.aicl
+=== SPEC ===
+# AICL Example: Validate Hour
+# AX sub-language — compiles to real code.
+
+Goal:
+0-23
+
+Layer:
+Core
+
+Behavior Validate
+    Input: hour
+    Output: result
+    Action:
+        if hour < 0:
+            return false
+        if hour > 23:
+            return false
+        return true
+
+### AICL DATASET: validation/validate_minute.aicl
+=== SPEC ===
+# AICL Example: Validate Minute
+# AX sub-language — compiles to real code.
+
+Goal:
+0-59
+
+Layer:
+Core
+
+Behavior Validate
+    Input: minute
+    Output: result
+    Action:
+        if minute < 0:
+            return false
+        if minute > 59:
+            return false
+        return true
+
+### AICL DATASET: searching/find_first_positive.aicl
+=== SPEC ===
+# AICL Example: First Positive
+# AX sub-language — compiles to real code.
+
+Goal:
+First positive elem
+
+Layer:
+Core
+
+Behavior Find
+    Input: array
+    Output: result
+    Action:
+        for i in range(0, len(array)):
+            if array[i] > 0:
+                return array[i]
+        return 0
+
+### AICL DATASET: searching/find_last_even.aicl
+=== SPEC ===
+# AICL Example: Last Even
+# AX sub-language — compiles to real code.
+
+Goal:
+Last even elem
+
+Layer:
+Core
+
+Behavior Find
+    Input: array
+    Output: result
+    Action:
+        result = -1
+        for i in range(0, len(array)):
+            if array[i] % 2 == 0:
+                result = array[i]
+        return result
+
+### AICL DATASET: searching/count_target.aicl
+=== SPEC ===
+# AICL Example: Count Target
+# AX sub-language — compiles to real code.
+
+Goal:
+Occurrences of target
+
+Layer:
+Core
+
+Behavior Count
+    Input: array, target
+    Output: count
+    Action:
+        count = 0
+        for i in range(0, len(array)):
+            if array[i] == target:
+                count = count + 1
+        return count
+
+### AICL DATASET: math/percentage.aicl
+=== SPEC ===
+# AICL Example: Percentage
+# AX sub-language — compiles to real code.
+
+Goal:
+part/total*100
+
+Layer:
+Core
+
+Behavior Compute
+    Input: part, total
+    Output: result
+    Action:
+        if total == 0:
+            return 0
+        return part * 100 // total
+
+### AICL DATASET: math/average_of_two.aicl
+=== SPEC ===
+# AICL Example: Average of Two
+# AX sub-language — compiles to real code.
+
+Goal:
+(a+b)/2
+
+Layer:
+Core
+
+Behavior Avg
+    Input: a, b
+    Output: result
+    Action:
+        return (a + b) // 2
+
+### AICL DATASET: arrays/swap_first_last.aicl
+=== SPEC ===
+# AICL Example: Swap First Last
+# AX sub-language — compiles to real code.
+
+Goal:
+Swap first and last element
+
+Layer:
+Core
+
+Behavior Swap
+    Input: array
+    Output: array
+    Action:
+        n = len(array)
+        if n < 2:
+            return array
+        temp = array[0]
+        array[0] = array[n - 1]
+        array[n - 1] = temp
+        return array
+
+### AICL DATASET: logic/is_multiple.aicl
+=== SPEC ===
+# AICL Example: Is Multiple
+# AX sub-language — compiles to real code.
+
+Goal:
+Is a a multiple of b
+
+Layer:
+Core
+
+Behavior Check
+    Input: a, b
+    Output: result
+    Action:
+        if b == 0:
+            return false
+        return a % b == 0
+
+### AICL DATASET: logic/is_divisor.aicl
+=== SPEC ===
+# AICL Example: Is Divisor
+# AX sub-language — compiles to real code.
+
+Goal:
+Does b divide a
+
+Layer:
+Core
+
+Behavior Check
+    Input: a, b
+    Output: result
+    Action:
+        if b == 0:
+            return false
+        if a % b == 0:
+            return true
+        return false

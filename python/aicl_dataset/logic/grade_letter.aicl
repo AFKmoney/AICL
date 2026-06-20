@@ -1,0 +1,22 @@
+# AICL Example: Grade Letter
+# AX sub-language — compiles to real code.
+
+Goal:
+Score to grade
+
+Layer:
+Core
+
+Behavior Grade
+    Input: score
+    Output: grade
+    Action:
+        if score >= 90:
+            return "A"
+        elif score >= 80:
+            return "B"
+        elif score >= 70:
+            return "C"
+        elif score >= 60:
+            return "D"
+        return "F"

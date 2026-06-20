@@ -1,0 +1,14 @@
+# AICL Example: Double
+# AX sub-language — compiles to real code.
+
+Goal:
+2*n
+
+Layer:
+Core
+
+Behavior Double
+    Input: n
+    Output: result
+    Action:
+        return n * 2

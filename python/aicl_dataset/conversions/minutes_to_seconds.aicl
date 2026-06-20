@@ -1,0 +1,14 @@
+# AICL Example: Minutes to Seconds
+# AX sub-language — compiles to real code.
+
+Goal:
+Convert
+
+Layer:
+Core
+
+Behavior Convert
+    Input: minutes
+    Output: seconds
+    Action:
+        return minutes * 60

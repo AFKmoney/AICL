@@ -1,0 +1,19 @@
+# AICL Example: Average
+# AX sub-language — compiles to real code.
+
+Goal:
+Mean
+
+Layer:
+Core
+
+Behavior Average
+    Input: array
+    Output: mean
+    Action:
+        if len(array) == 0:
+            return 0
+        total = 0
+        for i in range(0, len(array)):
+            total = total + array[i]
+        return total // len(array)

@@ -1,0 +1,19 @@
+# AICL Example: Rotate Array
+# AX sub-language — compiles to real code.
+
+Goal:
+Right by k
+
+Layer:
+Core
+
+Behavior Rotate
+    Input: array, k
+    Output: result
+    Action:
+        n = len(array)
+        result = []
+        for i in range(0, n):
+            src = (i + n - k) % n
+            result.append(array[src])
+        return result

@@ -1,0 +1,14 @@
+# AICL Example: Increment
+# AX sub-language — compiles to real code.
+
+Goal:
+n+1
+
+Layer:
+Core
+
+Behavior Increment
+    Input: n
+    Output: result
+    Action:
+        return n + 1

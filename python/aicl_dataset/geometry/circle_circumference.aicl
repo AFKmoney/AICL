@@ -1,0 +1,14 @@
+# AICL Example: Circle Circumference
+# AX sub-language — compiles to real code.
+
+Goal:
+2*pi*r approx
+
+Layer:
+Core
+
+Behavior Circumference
+    Input: radius
+    Output: circumference
+    Action:
+        return 2 * radius * 314 // 100

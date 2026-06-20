@@ -1,0 +1,24 @@
+# AICL Example: Linear Search
+# AX sub-language — compiles to real code.
+
+Goal:
+Find target
+
+Risk:
+Not found
+Recovery:
+Return -1
+
+Layer:
+Core
+
+Behavior Search
+    Input: array, target
+    Output: index
+    Action:
+        i = 0
+        while i < len(array):
+            if array[i] == target:
+                return i
+            i = i + 1
+        return -1

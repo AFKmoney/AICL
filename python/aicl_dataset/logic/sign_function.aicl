@@ -1,0 +1,18 @@
+# AICL Example: Sign Function
+# AX sub-language — compiles to real code.
+
+Goal:
+sign(n)
+
+Layer:
+Core
+
+Behavior Sign
+    Input: n
+    Output: result
+    Action:
+        if n < 0:
+            return -1
+        if n == 0:
+            return 0
+        return 1

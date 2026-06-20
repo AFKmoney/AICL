@@ -1,0 +1,14 @@
+# AICL Example: Cube Volume
+# AX sub-language — compiles to real code.
+
+Goal:
+side^3
+
+Layer:
+Core
+
+Behavior Volume
+    Input: side
+    Output: volume
+    Action:
+        return side * side * side

@@ -1,0 +1,17 @@
+# AICL Example: Sum Array
+# AX sub-language — compiles to real code.
+
+Goal:
+Sum elements
+
+Layer:
+Core
+
+Behavior Sum
+    Input: array
+    Output: total
+    Action:
+        total = 0
+        for i in range(0, len(array)):
+            total = total + array[i]
+        return total

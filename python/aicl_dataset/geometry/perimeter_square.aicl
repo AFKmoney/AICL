@@ -1,0 +1,14 @@
+# AICL Example: Square Perimeter
+# AX sub-language — compiles to real code.
+
+Goal:
+4*side
+
+Layer:
+Core
+
+Behavior Perimeter
+    Input: side
+    Output: perimeter
+    Action:
+        return 4 * side

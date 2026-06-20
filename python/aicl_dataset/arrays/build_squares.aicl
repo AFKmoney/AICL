@@ -1,0 +1,17 @@
+# AICL Example: Build Squares
+# AX sub-language — compiles to real code.
+
+Goal:
+Squares 0..n-1
+
+Layer:
+Core
+
+Behavior Build
+    Input: n
+    Output: result
+    Action:
+        result = []
+        for i in range(0, n):
+            result.append(i * i)
+        return result

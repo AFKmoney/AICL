@@ -1,0 +1,17 @@
+# AICL Example: Cube Root Floor
+# AX sub-language — compiles to real code.
+
+Goal:
+floor(cbrt(n))
+
+Layer:
+Core
+
+Behavior Compute
+    Input: n
+    Output: result
+    Action:
+        r = 0
+        while (r + 1) * (r + 1) * (r + 1) <= n:
+            r = r + 1
+        return r

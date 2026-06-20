@@ -1,0 +1,20 @@
+# AICL Example: Swap First Last
+# AX sub-language — compiles to real code.
+
+Goal:
+Swap first and last element
+
+Layer:
+Core
+
+Behavior Swap
+    Input: array
+    Output: array
+    Action:
+        n = len(array)
+        if n < 2:
+            return array
+        temp = array[0]
+        array[0] = array[n - 1]
+        array[n - 1] = temp
+        return array

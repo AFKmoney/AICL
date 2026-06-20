@@ -1,0 +1,18 @@
+# AICL Example: Power Iterative
+# AX sub-language — compiles to real code.
+
+Goal:
+base^exp
+
+Layer:
+Core
+
+Behavior Compute
+    Input: base, exponent
+    Output: result
+    Action:
+        result = 1
+        while exponent > 0:
+            result = result * base
+            exponent = exponent - 1
+        return result

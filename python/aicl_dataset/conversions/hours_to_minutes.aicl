@@ -1,0 +1,14 @@
+# AICL Example: Hours to Minutes
+# AX sub-language — compiles to real code.
+
+Goal:
+Convert
+
+Layer:
+Core
+
+Behavior Convert
+    Input: hours
+    Output: minutes
+    Action:
+        return hours * 60

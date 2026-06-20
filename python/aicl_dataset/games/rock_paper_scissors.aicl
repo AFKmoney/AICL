@@ -1,0 +1,26 @@
+# AICL Example: Rock Paper Scissors
+# AX sub-language — compiles to real code.
+
+Goal:
+Winner
+
+Layer:
+Core
+
+Behavior Winner
+    Input: p1, p2
+    Output: result
+    Action:
+        if p1 == p2:
+            return "draw"
+        if p1 == "rock":
+            if p2 == "scissors":
+                return "p1"
+            return "p2"
+        if p1 == "paper":
+            if p2 == "rock":
+                return "p1"
+            return "p2"
+        if p2 == "paper":
+            return "p1"
+        return "p2"

@@ -1,0 +1,22 @@
+# AICL Example: Quadrant
+# AX sub-language — compiles to real code.
+
+Goal:
+Quad of point
+
+Layer:
+Core
+
+Behavior Find
+    Input: x, y
+    Output: quadrant
+    Action:
+        if x == 0 or y == 0:
+            return 0
+        if x > 0:
+            if y > 0:
+                return 1
+            return 4
+        if y > 0:
+            return 2
+        return 3

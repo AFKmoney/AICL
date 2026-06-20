@@ -1,0 +1,18 @@
+# AICL Example: Count Set Bits
+# AX sub-language — compiles to real code.
+
+Goal:
+Popcount
+
+Layer:
+Core
+
+Behavior Count
+    Input: n
+    Output: count
+    Action:
+        count = 0
+        while n > 0:
+            count = count + (n % 2)
+            n = n // 2
+        return count

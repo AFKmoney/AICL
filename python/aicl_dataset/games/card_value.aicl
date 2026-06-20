@@ -1,0 +1,22 @@
+# AICL Example: Card Value
+# AX sub-language — compiles to real code.
+
+Goal:
+Face card to value
+
+Layer:
+Core
+
+Behavior Value
+    Input: card
+    Output: result
+    Action:
+        if card == "A":
+            return 1
+        if card == "J":
+            return 11
+        if card == "Q":
+            return 12
+        if card == "K":
+            return 13
+        return card

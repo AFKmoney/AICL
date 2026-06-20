@@ -1,0 +1,18 @@
+# AICL Example: Count Down
+# AX sub-language — compiles to real code.
+
+Goal:
+n to 1
+
+Layer:
+Core
+
+Behavior Build
+    Input: n
+    Output: result
+    Action:
+        result = []
+        while n > 0:
+            result.append(n)
+            n = n - 1
+        return result

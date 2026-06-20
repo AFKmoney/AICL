@@ -1,0 +1,16 @@
+# AICL Example: Percentage
+# AX sub-language — compiles to real code.
+
+Goal:
+part/total*100
+
+Layer:
+Core
+
+Behavior Compute
+    Input: part, total
+    Output: result
+    Action:
+        if total == 0:
+            return 0
+        return part * 100 // total

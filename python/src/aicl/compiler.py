@@ -2240,7 +2240,11 @@ class Compiler:
         if not filtered:
             filtered = words
 
-        return ''.join(w.capitalize() for w in filtered)
+        result = ''.join(w.capitalize() for w in filtered)
+        # Class names can't start with a digit — prefix with 'App'
+        if result and result[0].isdigit():
+            result = 'App' + result
+        return result
 
     def _aicl_type_to_python(self, aicl_type: str) -> str:
         """Convert an AICL type name to a Python type annotation."""

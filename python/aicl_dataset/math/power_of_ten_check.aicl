@@ -1,0 +1,20 @@
+# AICL Example: Power of Ten
+# AX sub-language — compiles to real code.
+
+Goal:
+Is 10^k
+
+Layer:
+Core
+
+Behavior Check
+    Input: n
+    Output: result
+    Action:
+        if n <= 0:
+            return false
+        while n > 1:
+            if n % 10 != 0:
+                return false
+            n = n // 10
+        return true

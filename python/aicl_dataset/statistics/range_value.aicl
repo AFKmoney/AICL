@@ -1,0 +1,21 @@
+# AICL Example: Range
+# AX sub-language — compiles to real code.
+
+Goal:
+max-min
+
+Layer:
+Core
+
+Behavior Range
+    Input: array
+    Output: range_val
+    Action:
+        minimum = array[0]
+        maximum = array[0]
+        for i in range(1, len(array)):
+            if array[i] < minimum:
+                minimum = array[i]
+            if array[i] > maximum:
+                maximum = array[i]
+        return maximum - minimum

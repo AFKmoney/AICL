@@ -1,0 +1,17 @@
+# AICL Example: Scale Array
+# AX sub-language — compiles to real code.
+
+Goal:
+Multiply each by k
+
+Layer:
+Core
+
+Behavior Scale
+    Input: array, k
+    Output: result
+    Action:
+        result = []
+        for i in range(0, len(array)):
+            result.append(array[i] * k)
+        return result

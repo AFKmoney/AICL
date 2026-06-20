@@ -1,0 +1,22 @@
+# AICL Example: Fibonacci Iterative
+# AX sub-language — compiles to real code.
+
+Goal:
+nth Fibonacci
+
+Layer:
+Core
+
+Behavior Compute
+    Input: n
+    Output: result
+    Action:
+        if n <= 1:
+            return n
+        prev = 0
+        curr = 1
+        for i in range(2, n):
+            next = prev + curr
+            prev = curr
+            curr = next
+        return curr

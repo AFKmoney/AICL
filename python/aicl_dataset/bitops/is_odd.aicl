@@ -1,0 +1,16 @@
+# AICL Example: Is Odd
+# AX sub-language — compiles to real code.
+
+Goal:
+n odd
+
+Layer:
+Core
+
+Behavior Check
+    Input: n
+    Output: result
+    Action:
+        if n % 2 == 0:
+            return false
+        return true

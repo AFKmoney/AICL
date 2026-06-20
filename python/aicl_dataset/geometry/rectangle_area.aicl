@@ -1,0 +1,14 @@
+# AICL Example: Rectangle Area
+# AX sub-language — compiles to real code.
+
+Goal:
+w*h
+
+Layer:
+Core
+
+Behavior Area
+    Input: width, height
+    Output: area
+    Action:
+        return width * height

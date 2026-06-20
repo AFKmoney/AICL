@@ -1,0 +1,24 @@
+# AICL Example: Bubble Sort
+# AX sub-language — compiles to real code.
+
+Goal:
+Sort an array using bubble sort
+
+Risk:
+Empty array
+Recovery:
+Return empty array
+
+Layer:
+Core
+
+Behavior Sort
+    Input: array
+    Output: array
+    Action:
+        n = len(array)
+        for i in range(0, n):
+            for j in range(0, n - i - 1):
+                if array[j] > array[j + 1]:
+                    array[j], array[j + 1] = array[j + 1], array[j]
+        return array

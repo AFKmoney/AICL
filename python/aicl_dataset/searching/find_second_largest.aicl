@@ -1,0 +1,22 @@
+# AICL Example: Second Largest
+# AX sub-language — compiles to real code.
+
+Goal:
+2nd largest
+
+Layer:
+Core
+
+Behavior FindSecond
+    Input: array
+    Output: second
+    Action:
+        largest = array[0]
+        second = array[0]
+        for i in range(1, len(array)):
+            if array[i] > largest:
+                second = largest
+                largest = array[i]
+            elif array[i] > second:
+                second = array[i]
+        return second

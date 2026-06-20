@@ -1,0 +1,17 @@
+# AICL Example: Build Range
+# AX sub-language — compiles to real code.
+
+Goal:
+0..n-1 as array
+
+Layer:
+Core
+
+Behavior Build
+    Input: n
+    Output: result
+    Action:
+        result = []
+        for i in range(0, n):
+            result.append(i)
+        return result

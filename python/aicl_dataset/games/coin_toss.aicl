@@ -1,0 +1,16 @@
+# AICL Example: Coin Toss
+# AX sub-language — compiles to real code.
+
+Goal:
+Heads or tails
+
+Layer:
+Core
+
+Behavior Toss
+    Input: seed
+    Output: result
+    Action:
+        if seed % 2 == 0:
+            return "heads"
+        return "tails"

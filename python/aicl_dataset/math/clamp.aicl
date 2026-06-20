@@ -1,0 +1,18 @@
+# AICL Example: Clamp
+# AX sub-language — compiles to real code.
+
+Goal:
+Clamp value
+
+Layer:
+Core
+
+Behavior Clamp
+    Input: value, low, high
+    Output: result
+    Action:
+        if value < low:
+            return low
+        elif value > high:
+            return high
+        return value

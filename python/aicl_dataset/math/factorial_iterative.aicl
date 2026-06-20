@@ -1,0 +1,17 @@
+# AICL Example: Factorial Iterative
+# AX sub-language — compiles to real code.
+
+Goal:
+Compute factorial
+
+Layer:
+Core
+
+Behavior Compute
+    Input: n
+    Output: result
+    Action:
+        result = 1
+        for i in range(1, n + 1):
+            result = result * i
+        return result

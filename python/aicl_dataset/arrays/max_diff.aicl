@@ -1,0 +1,21 @@
+# AICL Example: Max Difference
+# AX sub-language — compiles to real code.
+
+Goal:
+max adjacent diff
+
+Layer:
+Core
+
+Behavior MaxDiff
+    Input: array
+    Output: result
+    Action:
+        result = 0
+        for i in range(1, len(array)):
+            diff = array[i] - array[i - 1]
+            if diff < 0:
+                diff = -diff
+            if diff > result:
+                result = diff
+        return result

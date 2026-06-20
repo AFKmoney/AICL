@@ -1,0 +1,20 @@
+# AICL Example: Armstrong Number
+# AX sub-language — compiles to real code.
+
+Goal:
+n == sum of cubes of digits
+
+Layer:
+Core
+
+Behavior Check
+    Input: n
+    Output: result
+    Action:
+        original = n
+        total = 0
+        while n > 0:
+            digit = n % 10
+        total = total + digit * digit * digit
+        n = n // 10
+        return total == original

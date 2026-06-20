@@ -1,0 +1,17 @@
+# AICL Example: Contains
+# AX sub-language — compiles to real code.
+
+Goal:
+Has value
+
+Layer:
+Core
+
+Behavior Contains
+    Input: array, value
+    Output: result
+    Action:
+        for i in range(0, len(array)):
+            if array[i] == value:
+                return true
+        return false

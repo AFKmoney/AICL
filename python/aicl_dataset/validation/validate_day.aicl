@@ -1,0 +1,18 @@
+# AICL Example: Validate Day
+# AX sub-language — compiles to real code.
+
+Goal:
+1-31
+
+Layer:
+Core
+
+Behavior Validate
+    Input: day
+    Output: result
+    Action:
+        if day < 1:
+            return false
+        if day > 31:
+            return false
+        return true

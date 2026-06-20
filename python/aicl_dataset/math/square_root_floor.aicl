@@ -1,0 +1,27 @@
+# AICL Example: Square Root Floor
+# AX sub-language — compiles to real code.
+
+Goal:
+floor(sqrt(n))
+
+Layer:
+Core
+
+Behavior Compute
+    Input: n
+    Output: result
+    Action:
+        if n < 2:
+            return n
+        r = 0
+        bit = 1
+        while bit <= n:
+            bit = bit * 4
+        while bit > 0:
+            if n >= r + bit:
+                n = n - (r + bit)
+                r = r // 2 + bit
+            else:
+                r = r // 2
+            bit = bit // 4
+        return r

@@ -1,0 +1,14 @@
+# AICL Example: Triangular Number
+# AX sub-language — compiles to real code.
+
+Goal:
+n*(n+1)/2
+
+Layer:
+Core
+
+Behavior Compute
+    Input: n
+    Output: result
+    Action:
+        return n * (n + 1) // 2

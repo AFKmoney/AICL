@@ -1,0 +1,16 @@
+# AICL Example: Is Negative
+# AX sub-language — compiles to real code.
+
+Goal:
+n < 0
+
+Layer:
+Core
+
+Behavior Check
+    Input: n
+    Output: result
+    Action:
+        if n < 0:
+            return true
+        return false

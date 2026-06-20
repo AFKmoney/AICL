@@ -1,0 +1,18 @@
+# AICL Example: Find Maximum
+# AX sub-language — compiles to real code.
+
+Goal:
+Max value
+
+Layer:
+Core
+
+Behavior FindMax
+    Input: array
+    Output: maximum
+    Action:
+        maximum = array[0]
+        for i in range(1, len(array)):
+            if array[i] > maximum:
+                maximum = array[i]
+        return maximum

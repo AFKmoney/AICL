@@ -1,0 +1,14 @@
+# AICL Example: F to C
+# AX sub-language — compiles to real code.
+
+Goal:
+Convert
+
+Layer:
+Core
+
+Behavior Convert
+    Input: fahrenheit
+    Output: celsius
+    Action:
+        return (fahrenheit - 32) * 5 // 9

@@ -1,0 +1,14 @@
+# AICL Example: Kg to Grams
+# AX sub-language — compiles to real code.
+
+Goal:
+Convert
+
+Layer:
+Core
+
+Behavior Convert
+    Input: kg
+    Output: grams
+    Action:
+        return kg * 1000

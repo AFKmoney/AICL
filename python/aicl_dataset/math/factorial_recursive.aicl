@@ -1,0 +1,16 @@
+# AICL Example: Factorial Recursive
+# AX sub-language — compiles to real code.
+
+Goal:
+Recursive
+
+Layer:
+Core
+
+Behavior Compute
+    Input: n
+    Output: result
+    Action:
+        if n <= 1:
+            return 1
+        return n * compute(n - 1)

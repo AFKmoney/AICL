@@ -1,0 +1,18 @@
+# AICL Example: Filter Greater
+# AX sub-language — compiles to real code.
+
+Goal:
+Above threshold
+
+Layer:
+Core
+
+Behavior Filter
+    Input: array, threshold
+    Output: result
+    Action:
+        result = []
+        for i in range(0, len(array)):
+            if array[i] > threshold:
+                result.append(array[i])
+        return result

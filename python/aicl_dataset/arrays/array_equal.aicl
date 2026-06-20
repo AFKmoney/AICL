@@ -1,0 +1,19 @@
+# AICL Example: Array Equal
+# AX sub-language — compiles to real code.
+
+Goal:
+Compare
+
+Layer:
+Core
+
+Behavior Compare
+    Input: a, b
+    Output: result
+    Action:
+        if len(a) != len(b):
+            return false
+        for i in range(0, len(a)):
+            if a[i] != b[i]:
+                return false
+        return true

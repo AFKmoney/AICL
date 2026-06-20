@@ -1,0 +1,17 @@
+# AICL Example: Sum Range
+# AX sub-language — compiles to real code.
+
+Goal:
+0+1+...+(n-1)
+
+Layer:
+Core
+
+Behavior Sum
+    Input: n
+    Output: total
+    Action:
+        total = 0
+        for i in range(0, n):
+            total = total + i
+        return total

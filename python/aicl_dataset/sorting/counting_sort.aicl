@@ -1,0 +1,23 @@
+# AICL Example: Counting Sort
+# AX sub-language — compiles to real code.
+
+Goal:
+Sort with counting
+
+Layer:
+Core
+
+Behavior Sort
+    Input: array, max_val
+    Output: result
+    Action:
+        count = []
+        for i in range(0, max_val + 1):
+            count.append(0)
+        for i in range(0, len(array)):
+            count[array[i]] = count[array[i]] + 1
+        result = []
+        for i in range(0, max_val + 1):
+            for j in range(0, count[i]):
+                result.append(i)
+        return result

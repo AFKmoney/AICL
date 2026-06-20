@@ -1,0 +1,17 @@
+# AICL Example: Any Negative
+# AX sub-language — compiles to real code.
+
+Goal:
+Has element < 0
+
+Layer:
+Core
+
+Behavior Check
+    Input: array
+    Output: result
+    Action:
+        for i in range(0, len(array)):
+            if array[i] < 0:
+                return true
+        return false

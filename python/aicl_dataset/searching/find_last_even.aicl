@@ -1,0 +1,18 @@
+# AICL Example: Last Even
+# AX sub-language — compiles to real code.
+
+Goal:
+Last even elem
+
+Layer:
+Core
+
+Behavior Find
+    Input: array
+    Output: result
+    Action:
+        result = -1
+        for i in range(0, len(array)):
+            if array[i] % 2 == 0:
+                result = array[i]
+        return result

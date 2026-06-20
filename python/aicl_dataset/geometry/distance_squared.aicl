@@ -1,0 +1,16 @@
+# AICL Example: Distance Squared
+# AX sub-language — compiles to real code.
+
+Goal:
+dx^2+dy^2
+
+Layer:
+Core
+
+Behavior Distance
+    Input: x1, y1, x2, y2
+    Output: result
+    Action:
+        dx = x2 - x1
+        dy = y2 - y1
+        return dx * dx + dy * dy

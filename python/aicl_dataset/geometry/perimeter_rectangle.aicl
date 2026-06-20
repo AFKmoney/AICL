@@ -1,0 +1,14 @@
+# AICL Example: Rectangle Perimeter
+# AX sub-language — compiles to real code.
+
+Goal:
+2*(w+h)
+
+Layer:
+Core
+
+Behavior Perimeter
+    Input: width, height
+    Output: perimeter
+    Action:
+        return 2 * (width + height)

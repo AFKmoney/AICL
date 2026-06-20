@@ -1,0 +1,17 @@
+# AICL Example: Descending
+# AX sub-language — compiles to real code.
+
+Goal:
+a >= b >= c
+
+Layer:
+Core
+
+Behavior Check
+    Input: a, b, c
+    Output: result
+    Action:
+        if a >= b:
+            if b >= c:
+                return true
+        return false

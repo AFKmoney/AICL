@@ -1,0 +1,17 @@
+# AICL Example: Shift Array
+# AX sub-language — compiles to real code.
+
+Goal:
+Add k to each
+
+Layer:
+Core
+
+Behavior Shift
+    Input: array, k
+    Output: result
+    Action:
+        result = []
+        for i in range(0, len(array)):
+            result.append(array[i] + k)
+        return result

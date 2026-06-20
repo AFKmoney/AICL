@@ -1,0 +1,16 @@
+# AICL Example: Is Multiple
+# AX sub-language — compiles to real code.
+
+Goal:
+Is a a multiple of b
+
+Layer:
+Core
+
+Behavior Check
+    Input: a, b
+    Output: result
+    Action:
+        if b == 0:
+            return false
+        return a % b == 0

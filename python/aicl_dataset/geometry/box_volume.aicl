@@ -1,0 +1,14 @@
+# AICL Example: Box Volume
+# AX sub-language — compiles to real code.
+
+Goal:
+w*h*d
+
+Layer:
+Core
+
+Behavior Volume
+    Input: width, height, depth
+    Output: volume
+    Action:
+        return width * height * depth

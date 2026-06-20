@@ -1,0 +1,20 @@
+# AICL Example: Reverse Array
+# AX sub-language — compiles to real code.
+
+Goal:
+Reverse in place
+
+Layer:
+Core
+
+Behavior Reverse
+    Input: array
+    Output: array
+    Action:
+        left = 0
+        right = len(array) - 1
+        while left < right:
+            array[left], array[right] = array[right], array[left]
+            left = left + 1
+            right = right - 1
+        return array

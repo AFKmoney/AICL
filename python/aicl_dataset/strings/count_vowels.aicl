@@ -1,0 +1,26 @@
+# AICL Example: Count Vowels
+# AX sub-language — compiles to real code.
+
+Goal:
+Vowel count
+
+Layer:
+Core
+
+Behavior Count
+    Input: text
+    Output: count
+    Action:
+        count = 0
+        for ch in text:
+            if ch == "a":
+                count = count + 1
+            elif ch == "e":
+                count = count + 1
+            elif ch == "i":
+                count = count + 1
+            elif ch == "o":
+                count = count + 1
+            elif ch == "u":
+                count = count + 1
+        return count

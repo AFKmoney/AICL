@@ -1,0 +1,22 @@
+# AICL Example: LCM
+# AX sub-language — compiles to real code.
+
+Goal:
+Least common multiple
+
+Layer:
+Core
+
+Behavior Compute
+    Input: a, b
+    Output: result
+    Action:
+        if a == 0 or b == 0:
+            return 0
+        x = a
+        y = b
+        while y != 0:
+            temp = y
+            y = x % y
+            x = temp
+        return (a // x) * b

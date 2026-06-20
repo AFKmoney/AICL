@@ -1,0 +1,18 @@
+# AICL Example: Reverse Digits
+# AX sub-language — compiles to real code.
+
+Goal:
+Reverse decimal
+
+Layer:
+Core
+
+Behavior Reverse
+    Input: n
+    Output: result
+    Action:
+        result = 0
+        while n > 0:
+            result = result * 10 + (n % 10)
+            n = n // 10
+        return result

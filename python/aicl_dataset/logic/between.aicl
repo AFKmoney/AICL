@@ -1,0 +1,17 @@
+# AICL Example: Between
+# AX sub-language — compiles to real code.
+
+Goal:
+Is x between a and b
+
+Layer:
+Core
+
+Behavior Check
+    Input: x, a, b
+    Output: result
+    Action:
+        if x >= a:
+            if x <= b:
+                return true
+        return false

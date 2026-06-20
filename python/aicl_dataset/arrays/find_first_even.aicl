@@ -1,0 +1,17 @@
+# AICL Example: First Even
+# AX sub-language — compiles to real code.
+
+Goal:
+First even element
+
+Layer:
+Core
+
+Behavior Find
+    Input: array
+    Output: result
+    Action:
+        for i in range(0, len(array)):
+            if array[i] % 2 == 0:
+                return array[i]
+        return -1

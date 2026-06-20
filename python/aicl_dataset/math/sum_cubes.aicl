@@ -1,0 +1,17 @@
+# AICL Example: Sum of Cubes
+# AX sub-language — compiles to real code.
+
+Goal:
+1^3+...+n^3
+
+Layer:
+Core
+
+Behavior Sum
+    Input: n
+    Output: total
+    Action:
+        total = 0
+        for i in range(1, n + 1):
+            total = total + i * i * i
+        return total

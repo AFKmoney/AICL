@@ -1,0 +1,16 @@
+# AICL Example: First Character
+# AX sub-language — compiles to real code.
+
+Goal:
+text[0]
+
+Layer:
+Core
+
+Behavior First
+    Input: text
+    Output: result
+    Action:
+        if len(text) == 0:
+            return ""
+        return text[0]

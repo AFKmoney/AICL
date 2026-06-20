@@ -1,0 +1,21 @@
+# AICL Example: Palindrome
+# AX sub-language — compiles to real code.
+
+Goal:
+Is palindrome
+
+Layer:
+Core
+
+Behavior Check
+    Input: text
+    Output: result
+    Action:
+        left = 0
+        right = len(text) - 1
+        while left < right:
+            if text[left] != text[right]:
+                return false
+            left = left + 1
+            right = right - 1
+        return true

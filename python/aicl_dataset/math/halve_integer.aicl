@@ -1,0 +1,14 @@
+# AICL Example: Halve
+# AX sub-language — compiles to real code.
+
+Goal:
+n//2
+
+Layer:
+Core
+
+Behavior Halve
+    Input: n
+    Output: result
+    Action:
+        return n // 2

@@ -1,0 +1,14 @@
+# AICL Example: Days to Hours
+# AX sub-language — compiles to real code.
+
+Goal:
+Convert
+
+Layer:
+Core
+
+Behavior Convert
+    Input: days
+    Output: hours
+    Action:
+        return days * 24

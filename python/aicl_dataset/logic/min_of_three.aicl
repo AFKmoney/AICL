@@ -1,0 +1,19 @@
+# AICL Example: Min of Three
+# AX sub-language — compiles to real code.
+
+Goal:
+Minimum
+
+Layer:
+Core
+
+Behavior Min
+    Input: a, b, c
+    Output: result
+    Action:
+        minimum = a
+        if b < minimum:
+            minimum = b
+        if c < minimum:
+            minimum = c
+        return minimum

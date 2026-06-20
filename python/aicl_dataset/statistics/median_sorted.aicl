@@ -1,0 +1,19 @@
+# AICL Example: Median Sorted
+# AX sub-language — compiles to real code.
+
+Goal:
+Median
+
+Layer:
+Core
+
+Behavior Median
+    Input: array
+    Output: median
+    Action:
+        n = len(array)
+        if n == 0:
+            return 0
+        if n % 2 == 1:
+            return array[n // 2]
+        return (array[n // 2 - 1] + array[n // 2]) // 2

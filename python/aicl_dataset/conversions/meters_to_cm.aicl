@@ -1,0 +1,14 @@
+# AICL Example: Meters to cm
+# AX sub-language — compiles to real code.
+
+Goal:
+Convert
+
+Layer:
+Core
+
+Behavior Convert
+    Input: meters
+    Output: cm
+    Action:
+        return meters * 100

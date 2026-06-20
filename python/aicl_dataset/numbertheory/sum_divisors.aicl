@@ -1,0 +1,22 @@
+# AICL Example: Sum Divisors
+# AX sub-language — compiles to real code.
+
+Goal:
+Proper divisors
+
+Layer:
+Core
+
+Behavior Sum
+    Input: n
+    Output: total
+    Action:
+        total = 0
+        i = 1
+        while i * i <= n:
+            if n % i == 0:
+                total = total + i
+                if i != n // i:
+                    total = total + (n // i)
+            i = i + 1
+        return total - n

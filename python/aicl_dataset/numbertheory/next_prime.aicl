@@ -1,0 +1,24 @@
+# AICL Example: Next Prime
+# AX sub-language — compiles to real code.
+
+Goal:
+Smallest prime > n
+
+Layer:
+Core
+
+Behavior Find
+    Input: n
+    Output: result
+    Action:
+        candidate = n + 1
+        while true:
+            is_p = true
+        d = 2
+        while d * d <= candidate:
+            if candidate % d == 0:
+                is_p = false
+        d = d + 1
+        if is_p:
+            return candidate
+        candidate = candidate + 1
