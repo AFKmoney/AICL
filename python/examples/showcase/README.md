@@ -1,8 +1,8 @@
 # Showcase examples
 
-These 20 programs (+ 6 CogNet integration specs) are the curated public
-gallery. The full set of 91 examples (including 65 additional domain
-specs) is in [`../archive/`](../archive/).
+These 20 programs are the curated public gallery of architectural demos.
+The full dataset of 151 AX-powered algorithm scripts is in
+[`../../aicl_dataset/`](../../aicl_dataset/).
 
 ## Reference programs (Levels 1–9)
 

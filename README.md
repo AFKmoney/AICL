@@ -97,8 +97,8 @@ Behavior Quicksort
 This compiles to **real, runnable code** that sorts correctly — in Python,
 JavaScript (Node), Rust (rustc), and Go. The AX module lives in
 [`python/src/aicl/ax/`](./python/src/aicl/ax/) (lexer, parser, AST, four
-emitters, type inference). Grammar and design:
-[`docs/superpowers/specs/2026-06-18-aicl-turing-complete-design.md`](./docs/superpowers/specs/2026-06-18-aicl-turing-complete-design.md).
+emitters, type inference). Grammar and design: see
+[`docs/ax-reference.md`](./docs/ax-reference.md) for the full AX grammar.
 
 ## Why
 
@@ -321,9 +321,9 @@ verification). All pass on Python 3.10, 3.11, 3.12, and 3.13 (CLI also on 3.14).
 ## Examples
 
 The curated showcase is in [`python/examples/showcase/`](./python/examples/showcase/)
-(20 programs + 6 CogNet integration specs). The full set of 91 examples is in
-[`python/examples/archive/`](./python/examples/archive/). See
-[`python/examples/showcase/README.md`](./python/examples/showcase/README.md)
+(20 programs with AX behaviors). The full dataset of 151 AX-powered algorithm
+scripts is in [`python/aicl_dataset/`](./python/aicl_dataset/) (14 categories).
+See [`python/examples/showcase/README.md`](./python/examples/showcase/README.md)
 for the gallery index.
 
 ## Repository layout
@@ -365,10 +365,6 @@ docs/              Cross-cutting docs (papers, screenshots, asciinema demo)
 - [Releasing AICL (maintainer guide)](./RELEASING.md)
 - [Position paper](./docs/position_paper.md) — why AICL exists
 - [arXiv paper (LaTeX source)](./docs/arxiv_paper.tex) — full academic treatment
-- [arXiv paper (PDF)](./docs/arxiv_paper.pdf)
-- [User manual (PDF)](./docs/AICL_User_Manual.pdf)
-- [CLI / TUI manual (PDF)](./docs/AICL_CLI_TUI_Manual.pdf)
-- [Editor manual (PDF)](./docs/AICL_Editor_Manual.pdf)
 - [Changelog](./CHANGELOG.md)
 - [Contributing](./CONTRIBUTING.md)
 - [Security policy](./SECURITY.md)
