@@ -1,13 +1,14 @@
 # CogNet Integration Plan
 
-**Status:** Design / scaffolding only — no implementation yet
-**Last updated:** 2026-06-18
+**Status:** Implemented — corpus generator, training pipeline, and 1B model
+support are all functional. See [docs/cognet-integration.md](../../docs/cognet-integration.md)
+for the user-facing guide.
+**Last updated:** 2026-06-20
 **Owner:** Philippe-Antoine Robert (@AFKmoney)
 
-This document explains how the upcoming CogNet ↔ AICL integration is
-scaffolded in the current repository. The intent is for the structure to be
-ready for integration without committing to a specific CogNet runtime
-version yet.
+This document explains how the CogNet ↔ AICL integration works. The corpus
+generator produces spec→code pairs (using AX sub-language behaviors), and
+CogNet is fine-tuned on them via the `cloud_train.py` pipeline.
 
 ## Goal
 

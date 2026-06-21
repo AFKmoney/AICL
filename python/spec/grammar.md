@@ -232,4 +232,73 @@ Lines starting with `#` are treated as comments and ignored by the parser.
 | set | set | Unique collection |
 | any | Any | Dynamic type |
 | void | None | No return value |
+
+---
+
+## 11. AX Sub-Language (Turing-complete)
+
+AX (AICL-Action) is a strict, compilable sub-language used inside `Action:`
+sections of Behaviors. Instead of free-form English prose that the compiler
+can only skeleton, AX provides real logic: conditionals, loops, recursion,
+arithmetic, and data operations. AX compiles to **executable code** in all
+four targets (Python, Rust, JavaScript, Go).
+
+### AX Grammar
+
+```
+action        ::= stmt+
+stmt          ::= assign | if_stmt | while_stmt | for_stmt | return_stmt
+              |   call_stmt | break | continue | swap
+assign        ::= lvalue "=" expr
+              |   lvalue aug_op expr           (+= -= *= /= //= %= **=)
+if_stmt       ::= "if" expr block ("elif" expr block)* ("else" block)?
+while_stmt    ::= "while" expr block
+for_stmt      ::= "for" name "in" expr block
+return_stmt   ::= "return" expr?
+block         ::= INDENT stmt+ DEDENT
+expr          ::= or_expr
+or_expr       ::= and_expr ("or" and_expr)*
+and_expr      ::= not_expr ("and" not_expr)*
+not_expr      ::= "not" not_expr | comparison
+comparison    ::= arith (comp_op arith)*
+arith         ::= term (("+" | "-") term)*
+term          ::= factor (("*" | "/" | "//" | "%") factor)*
+factor        ::= "-" factor | power
+power         ::= atom ("**" factor)?
+atom          ::= literal | name | "(" expr ")" | list | call | index | attr
+literal       ::= int | float | string | true | false | none
+list          ::= "[" (expr ("," expr)*)? "]"
+swap          ::= lvalue_list "=" expr_list   (e.g. a, b = b, a)
+```
+
+### AX Builtins
+
+| Builtin | Effect |
+|---------|--------|
+| `range(a, b)` | Iterator from a to b exclusive |
+| `len(x)` | Length of array/string |
+| `abs(x)` | Absolute value |
+| `max(a, b)` / `min(a, b)` | Maximum / minimum |
+| `result.append(x)` | Append to list |
+
+### AX Example
+
+```
+Behavior Quicksort
+    Input: array, low, high
+    Output: pivot_index
+    Action:
+        pivot = array[high]
+        i = low - 1
+        for j in range(low, high):
+            if array[j] < pivot:
+                i = i + 1
+                array[i], array[j] = array[j], array[i]
+        array[i + 1], array[high] = array[high], array[i + 1]
+        return i + 1
+```
+
+See [`docs/ax-reference.md`](../../docs/ax-reference.md) for the full reference
+and [`docs/targets.md`](../../docs/targets.md) for how AX translates to each
+compile target.
 | bytes | bytes | Binary data |

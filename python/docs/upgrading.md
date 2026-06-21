@@ -67,11 +67,27 @@ The CLI output also tells you which target languages are enabled:
 
 ```
 AICL v2.1.0
-Architecture Compilation Language: Auditable Compilation with Proof of Origin
-Target languages: python, rust, javascript, go
+Artificial Intelligence-Centered Language
+  AX sub-language: Turing-complete (if/while/for/recursion)
+  Targets: Python, Rust, JavaScript, Go
+  Proof of Origin: cryptographic, sidecar .aicl-proof
+  CogNet integration: fine-tuning corpus generator ready
 ```
 
 ---
+
+## What's new in 2.1.0
+
+- **AX sub-language**: Turing-complete `Action:` sections that compile to real
+  executable code in all 4 targets (no more skeleton `pass` stubs)
+- **Type inference**: arrays and ints correctly typed for Rust/Go targets
+- **CLI overhaul**: rich colored output, `--json`, `init`, `new`, `targets`,
+  `doctor`, `--model` flag, `set_defaults` dispatch
+- **TUI overhaul**: real TextArea editor (was read-only), fixed `:save`,
+  `:compile all` (4 targets simultaneously)
+- **Web editor**: AX syntax highlighting, localStorage persistence
+- **151 AX-powered dataset scripts** replacing all old prose-style examples
+- **CogNet 1B training pipeline**: `cloud_train.py` with `--model small|1b`
 
 ## Upgrading
 

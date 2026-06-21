@@ -217,7 +217,7 @@ The era of "trust me bro" code generation should end. The No-Orphan Property sho
 
 ## References
 
-1. AICL Project. *Architecture Compilation Language: Auditable Compilation with Proof of Origin*. https://github.com/AFKmoney/AICL
+1. AICL Project. *Artificial Intelligence-Centered Language: Specification-first programming with AX sub-language and Proof of Origin*. https://github.com/AFKmoney/AICL
 2. AICL Autonomous Compilation System. *Self-Writing, Self-Validating Code with Provenance*. src/aicl/autonomous.py
 3. AICL AI-Powered Code Generation. *AI-Assisted Specification Generation and Diagnosis*. src/aicl/ai_generator.py
 4. FIPS 180-4. *Secure Hash Standard (SHA-256)*. National Institute of Standards and Technology, 2015.
