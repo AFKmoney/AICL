@@ -311,12 +311,15 @@ verification). All pass on Python 3.10, 3.11, 3.12, and 3.13 (CLI also on 3.14).
 
 | Doc | What it covers |
 |-----|----------------|
+| **[White Paper](./docs/whitepaper.md)** | **Complete technical overview — the definitive reference** |
 | [Getting Started](./docs/getting-started.md) | Install, first program, compile, verify |
 | [AX Reference](./docs/ax-reference.md) | Full grammar of the AX Turing-complete sub-language |
 | [Compile Targets](./docs/targets.md) | Python, Rust, JavaScript, Go — how AX translates |
 | [Proof of Origin](./docs/proof-of-origin.md) | Cryptographic provenance and verification |
 | [CogNet Integration](./docs/cognet-integration.md) | Corpus generation, fine-tuning CogNet 1B |
-| [Grammar Spec](./python/spec/grammar.md) | Formal AICL grammar (v0.1) |
+| [Grammar Spec](./python/spec/grammar.md) | Formal AICL grammar (incl. AX sub-language) |
+| [Position Paper](./docs/position_paper.md) | Why AICL exists — the no-orphan property |
+| [arXiv Paper (LaTeX)](./docs/arxiv_paper.tex) | Full academic treatment |
 
 ## Examples
 
