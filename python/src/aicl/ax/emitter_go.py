@@ -34,8 +34,9 @@ from typing import List, Set
 from . import ast as A
 from .ast import (
     Assign, AugAssign, BinOp, BoolLit, Break, Call, Continue, ExprStmt,
-    FloatLit, For, If, Index, Attr, IntLit, ListLit, MethodCall, Name,
-    NoneLit, Pass, Return, StrLit, Stmt, Swap, SwapStmt, UnaryOp, While,
+    FloatLit, For, If, Index, Attr, IntLit, ListLit, DictLit, SetLit, Slice,
+    MethodCall, Name, NoneLit, Pass, Return, StrLit, Stmt, Swap, SwapStmt,
+    UnaryOp, While,
 )
 
 
@@ -56,7 +57,6 @@ class _GoExprEmitter:
         if isinstance(e, BoolLit):
             return "true" if e.value else "false"
         if isinstance(e, NoneLit):
-            # Go has no nil for int; represent absence as 0.
             return "0"
         if isinstance(e, StrLit):
             esc = e.value.replace("\\", "\\\\").replace('"', '\\"')
@@ -65,7 +65,24 @@ class _GoExprEmitter:
             return e.name
         if isinstance(e, ListLit):
             inner = ", ".join(self.emit(x) for x in e.elements)
-            return f"[]int{{{inner}}}"
+            return "[]interface{}{" + inner + "}"
+        if isinstance(e, DictLit):
+            # Go map[string]interface{}
+            pairs = ", ".join(f"{self.emit(k)}: {self.emit(v)}" for k, v in e.pairs)
+            return "map[string]interface{}{" + pairs + "}"
+        if isinstance(e, SetLit):
+            # Go has no set; use map[interface{}]struct{}
+            inner = ", ".join(self.emit(x) + ": struct{}{}" for x in e.elements)
+            return "map[interface{}]struct{}{" + inner + "}"
+        if isinstance(e, Slice):
+            start = self.emit(e.start) if e.start is not None else "0"
+            if e.stop is not None:
+                stop = self.emit(e.stop)
+                if e.step is not None:
+                    # Go doesn't support step; manual loop needed
+                    return f"_axSlice({self.emit(e.target)}, {start}, {stop}, {self.emit(e.step)})"
+                return f"{self.emit(e.target)}[{start}:{stop}]"
+            return f"{self.emit(e.target)}[{start}:]"
         if isinstance(e, BinOp):
             return self._binop(e)
         if isinstance(e, UnaryOp):
@@ -79,8 +96,7 @@ class _GoExprEmitter:
         if isinstance(e, Call):
             return self._call(e)
         if isinstance(e, MethodCall):
-            args = ", ".join(self.emit(a) for a in e.args)
-            return f"{self.emit(e.target)}.{e.method}({args})"
+            return self._method_call(e)
         raise TypeError(f"cannot emit Go expression node {type(e).__name__}")
 
     def _binop(self, e: BinOp) -> str:
@@ -90,8 +106,17 @@ class _GoExprEmitter:
             return f"({L} && {R})"
         if e.op == "or":
             return f"({L} || {R})"
+        # membership operators — Go has no builtin, use helper
+        if e.op == "in":
+            return f"_axContains({R}, {L})"
+        if e.op == "not_in":
+            return f"(!_axContains({R}, {L}))"
+        # identity operators
+        if e.op == "is":
+            return f"({L} == {R})"
+        if e.op == "is_not":
+            return f"({L} != {R})"
         if e.op == "//":
-            # Go int division truncates toward zero.
             return f"({L} / {R})"
         if e.op == "**":
             return f"int(math.Pow(float64({L}), float64({R})))"
@@ -101,16 +126,100 @@ class _GoExprEmitter:
 
     def _call(self, e: Call) -> str:
         args = [self.emit(a) for a in e.args]
+
+        # I/O
+        if e.func == "print":
+            return f"fmt.Println({', '.join(args)})"
+        if e.func == "read_file":
+            return f"_axReadFile({args[0]})"
+        if e.func == "write_file":
+            return f"_axWriteFile({args[0]}, {args[1]})"
+
+        # Type conversion
+        if e.func == "int" and len(args) == 1:
+            return f"_axInt({args[0]})"
+        if e.func == "str" and len(args) == 1:
+            return f"fmt.Sprintf(\"%v\", {args[0]})"
+        if e.func == "float" and len(args) == 1:
+            return f"float64({args[0]})"
+        if e.func == "bool" and len(args) == 1:
+            return f"({args[0]} != 0)"
+
+        # Collections
         if e.func == "len" and len(args) == 1:
             return f"len({args[0]})"
         if e.func == "abs" and len(args) == 1:
-            # no built-in abs for int in Go; inline.
-            v = args[0]
-            return f"(_absInt({v}))"
+            return f"(_absInt({args[0]}))"
         if e.func in ("max", "min") and len(args) == 2:
-            # Go 1.21+ has builtin max/min.
             return f"({e.func}({args[0]}, {args[1]}))"
+        if e.func == "sum" and len(args) == 1:
+            return f"_axSum({args[0]})"
+        if e.func == "sorted" and len(args) == 1:
+            return f"_axSorted({args[0]})"
+        if e.func == "reversed" and len(args) == 1:
+            return f"_axReversed({args[0]})"
+
+        # String functions
+        if e.func == "ord" and len(args) == 1:
+            return f"int([]rune({args[0]})[0])"
+        if e.func == "chr" and len(args) == 1:
+            return f"string(rune({args[0]}))"
+
+        # Math
+        if e.func == "sqrt" and len(args) == 1:
+            return f"math.Sqrt(float64({args[0]}))"
+        if e.func == "pow" and len(args) == 2:
+            return f"int(math.Pow(float64({args[0]}), float64({args[1]})))"
+        if e.func == "floor" and len(args) == 1:
+            return f"int(math.Floor(float64({args[0]})))"
+        if e.func == "ceil" and len(args) == 1:
+            return f"int(math.Ceil(float64({args[0]})))"
+
         return f"{e.func}({', '.join(args)})"
+
+    def _method_call(self, e: MethodCall) -> str:
+        """Translate common Python methods to Go equivalents."""
+        args = [self.emit(a) for a in e.args]
+        target = self.emit(e.target)
+
+        # String methods
+        if e.method == "upper":
+            return f"strings.ToUpper({target})"
+        if e.method == "lower":
+            return f"strings.ToLower({target})"
+        if e.method == "strip":
+            return f"strings.TrimSpace({target})"
+        if e.method == "split":
+            if args:
+                return f"strings.Split({target}, {args[0]})"
+            return f"strings.Fields({target})"
+        if e.method == "replace":
+            return f"strings.ReplaceAll({target}, {args[0]}, {args[1]})"
+        if e.method == "find":
+            return f"strings.Index({target}, {args[0]})"
+        if e.method == "startswith":
+            return f"strings.HasPrefix({target}, {args[0]})"
+        if e.method == "endswith":
+            return f"strings.HasSuffix({target}, {args[0]})"
+        if e.method == "contains":
+            return f"strings.Contains({target}, {args[0]})"
+
+        # List methods (Go slices)
+        if e.method == "append":
+            return f"append({target}, {args[0]})"
+        if e.method == "pop":
+            return f"_axPop({target})"
+        if e.method == "insert":
+            return f"_axInsert({target}, {args[0]}, {args[1]})"
+        if e.method == "remove":
+            return f"_axRemove({target}, {args[0]})"
+        if e.method == "sort":
+            return f"sort.Ints({target})"
+        if e.method == "reverse":
+            return f"_axReverse({target})"
+
+        # Default: direct method call
+        return f"{target}.{e.method}({', '.join(args)})"
 
 
 def _emit_block(stmts: List[Stmt], indent: int, ex: _GoExprEmitter) -> List[str]:
@@ -266,9 +375,9 @@ def emit_go(stmts: List[Stmt], indent: int = 1) -> str:
 # Helper that callers using abs() must include in their package.
 ABS_HELPER = """
 func _absInt(x int) int {
-	if x < 0 {
-		return -x
-	}
-	return x
+        if x < 0 {
+                return -x
+        }
+        return x
 }
 """

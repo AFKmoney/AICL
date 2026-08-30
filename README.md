@@ -9,7 +9,7 @@
 
 [![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](https://github.com/AFKmoney/AICL)
 [![Python](https://img.shields.io/badge/python-3.10+-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-189%20passing-brightgreen.svg)](#tests)
+[![Tests](https://img.shields.io/badge/tests-210%20passing-brightgreen.svg)](#tests)
 [![Audit](https://img.shields.io/badge/audit%20coverage-100%25-brightgreen.svg)](#proof-of-origin)
 [![Targets](https://img.shields.io/badge/targets-Python%20%7C%20Rust%20%7C%20JS%20%7C%20Go-blue.svg)](#targets)
 [![AX](https://img.shields.io/badge/AX-Turing--complete%20sub--language-ff69b4.svg)](#ax-sub-language)
@@ -78,6 +78,23 @@ gives Behaviors a strict, compilable grammar: `if`/`elif`/`else`, `while`,
 `for`, recursion via calls, arithmetic, comparisons, list literals, indexing,
 method calls, and tuple swaps. The compiler translates any valid AX program
 to **executable code in all four targets** — no stubs, no `pass`-empty bodies.
+
+AX is now a **general-purpose programming language**. Beyond the original
+algorithmic core (if/while/for/recursion/lists/swap), it now supports:
+
+- **Dictionaries** — `{"key": value}`, `d[key]`, `d.keys()`, `d.values()`, `d.items()`, `d.get(k, default)`
+- **Sets** — `{1, 2, 3}`
+- **Slicing** — `arr[1:3]`, `s[:5]`, `arr[::2]`, `arr[::-1]`
+- **Membership operators** — `x in coll`, `x not in coll`, `x is none`, `x is not none`
+- **Full string methods** — `.upper()`, `.lower()`, `.strip()`, `.split()`, `.join()`, `.replace()`, `.find()`, `.startswith()`, `.endswith()`, `.count()`, `.contains()`, `.format()`
+- **Full list methods** — `.append()`, `.pop()`, `.insert()`, `.remove()`, `.sort()`, `.reverse()`, `.extend()`
+- **Full dict methods** — `.get()`, `.keys()`, `.values()`, `.items()`
+- **Standard library (40+ builtins)** — `print`, `input`, `read_file`, `write_file`, `int`, `str`, `float`, `bool`, `len`, `sum`, `sorted`, `reversed`, `abs`, `max`, `min`, `sqrt`, `pow`, `floor`, `ceil`, `ord`, `chr`, `range`, `enumerate`, `zip`, `list`, `dict`
+- **Method chaining on literals** — `"hello".upper()`, `[1,2,3].pop()`
+
+All of these compile to native equivalents in Python, JavaScript, Rust, and Go.
+See the [AX Language Reference](./docs/ax-language-reference.md) and
+[Standard Library Reference](./docs/stdlib-reference.md) for the complete details.
 
 ```aicl
 Behavior Quicksort
@@ -299,21 +316,24 @@ make test
 # or: cd python && pytest tests/ -v
 ```
 
-**189 tests** cover parsing, all 10 language levels, every backend, the
+**210 tests** cover parsing, all 10 language levels, every backend, the
 autonomous loop, the spec verifier, the ownership analyser, the optimiser,
-the Proof of Origin chain, the AX sub-language (frontend + 4 emitters), and
-**5 Hypothesis property-based tests** that
-generate randomised valid programs and verify compiler invariants
-(determinism, 100% audit coverage, valid proof chains, idempotent
+the Proof of Origin chain, the AX sub-language (frontend + 4 emitters +
+dicts/slicing/string methods/stdlib), and **5 Hypothesis property-based
+tests** that generate randomised valid programs and verify compiler
+invariants (determinism, 100% audit coverage, valid proof chains, idempotent
 verification). All pass on Python 3.10, 3.11, 3.12, and 3.13 (CLI also on 3.14).
 
 ## Documentation
 
 | Doc | What it covers |
 |-----|----------------|
-| **[White Paper](./docs/whitepaper.md)** | **Complete technical overview — the definitive reference** |
+| **[How to Code in AICL](./docs/how-to-code-in-aicl.md)** | **Practical guide — start here if you want to write AICL programs** |
+| **[AX Language Reference](./docs/ax-language-reference.md)** | **Full grammar of the AX sub-language (incl. dicts, slicing, in operator, stdlib)** |
+| **[Standard Library Reference](./docs/stdlib-reference.md)** | **Every builtin function with target mappings (Python/JS/Rust/Go)** |
+| **[AICL Cookbook](./docs/cookbook.md)** | **40+ ready-to-run recipes (algorithms, data processing, CRUD, I/O)** |
+| **[White Paper](./docs/whitepaper.md)** | Complete technical overview — the definitive reference |
 | [Getting Started](./docs/getting-started.md) | Install, first program, compile, verify |
-| [AX Reference](./docs/ax-reference.md) | Full grammar of the AX Turing-complete sub-language |
 | [Compile Targets](./docs/targets.md) | Python, Rust, JavaScript, Go — how AX translates |
 | [Proof of Origin](./docs/proof-of-origin.md) | Cryptographic provenance and verification |
 | [CogNet Integration](./docs/cognet-integration.md) | Corpus generation, fine-tuning CogNet 1B |

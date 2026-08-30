@@ -16,8 +16,9 @@ from typing import List
 from . import ast as A
 from .ast import (
     Assign, AugAssign, BinOp, BoolLit, Break, Call, Continue, ExprStmt,
-    FloatLit, For, If, Index, Attr, IntLit, ListLit, MethodCall, Name,
-    NoneLit, Pass, Return, StrLit, Stmt, Swap, SwapStmt, UnaryOp, While,
+    FloatLit, For, If, Index, Attr, IntLit, ListLit, DictLit, SetLit, Slice,
+    MethodCall, Name, NoneLit, Pass, Return, StrLit, Stmt, Swap, SwapStmt,
+    UnaryOp, While,
 )
 
 
@@ -37,8 +38,26 @@ def _emit_expr(e: A.Expr) -> str:
         return e.name
     if isinstance(e, ListLit):
         return "[" + ", ".join(_emit_expr(x) for x in e.elements) + "]"
+    if isinstance(e, DictLit):
+        pairs = ", ".join(f"{_emit_expr(k)}: {_emit_expr(v)}" for k, v in e.pairs)
+        return "{" + pairs + "}"
+    if isinstance(e, SetLit):
+        if not e.elements:
+            return "set()"
+        return "{" + ", ".join(_emit_expr(x) for x in e.elements) + "}"
+    if isinstance(e, Slice):
+        s = _emit_expr(e.start) if e.start is not None else ""
+        st = _emit_expr(e.stop) if e.stop is not None else ""
+        if e.step is not None:
+            return f"{_emit_expr(e.target)}[{s}:{st}:{_emit_expr(e.step)}]"
+        return f"{_emit_expr(e.target)}[{s}:{st}]"
     if isinstance(e, BinOp):
-        return f"({_emit_expr(e.left)} {e.op} {_emit_expr(e.right)})"
+        op = e.op
+        if op == "not_in":
+            return f"({_emit_expr(e.left)} not in {_emit_expr(e.right)})"
+        if op == "is_not":
+            return f"({_emit_expr(e.left)} is not {_emit_expr(e.right)})"
+        return f"({_emit_expr(e.left)} {op} {_emit_expr(e.right)})"
     if isinstance(e, UnaryOp):
         if e.op == "not":
             return f"(not {_emit_expr(e.operand)})"

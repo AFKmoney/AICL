@@ -1,0 +1,63 @@
+# AICL Example: Complete Application with I/O
+# Demonstrates: print, string methods, dicts, lists, slicing, type conversion, file I/O
+
+Goal:
+Build a CSV data processor that reads, filters, and reports
+
+Constraint:
+Must handle malformed data gracefully
+
+Risk:
+File not found
+
+Recovery:
+Return empty dataset
+
+Layer:
+CSV Processor
+
+Validation:
+Data is correctly parsed and filtered
+
+Behavior ParseLine
+    Input: line
+    Output: fields
+    Action:
+        fields = line.split(",")
+        result = []
+        for f in fields:
+            result.append(f.strip())
+        return result
+
+Behavior FilterByValue
+    Input: rows, column, value
+    Output: filtered
+    Action:
+        filtered = []
+        for row in rows:
+            if column < len(row):
+                if row[column] == value:
+                    filtered.append(row)
+        return filtered
+
+Behavior SumColumn
+    Input: rows, column
+    Output: total
+    Action:
+        total = 0
+        for row in rows:
+            if column < len(row):
+                total = total + int(row[column])
+        return total
+
+Behavior FormatReport
+    Input: rows, title
+    Output: report
+    Action:
+        lines = []
+        lines.append("=" + title + "=")
+        lines.append("Rows: " + str(len(rows)))
+        for row in rows:
+            lines.append(" | ".join(row))
+        lines.append("=" * 20)
+        return chr(10).join(lines)

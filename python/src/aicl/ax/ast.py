@@ -59,6 +59,27 @@ class ListLit(Expr):
 
 
 @dataclass
+class DictLit(Expr):
+    """Dictionary literal: {key1: value1, key2: value2, ...}"""
+    pairs: List[tuple]  # list of (key: Expr, value: Expr)
+
+
+@dataclass
+class SetLit(Expr):
+    """Set literal: {expr1, expr2, ...} (no colons)"""
+    elements: List[Expr]
+
+
+@dataclass
+class Slice(Expr):
+    """Slice expression: target[start:stop:step] — any of start/stop/step may be None."""
+    target: Expr
+    start: Optional[Expr]
+    stop: Optional[Expr]
+    step: Optional[Expr]
+
+
+@dataclass
 class BinOp(Expr):
     op: str          # one of: + - * / // % ** == != < <= > >= and or
     left: Expr
@@ -179,6 +200,6 @@ class Pass(Stmt):
 # Convenience: the supported binary operators, grouped so emitters and the
 # checker can validate them.
 ARITH_OPS = {"+", "-", "*", "/", "//", "%", "**"}
-COMPARE_OPS = {"==", "!=", "<", "<=", ">", ">="}
+COMPARE_OPS = {"==", "!=", "<", "<=", ">", ">=", "in", "not_in", "is", "is_not"}
 LOGIC_OPS = {"and", "or"}
 AUG_OPS = {"+=", "-=", "*=", "/=", "//=", "%=", "**="}

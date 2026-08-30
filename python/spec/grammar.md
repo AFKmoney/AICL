@@ -248,7 +248,7 @@ four targets (Python, Rust, JavaScript, Go).
 ```
 action        ::= stmt+
 stmt          ::= assign | if_stmt | while_stmt | for_stmt | return_stmt
-              |   call_stmt | break | continue | swap
+              |   call_stmt | break | continue | swap | pass
 assign        ::= lvalue "=" expr
               |   lvalue aug_op expr           (+= -= *= /= //= %= **=)
 if_stmt       ::= "if" expr block ("elif" expr block)* ("else" block)?
@@ -261,13 +261,22 @@ or_expr       ::= and_expr ("or" and_expr)*
 and_expr      ::= not_expr ("and" not_expr)*
 not_expr      ::= "not" not_expr | comparison
 comparison    ::= arith (comp_op arith)*
+comp_op       ::= "==" | "!=" | "<" | "<=" | ">" | ">="
+              |   "in" | "not" "in" | "is" | "is" "not"
 arith         ::= term (("+" | "-") term)*
 term          ::= factor (("*" | "/" | "//" | "%") factor)*
 factor        ::= "-" factor | power
-power         ::= atom ("**" factor)?
-atom          ::= literal | name | "(" expr ")" | list | call | index | attr
+power         ::= postfix ("**" factor)?
+postfix       ::= atom suffix*
+suffix        ::= "[" slice_or_index "]" | "." NAME | "(" args? ")"
+atom          ::= literal | NAME | "(" expr ")" | list | dict | set | call | index | attr
 literal       ::= int | float | string | true | false | none
 list          ::= "[" (expr ("," expr)*)? "]"
+dict          ::= "{" (pair ("," pair)*)? "}"
+set           ::= "{" (expr ("," expr)*)? "}"            # no colons
+pair          ::= expr ":" expr
+slice_or_index::= expr? ":" expr? (":" expr?)?           # slice
+              |   expr                                    # index
 swap          ::= lvalue_list "=" expr_list   (e.g. a, b = b, a)
 ```
 
@@ -276,10 +285,56 @@ swap          ::= lvalue_list "=" expr_list   (e.g. a, b = b, a)
 | Builtin | Effect |
 |---------|--------|
 | `range(a, b)` | Iterator from a to b exclusive |
-| `len(x)` | Length of array/string |
+| `range(a, b, c)` | Iterator from a to b exclusive, step c |
+| `len(x)` | Length of array/string/dict |
 | `abs(x)` | Absolute value |
 | `max(a, b)` / `min(a, b)` | Maximum / minimum |
+| `sum(list)` | Sum of all elements |
+| `sorted(x)` | Sorted copy |
+| `reversed(x)` | Reversed copy |
+| `int(x)` / `str(x)` / `float(x)` / `bool(x)` | Type conversion |
+| `ord(c)` / `chr(n)` | Character <-> code point |
+| `sqrt(x)` / `pow(a, b)` / `floor(x)` / `ceil(x)` | Math |
+| `print(...)` | Console output |
+| `input(prompt?)` | Read from stdin |
+| `read_file(path)` / `write_file(path, content)` | File I/O |
+| `enumerate(x)` / `zip(a, b)` | Iteration helpers |
+| `list(x)` / `dict(x)` | Collection constructors |
 | `result.append(x)` | Append to list |
+
+### AX Data Structures
+
+AX supports lists, dictionaries, and sets:
+
+```
+nums = [1, 2, 3, 4, 5]
+scores = {"alice": 90, "bob": 85}
+unique = {1, 2, 3}
+```
+
+### AX Slicing
+
+AX supports Python-style slicing on lists and strings:
+
+```
+first_three = arr[:3]
+middle = arr[2:5]
+every_other = arr[::2]
+reversed = arr[::-1]
+```
+
+### AX Membership Operators
+
+```
+if item in collection:    # present
+    ...
+if item not in collection:  # absent
+    ...
+if x is none:              # identity check
+    ...
+if x is not none:
+    ...
+```
 
 ### AX Example
 

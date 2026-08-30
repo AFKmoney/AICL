@@ -35,8 +35,9 @@ from typing import List, Set
 from . import ast as A
 from .ast import (
     Assign, AugAssign, BinOp, BoolLit, Break, Call, Continue, ExprStmt,
-    FloatLit, For, If, Index, Attr, IntLit, ListLit, MethodCall, Name,
-    NoneLit, Pass, Return, StrLit, Stmt, Swap, SwapStmt, UnaryOp, While,
+    FloatLit, For, If, Index, Attr, IntLit, ListLit, DictLit, SetLit, Slice,
+    MethodCall, Name, NoneLit, Pass, Return, StrLit, Stmt, Swap, SwapStmt,
+    UnaryOp, While,
 )
 
 
@@ -62,12 +63,29 @@ class _RustExprEmitter:
             return "None::<i64>"
         if isinstance(e, StrLit):
             esc = e.value.replace("\\", "\\\\").replace('"', '\\"')
-            return f'"{esc}"'
+            return f'String::from("{esc}")'
         if isinstance(e, Name):
             return e.name
         if isinstance(e, ListLit):
             inner = ", ".join(self.emit(x) for x in e.elements)
             return f"vec![{inner}]"
+        if isinstance(e, DictLit):
+            # Rust HashMap from entries
+            pairs = ", ".join(f"({self.emit(k)}, {self.emit(v)})" for k, v in e.pairs)
+            return f"_ax_dict!({pairs})"
+        if isinstance(e, SetLit):
+            inner = ", ".join(self.emit(x) for x in e.elements)
+            return f"_ax_set!({inner})"
+        if isinstance(e, Slice):
+            start = self.emit(e.start) if e.start is not None else "0"
+            stop = self.emit(e.stop) if e.stop is not None else "None"
+            if e.step is not None:
+                # Rust doesn't support step natively; use iterators
+                step = self.emit(e.step)
+                return f"{self.emit(e.target)}.iter().step_by({step} as usize).cloned().collect::<Vec<_>>()"
+            if e.stop is not None:
+                return f"{self.emit(e.target)}[{start}..{stop} as usize].to_vec()"
+            return f"{self.emit(e.target)}[{start}..].to_vec()"
         if isinstance(e, BinOp):
             return self._binop(e)
         if isinstance(e, UnaryOp):
@@ -75,15 +93,13 @@ class _RustExprEmitter:
                 return f"(!{self.emit(e.operand)})"
             return f"(-{self.emit(e.operand)})"
         if isinstance(e, Index):
-            # Rust Vec indexing needs usize; AX indices are i64.
             return f"{self.emit(e.target)}[{self.emit(e.index)} as usize]"
         if isinstance(e, Attr):
             return f"{self.emit(e.target)}.{e.attr}"
         if isinstance(e, Call):
             return self._call(e)
         if isinstance(e, MethodCall):
-            args = ", ".join(self.emit(a) for a in e.args)
-            return f"{self.emit(e.target)}.{e.method}({args})"
+            return self._method_call(e)
         raise TypeError(f"cannot emit Rust expression node {type(e).__name__}")
 
     def _binop(self, e: BinOp) -> str:
@@ -93,27 +109,78 @@ class _RustExprEmitter:
             return f"({L} && {R})"
         if e.op == "or":
             return f"({L} || {R})"
+        # membership operators
+        if e.op == "in":
+            return f"({R}.contains(&{L}))"
+        if e.op == "not_in":
+            return f"(!{R}.contains(&{L}))"
+        # identity operators
+        if e.op == "is":
+            return f"({L} == {R})"
+        if e.op == "is_not":
+            return f"({L} != {R})"
         if e.op == "//":
-            # i64 / i64 truncates toward zero in Rust.
             return f"({L} / {R})"
         if e.op == "**":
             return f"i64::pow({L}, {R} as u32)"
         if e.op == "%":
-            # Rust % is remainder (sign of dividend); matches Python for positives.
             return f"({L} % {R})"
         return f"({L} {e.op} {R})"
 
     def _call(self, e: Call) -> str:
         args = [self.emit(a) for a in e.args]
+
+        # I/O
+        if e.func == "print":
+            # Rust print! with multiple args
+            fmt = ", ".join("{:?}" for _ in args)
+            return f'println!("{{}}", {", ".join(args)})'
+        if e.func == "read_file":
+            return f"std::fs::read_to_string({args[0]}).unwrap()"
+        if e.func == "write_file":
+            return f"std::fs::write({args[0]}, {args[1]}).unwrap()"
+
+        # Type conversion
+        if e.func == "int" and len(args) == 1:
+            return f"({args[0]} as i64)"
+        if e.func == "str" and len(args) == 1:
+            return f"format!(\"{{}}\", {args[0]})"
+        if e.func == "float" and len(args) == 1:
+            return f"({args[0]} as f64)"
+        if e.func == "bool" and len(args) == 1:
+            return f"({args[0]} != 0)"
+
+        # Collections
         if e.func == "len" and len(args) == 1:
             return f"({args[0]}.len() as i64)"
         if e.func == "abs" and len(args) == 1:
             return f"i64::abs({args[0]})"
         if e.func in ("max", "min") and len(args) >= 1:
             return f"i64::{e.func}({', '.join(args)})"
+        if e.func == "sum" and len(args) == 1:
+            return f"{args[0]}.iter().sum::<i64>()"
+        if e.func == "sorted" and len(args) == 1:
+            return f"{{ let mut v = {args[0]}.clone(); v.sort(); v }}"
+        if e.func == "reversed" and len(args) == 1:
+            return f"{{ let mut v = {args[0]}.clone(); v.reverse(); v }}"
+
+        # String functions
+        if e.func == "ord" and len(args) == 1:
+            return f"({args[0]}.chars().next().unwrap() as i64)"
+        if e.func == "chr" and len(args) == 1:
+            return f"char::from_u32({args[0]} as u32).unwrap().to_string()"
+
+        # Math
+        if e.func == "sqrt" and len(args) == 1:
+            return f"({args[0]} as f64).sqrt()"
+        if e.func == "pow" and len(args) == 2:
+            return f"i64::pow({args[0]}, {args[1]} as u32)"
+        if e.func == "floor" and len(args) == 1:
+            return f"({args[0]} as f64).floor() as i64"
+        if e.func == "ceil" and len(args) == 1:
+            return f"({args[0]} as f64).ceil() as i64"
+
         if e.func == "range":
-            # range appears in for-headers; handled by _emit_for. If it reaches
-            # here as an expression, render as a Vec of the range.
             if len(args) == 1:
                 return f"(0..{args[0]}).collect::<Vec<_>>()"
             elif len(args) == 2:
@@ -122,6 +189,52 @@ class _RustExprEmitter:
                 start, stop, step = args[0], args[1], args[2]
                 return f"({start}..{stop}).step_by({step} as usize).collect::<Vec<_>>()"
         return f"{e.func}({', '.join(args)})"
+
+    def _method_call(self, e: MethodCall) -> str:
+        """Translate common Python methods to Rust equivalents."""
+        args = [self.emit(a) for a in e.args]
+        target = self.emit(e.target)
+
+        # String methods
+        if e.method == "upper":
+            return f"{target}.to_uppercase()"
+        if e.method == "lower":
+            return f"{target}.to_lowercase()"
+        if e.method == "strip":
+            return f"{target}.trim().to_string()"
+        if e.method == "split":
+            if args:
+                return f"{target}.split({args[0]}).map(|s| s.to_string()).collect::<Vec<_>>()"
+            return f"{target}.split_whitespace().map(|s| s.to_string()).collect::<Vec<_>>()"
+        if e.method == "replace":
+            return f"{target}.replace({args[0]}, {args[1]})"
+        if e.method == "find":
+            return f"({target}.find({args[0]}).map(|i| i as i64).unwrap_or(-1))"
+        if e.method == "startswith":
+            return f"{target}.starts_with({args[0]})"
+        if e.method == "endswith":
+            return f"{target}.ends_with({args[0]})"
+        if e.method == "contains":
+            return f"{target}.contains({args[0]})"
+
+        # List methods
+        if e.method == "append":
+            return f"{target}.push({args[0]})"
+        if e.method == "pop":
+            return f"{target}.pop().unwrap()"
+        if e.method == "insert":
+            return f"{target}.insert({args[0]} as usize, {args[1]})"
+        if e.method == "remove":
+            return f"{target}.remove({args[0]} as usize)"
+        if e.method == "sort":
+            return f"{target}.sort()"
+        if e.method == "reverse":
+            return f"{target}.reverse()"
+        if e.method == "extend":
+            return f"{target}.extend({args[0]})"
+
+        # Default: direct method call
+        return f"{target}.{e.method}({', '.join(args)})"
 
 
 def _emit_block(stmts: List[Stmt], indent: int, ex: _RustExprEmitter) -> List[str]:

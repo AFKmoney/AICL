@@ -1,0 +1,72 @@
+# AICL Example: Data Processing with Dictionaries & Strings
+# Demonstrates the extended AX sub-language: dicts, string methods, slicing, I/O
+
+Goal:
+Build a text analysis tool that counts word frequencies and finds patterns
+
+Constraint:
+Must handle empty input gracefully
+
+Risk:
+Input text is empty
+
+Recovery:
+Return empty results
+
+Layer:
+Analyzer
+
+Validation:
+Word counts are accurate
+
+Behavior CountWords
+    Input: text
+    Output: counts
+    Action:
+        words = text.split()
+        counts = {}
+        for word in words:
+            word = word.lower().strip()
+            if word in counts:
+                counts[word] = counts[word] + 1
+            else:
+                counts[word] = 1
+        return counts
+
+Behavior FindPattern
+    Input: text, pattern
+    Output: matches
+    Action:
+        matches = []
+        words = text.split()
+        pattern = pattern.lower()
+        for word in words:
+            if pattern in word.lower():
+                matches.append(word)
+        return matches
+
+Behavior TopN
+    Input: counts, n
+    Output: result
+    Action:
+        items = sorted(counts.items())
+        result = items[:n]
+        return result
+
+Behavior Analyze
+    Input: text
+    Output: summary
+    Action:
+        counts = {}
+        words = text.lower().split()
+        for word in words:
+            word = word.strip()
+            if len(word) > 0:
+                if word in counts:
+                    counts[word] = counts[word] + 1
+                else:
+                    counts[word] = 1
+        total = sum(counts.values())
+        unique = len(counts)
+        summary = "Total words: " + str(total) + ", Unique: " + str(unique)
+        return summary

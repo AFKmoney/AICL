@@ -34,9 +34,9 @@ from typing import List, Optional
 from . import ast as A
 from .ast import (
     Assign, AugAssign, BoolLit, Break, Call, Continue, ExprStmt, FloatLit,
-    For, If, Index, Attr, IntLit, ListLit, MethodCall, Name, NoneLit, Pass, Return,
-    StrLit, Stmt, Swap, SwapStmt, UnaryOp, BinOp, While,
-    ARITH_OPS, COMPARE_OPS, LOGIC_OPS, AUG_OPS,
+    For, If, Index, Attr, IntLit, ListLit, DictLit, SetLit, Slice, MethodCall,
+    Name, NoneLit, Pass, Return, StrLit, Stmt, Swap, SwapStmt, UnaryOp, BinOp,
+    While, ARITH_OPS, COMPARE_OPS, LOGIC_OPS, AUG_OPS,
 )
 from .lexer import tokenize, Token, AXSyntaxError
 
@@ -263,8 +263,31 @@ class Parser:
     def parse_comparison(self) -> A.Expr:
         left = self.parse_arith()
         while True:
+            # Check for "in", "not in", "is", "is not" keyword operators
+            if self.check_name("in"):
+                self.advance()
+                right = self.parse_arith()
+                left = BinOp(op="in", left=left, right=right)
+                continue
+            if self.check_name("not") and self.peek(1).kind == "NAME" and self.peek(1).value == "in":
+                self.advance()  # not
+                self.advance()  # in
+                right = self.parse_arith()
+                left = BinOp(op="not_in", left=left, right=right)
+                continue
+            if self.check_name("is"):
+                self.advance()
+                if self.check_name("not"):
+                    self.advance()
+                    right = self.parse_arith()
+                    left = BinOp(op="is_not", left=left, right=right)
+                else:
+                    right = self.parse_arith()
+                    left = BinOp(op="is", left=left, right=right)
+                continue
+            # Check for symbolic comparison operators
             matched = None
-            for op in COMPARE_OPS:
+            for op in ("==", "!=", "<=", ">=", "<", ">"):
                 if self.check_op(op):
                     matched = op
                     break
@@ -310,22 +333,22 @@ class Parser:
 
         if t.kind == "INT":
             self.advance()
-            return IntLit(int(t.value))
+            return self.parse_postfix(IntLit(int(t.value)))
         if t.kind == "FLOAT":
             self.advance()
-            return FloatLit(float(t.value))
+            return self.parse_postfix(FloatLit(float(t.value)))
         if t.kind == "STRING":
             self.advance()
-            return StrLit(t.value)
+            return self.parse_postfix(StrLit(t.value))
 
         if t.kind == "NAME":
             v = t.value
             if v == "true":
-                self.advance(); return BoolLit(True)
+                self.advance(); return self.parse_postfix(BoolLit(True))
             if v == "false":
-                self.advance(); return BoolLit(False)
+                self.advance(); return self.parse_postfix(BoolLit(False))
             if v == "none":
-                self.advance(); return NoneLit()
+                self.advance(); return self.parse_postfix(NoneLit())
             # name, possibly followed by call / index / attr
             self.advance()
             expr: A.Expr = Name(name=v)
@@ -350,17 +373,72 @@ class Parser:
             self.expect("OP", "]")
             return self.parse_postfix(ListLit(elements=elements))
 
+        # Dict literal {key: value, ...} or Set literal {a, b, ...}
+        if self.check_op("{"):
+            self.advance()
+            # Empty braces → empty dict
+            if self.check_op("}"):
+                self.advance()
+                return self.parse_postfix(DictLit(pairs=[]))
+            # Parse first element to decide dict vs set
+            first = self.parse_expr()
+            if self.check_op(":"):
+                # Dict literal
+                self.advance()
+                val = self.parse_expr()
+                pairs: List[tuple] = [(first, val)]
+                while self.check_op(","):
+                    self.advance()
+                    if self.check_op("}"):
+                        break
+                    k = self.parse_expr()
+                    self.expect("OP", ":")
+                    v = self.parse_expr()
+                    pairs.append((k, v))
+                self.expect("OP", "}")
+                return self.parse_postfix(DictLit(pairs=pairs))
+            else:
+                # Set literal (or just a braced expression)
+                elems = [first]
+                while self.check_op(","):
+                    self.advance()
+                    if self.check_op("}"):
+                        break
+                    elems.append(self.parse_expr())
+                self.expect("OP", "}")
+                return self.parse_postfix(SetLit(elements=elems))
+
         raise AXSyntaxError(f"line {t.line}: unexpected token {t.kind} {t.value!r}")
 
     def parse_postfix(self, base: A.Expr) -> A.Expr:
-        """Parse trailing [index], .attr, and (call) suffixes."""
+        """Parse trailing [index], [start:stop:step] slice, .attr, and (call) suffixes."""
         expr = base
         while True:
             if self.check_op("["):
                 self.advance()
-                idx = self.parse_expr()
+                # Check for slice syntax: [start:stop] or [start:stop:step] or [:stop] etc.
+                start: Optional[A.Expr] = None
+                stop: Optional[A.Expr] = None
+                step: Optional[A.Expr] = None
+                is_slice = False
+
+                if not self.check_op(":"):
+                    start = self.parse_expr()
+                # Check if this is a slice (has colon)
+                if self.check_op(":"):
+                    is_slice = True
+                    self.advance()  # consume ':'
+                    if not self.check_op(":") and not self.check_op("]"):
+                        stop = self.parse_expr()
+                    if self.check_op(":"):
+                        self.advance()  # consume second ':'
+                        if not self.check_op("]"):
+                            step = self.parse_expr()
                 self.expect("OP", "]")
-                expr = Index(target=expr, index=idx)
+                if is_slice:
+                    expr = Slice(target=expr, start=start, stop=stop, step=step)
+                else:
+                    expr = Index(target=expr, index=start if start is not None else IntLit(0))
             elif self.check_op("."):
                 self.advance()
                 attr_tok = self.expect("NAME")
