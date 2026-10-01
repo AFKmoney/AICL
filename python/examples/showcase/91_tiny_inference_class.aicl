@@ -1,0 +1,35 @@
+# Tiny spec class — first listable job type. Weight = 1.
+
+Goal:
+Serve one tiny-class inference request within a 2048 output token budget and a 2000 ms SLA
+
+Constraint:
+Model hash must equal tiny-model-v0
+Constraint:
+Chain stores hashes only
+
+Risk:
+Worker returns a different model than tiny-model-v0
+Recovery:
+Reject settlement and slash miner bond to the payer
+Risk:
+Output exceeds the 2048 token budget
+Recovery:
+Set quality to zero and allow slash on challenge
+
+Layer:
+TinyInference
+
+Validation:
+Proof of Origin verifies against this spec hash
+Validation:
+Billed output tokens never exceed 2048
+
+Behavior BoundOutput
+    Input: token_out, budget_out
+    Output: billed
+    Action:
+        billed = token_out
+        if billed > budget_out:
+            billed = budget_out
+        return billed
