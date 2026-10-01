@@ -1,0 +1,12 @@
+[package]
+name = "inference-market"
+version = "0.1.0"
+edition = "2021"
+description = "AICL Inference Market — Solana program husk. Logic source: 90_inference_market.aicl"
+license = "MIT"
+
+[lib]
+name = "inference_market"
+crate-type = ["cdylib", "lib"]
+
+[dependencies]

@@ -1,0 +1,271 @@
+# AICL Inference Market — on-chain settlement spec
+# Source language: AICL. Intended compile path: --target rust → Solana program.
+# Later emitters: --target solana, --target solidity (same spec, same proof).
+# Normative docs: docs/inference-market-whitepaper.md
+#                 docs/inference-mining-plan.md
+
+Goal:
+Settle attested inference jobs using AICL Proof of Origin so miners are paid only for verified spec-class work and payers are refunded when proofs fail or expire
+
+Constraint:
+Chain stores hashes only never raw prompts or completions
+Constraint:
+Escrow for jobs is a stable unit not the reward ticker
+Constraint:
+Emission in an epoch with zero settled proofs is zero
+Constraint:
+A spec class without a matching Recovery for every Risk cannot register
+Constraint:
+Identical proof plus job nonce cannot settle twice
+Constraint:
+Compile target for the program is Rust so it can wrap as a Solana instruction handler
+
+Risk:
+Miner substitutes a cheaper model than the registered class hash
+Recovery:
+Reject settlement and slash miner bond to the payer
+Risk:
+Miner replays an old proof on a new job
+Recovery:
+Reject the instruction and keep both escrow and bonds unchanged
+Risk:
+Miner pads output token count to inflate score
+Recovery:
+Bill the minimum of declared output tokens and class budget then allow watcher slash if validation fails
+Risk:
+Job deadline passes with no proof
+Recovery:
+Refund payer escrow and release miner bond if the job was never proven
+Risk:
+Watcher files a false challenge
+Recovery:
+Transfer watcher bond to the miner and finalize settle
+Risk:
+Reward ticker price explodes or collapses mid-job
+Recovery:
+Keep job escrow in the stable unit and pay ORIGIN rewards only after settle
+Risk:
+Compiled artifact does not match registered spec hash
+Recovery:
+Refuse register and refuse settle
+
+Layer:
+InferenceMarket
+    Sublayer:
+    ClassRegistry
+    Sublayer:
+    JobEscrow
+    Sublayer:
+    ProofSettlement
+    Sublayer:
+    Emission
+    Sublayer:
+    Challenge
+
+Validation:
+Job without Goal Constraint Risk Recovery Layer and Validation never compiles
+Validation:
+Settle pays miner only when proof hash verifies against spec hash and model hash
+Validation:
+Duplicate job nonce is rejected
+Validation:
+Expired unproven job refunds payer
+Validation:
+Empty epoch mints zero ORIGIN
+Validation:
+Slash paths move bonds as declared and never lock funds forever
+
+Entity SpecClass
+    class_id: integer
+    spec_hash: string
+    model_hash: string
+    weight: integer
+    budget_out: integer
+    sla_ms: integer
+    bond_multiple: integer
+    active: integer
+
+Entity Job
+    job_nonce: integer
+    class_id: integer
+    spec_hash: string
+    payer: string
+    miner: string
+    escrow: integer
+    bond: integer
+    watcher_bond: integer
+    deadline: integer
+    proof_hash: string
+    output_hash: string
+    model_hash: string
+    token_in: integer
+    token_out: integer
+    latency_ms: integer
+    status: integer
+
+Entity Epoch
+    epoch_id: integer
+    normalized_work: integer
+    emission_budget: integer
+    minted: integer
+
+Behavior NormalizedUnits
+    Input: weight, quality
+    Output: units
+    Action:
+        if quality < 0:
+            quality = 0
+        if quality > 1:
+            quality = 1
+        units = weight * quality
+        return units
+
+Behavior BillableTokens
+    Input: token_out, budget_out
+    Output: billed
+    Action:
+        billed = token_out
+        if billed > budget_out:
+            billed = budget_out
+        if billed < 0:
+            billed = 0
+        return billed
+
+Behavior QualityFactor
+    Input: token_out, budget_out, latency_ms, sla_ms, challenged, challenge_won_by_watcher
+    Output: quality
+    Action:
+        quality = 1
+        if token_out > budget_out:
+            quality = 0
+            return quality
+        if challenge_won_by_watcher > 0:
+            quality = 0
+            return quality
+        if latency_ms > sla_ms:
+            quality = quality * 1
+            quality = 1
+            quality = quality // 2
+        return quality
+
+Behavior EpochBudget
+    Input: initial_budget, normalized_total, halving_interval
+    Output: budget
+    Action:
+        era = normalized_total // halving_interval
+        budget = initial_budget
+        i = 0
+        while i < era:
+            budget = budget // 2
+            i = i + 1
+        return budget
+
+Behavior MinerPay
+    Input: emission, miner_score, total_score
+    Output: pay
+    Action:
+        pool = emission * 70
+        pool = pool // 100
+        if total_score < 1:
+            return 0
+        pay = pool * miner_score
+        pay = pay // total_score
+        return pay
+
+Behavior BondAmount
+    Input: escrow, multiple_times_10
+    Output: bond
+    Action:
+        bond = escrow * multiple_times_10
+        bond = bond // 10
+        return bond
+
+Behavior CanSettle
+    Input: status, proof_ok, deadline_ok, replay
+    Output: allowed
+    Action:
+        allowed = 0
+        if replay > 0:
+            return allowed
+        if proof_ok < 1:
+            return allowed
+        if deadline_ok < 1:
+            return allowed
+        if status < 2:
+            return allowed
+        allowed = 1
+        return allowed
+
+When proof verification fails after accept
+Then slash miner bond to payer and set job slashed
+
+When deadline passes without proof
+Then refund payer escrow and close job refunded
+
+When watcher challenge is wrong
+Then send watcher bond to miner and settle
+
+When epoch ends with zero normalized work
+Then mint zero reward
+
+On job settled
+Action:
+    burn voucher credit miner escrow release bonds emit origin reward
+
+On job slashed
+Action:
+    move bonds per recovery refund or compensate payer emit slash event
+
+Parallel:
+Proof verification
+Challenge window
+Epoch accounting
+
+Optimize:
+On-chain state is hashes integers and pubkeys only
+
+Security:
+Protect:
+    miner bonds and payer escrow with explicit Recovery paths
+Protect:
+    spec hash and proof hash against swap after register
+Encrypt:
+    nothing on chain because payloads stay off chain
+
+Native: rust
+{
+// Sketch of the Solana-facing account layout.
+// AICL --target rust emits portable logic from AX behaviors above.
+// This Native block is the chain-shaped husk until --target solana exists.
+
+use solana_program::{account_info::AccountInfo, pubkey::Pubkey};
+
+#[repr(C)]
+pub struct MarketConfig {
+    pub origin_mint: Pubkey,
+    pub escrow_mint: Pubkey,
+    pub initial_epoch_budget: u64,
+    pub halving_interval: u64,
+    pub normalized_total: u64,
+    pub bump: u8,
+}
+
+#[repr(C)]
+pub struct JobAccount {
+    pub job_nonce: u64,
+    pub class_id: u64,
+    pub spec_hash: [u8; 32],
+    pub proof_hash: [u8; 32],
+    pub model_hash: [u8; 32],
+    pub payer: Pubkey,
+    pub miner: Pubkey,
+    pub escrow: u64,
+    pub bond: u64,
+    pub deadline_slot: u64,
+    pub status: u8,
+}
+
+pub fn settle_guard(proof_ok: bool, replay: bool, past_deadline: bool) -> bool {
+    proof_ok && !replay && !past_deadline
+}
+}
